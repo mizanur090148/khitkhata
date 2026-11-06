@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\BootstrapController;
+use App\Http\Controllers\Api\V1\FactoryDashboardController;
 use App\Http\Controllers\Api\V1\FactoryPortalController;
 use App\Http\Controllers\Api\V1\PublicAndMarketplaceController;
 use Illuminate\Support\Facades\Route;
@@ -25,6 +26,13 @@ Route::prefix('v1')->group(function () {
 
     // Factory & Vendor Portal Operations
     Route::prefix('portal')->group(function () {
+        // Factory Dashboard Core & Actions
+        Route::get('/dashboard', [FactoryDashboardController::class, 'index']);
+        Route::post('/dashboard/quick-production', [FactoryDashboardController::class, 'quickProduction']);
+        Route::post('/dashboard/toggle-machine', [FactoryDashboardController::class, 'toggleMachineStatus']);
+        Route::post('/dashboard/broadcast-free', [FactoryDashboardController::class, 'broadcastFreeMachines']);
+        Route::post('/dashboard/submit-quotation', [FactoryDashboardController::class, 'submitQuotation']);
+
         Route::post('/orders', [FactoryPortalController::class, 'storeOrder']);
         Route::post('/orders/{orderNo}/toggle-machine', [FactoryPortalController::class, 'toggleOrderMachine']);
         Route::post('/production', [FactoryPortalController::class, 'storeProductionEntry']);

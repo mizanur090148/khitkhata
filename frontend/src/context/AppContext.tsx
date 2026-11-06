@@ -62,6 +62,93 @@ import {
 import { apiClient } from '@/api/client';
 import { ToastMessage } from '@/components/common/Toast';
 
+export interface DashboardData {
+  factory?: {
+    id: number;
+    code: string;
+    name: string;
+    area: string;
+    total_machines: number;
+    plan_code?: string;
+    ontime_delivery_pct?: number;
+    qc_reject_pct?: number;
+  };
+  kpis: {
+    today_production_kg: number;
+    running_orders_count: number;
+    running_orders_total_kg: number;
+    running_orders_knit_kg: number;
+    running_orders_deliv_kg: number;
+    total_machines: number;
+    running_machines_count: number;
+    idle_machines_count: number;
+    free_machines_count: number;
+    down_machines_count: number;
+    broadcast_free_count: number;
+    receivable_bills_amount: number;
+    today_expense_amount: number;
+    open_qc_issues_count: number;
+  };
+  machines: Array<{
+    id: string;
+    code: string;
+    brand: string;
+    type: string;
+    dia: string;
+    gg: string;
+    spec_label: string;
+    status: 'Running' | 'Idle' | 'Free' | 'Maint';
+    raw_status?: string;
+    order_no?: string;
+    running_order?: string;
+    operator: string;
+    fabric: string;
+    today_kg: number;
+    target_kg: number;
+    broadcast_free: boolean;
+    daily_capacity_kg: number;
+  }>;
+  alerts: Array<{
+    id: string;
+    type: string;
+    title: string;
+    message: string;
+    action_label?: string;
+    action_view?: string;
+  }>;
+  running_orders: Array<{
+    id: string;
+    po: string;
+    party: string;
+    party_code: string;
+    buyer: string;
+    fabric: string;
+    gsm: string | number;
+    dia: string;
+    color: string;
+    order_kg: number;
+    knit_kg: number;
+    deliv_kg: number;
+    progress_pct: number;
+    machines: string[];
+    eta: string;
+    status: string;
+    status_bn: string;
+    rate_tk: number;
+  }>;
+  marketplace_rfqs?: Array<{
+    id: number;
+    title: string;
+    buyer: string;
+    fabric: string;
+    qty_kg: number;
+    target_rate: string;
+    location: string;
+    delivery_date: string;
+  }>;
+  sync_time?: string;
+}
+
 interface AppContextType {
   // Navigation
   screen: AppScreenMode;
@@ -155,6 +242,36 @@ interface AppContextType {
   };
   openPrintModal: (documentType: 'challan' | 'bill' | 'jobcard' | 'qcreport' | 'rolltag', title: string, data: any) => void;
   closePrintModal: () => void;
+
+  // Dashboard Live API
+  dashboardData: DashboardData | null;
+  isDashboardSyncing: boolean;
+  fetchDashboardData: () => Promise<void>;
+  quickProductionEntry: (entry: {
+    machine_code: string;
+    shift: string;
+    operator_name: string;
+    order_no?: string;
+    net_kg: number;
+    rolls_count: number;
+    reject_kg?: number;
+    rpm?: number;
+    notes?: string;
+  }) => Promise<void>;
+  broadcastFreeMachines: (
+    machineCodes: string[],
+    isBroadcast: boolean,
+    freeFrom?: string,
+    dailyCapacity?: number,
+    note?: string
+  ) => Promise<void>;
+  submitQuotation: (data: {
+    subcontract_post_id: number;
+    offered_rate_tk: number;
+    estimated_days?: number;
+    allocated_machines?: number;
+    note?: string;
+  }) => Promise<boolean>;
 
   // Mutations
   addProductionEntry: (entry: Omit<ProductionLogItem, 'id'>) => Promise<void>;
@@ -447,6 +564,108 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     data: null,
   });
 
+  // Dashboard State
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [isDashboardSyncing, setIsDashboardSyncing] = useState(false);
+
+  const fetchDashboardData = async () => {
+    setIsDashboardSyncing(true);
+    try {
+      const res = await apiClient.get('portal/dashboard');
+      if (res && res.success && res.data) {
+        setDashboardData(res.data);
+      }
+    } catch (err: any) {
+      console.warn('Dashboard sync fallback to offline state:', err.message);
+    } finally {
+      setIsDashboardSyncing(false);
+    }
+  };
+
+  const quickProductionEntry = async (entry: {
+    machine_code: string;
+    shift: string;
+    operator_name: string;
+    order_no?: string;
+    net_kg: number;
+    rolls_count: number;
+    reject_kg?: number;
+    rpm?: number;
+    notes?: string;
+  }) => {
+    try {
+      const res = await apiClient.post('portal/dashboard/quick-production', entry);
+      addToast({
+        type: 'success',
+        title: 'শিফট এন্ট্রি সফল',
+        message: res.message || `${entry.machine_code} এ ${entry.net_kg} kg প্রোডাকশন এন্ট্রি হয়েছে।`,
+      });
+      await fetchDashboardData();
+    } catch (err: any) {
+      addToast({
+        type: 'error',
+        title: 'এন্ট্রি ব্যর্থ',
+        message: err.message || 'শিফট এন্ট্রি সংরক্ষণ করা সম্ভব হয়নি।',
+      });
+    }
+  };
+
+  const broadcastFreeMachines = async (
+    machineCodes: string[],
+    isBroadcast: boolean,
+    freeFrom?: string,
+    dailyCapacity?: number,
+    note?: string
+  ) => {
+    try {
+      const res = await apiClient.post('portal/dashboard/broadcast-free', {
+        machine_codes: machineCodes,
+        is_broadcast: isBroadcast,
+        free_from: freeFrom,
+        daily_capacity_kg: dailyCapacity,
+        note,
+      });
+      addToast({
+        type: 'success',
+        title: 'ফ্রি মেশিন ব্রডকাস্ট',
+        message: res.message || `${machineCodes.length}টি মেশিন সফলভাবে ব্রডকাস্ট করা হয়েছে।`,
+      });
+      await fetchDashboardData();
+    } catch (err: any) {
+      addToast({
+        type: 'error',
+        title: 'ব্রডকাস্ট ত্রুটি',
+        message: err.message || 'ব্রডকাস্ট সংরক্ষণ করা সম্ভব হয়নি।',
+      });
+    }
+  };
+
+  const submitQuotation = async (data: {
+    subcontract_post_id: number;
+    offered_rate_tk: number;
+    estimated_days?: number;
+    allocated_machines?: number;
+    note?: string;
+  }) => {
+    try {
+      const res = await apiClient.post('portal/dashboard/submit-quotation', data);
+      addToast({
+        type: 'success',
+        title: 'কোটেশন প্রেরিত হয়েছে',
+        message: res.message || 'বায়ার সাব-কন্ট্রাক্ট দরপত্র সফলভাবে পাঠানো হয়েছে।',
+      });
+      await fetchDashboardData();
+      return true;
+    } catch (err: any) {
+      addToast({
+        type: 'error',
+        title: 'কোটেশন ত্রুটি',
+        message: err.message || 'দরপত্র পাঠানো সম্ভব হয়নি।',
+      });
+      return false;
+    }
+  };
+
   // Toggle Theme
   const toggleTheme = () => {
     const next = theme === 'light' ? 'dark' : 'light';
@@ -535,6 +754,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       .catch((err) => {
         console.info('API Bootstrap offline/local fallback active:', err.message);
       });
+    fetchDashboardData();
   }, []);
 
   // Mutation Handlers
@@ -767,6 +987,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       title: 'মেশিন স্ট্যাটাস পরিবর্তন',
       message: `${machineId} এখন ${newStatus}`,
     });
+
+    try {
+      const statusMap: Record<string, string> = {
+        Running: 'run',
+        Idle: 'idle',
+        Free: 'free',
+        Maint: 'down',
+      };
+      await apiClient.post('portal/dashboard/toggle-machine', {
+        machine_code: machineId,
+        status: statusMap[newStatus] || 'idle',
+      });
+      await fetchDashboardData();
+    } catch {
+      // Local state preserved
+    }
   };
 
   const recordBillPayment = async (billNo: string, amount: number) => {
@@ -867,6 +1103,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         catalog,
         ads,
         marketplacePosts,
+        dashboardData,
+        isDashboardSyncing,
+        fetchDashboardData,
+        quickProductionEntry,
+        broadcastFreeMachines,
+        submitQuotation,
         partner,
         toasts,
         currentUser,
