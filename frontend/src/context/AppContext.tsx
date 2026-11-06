@@ -99,8 +99,9 @@ interface AppContextType {
     token?: string;
   } | null;
   setCurrentUser: React.Dispatch<React.SetStateAction<any>>;
-  loginUser: (phone: string, pass: string, roleKey: string) => Promise<{ success: boolean; message?: string }>;
+  loginUser: (identifier: string, pass: string, roleKey: string) => Promise<{ success: boolean; message?: string }>;
   registerUser: (data: any) => Promise<{ success: boolean; message?: string; user?: any }>;
+  resetPasswordUser: (identifier: string, code: string, pass: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
 
   // Domain State
@@ -213,10 +214,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
   };
 
-  const loginUser = async (phone: string, pass: string, roleKey: string): Promise<{ success: boolean; message?: string }> => {
+  const loginUser = async (identifier: string, pass: string, roleKey: string): Promise<{ success: boolean; message?: string }> => {
     try {
       const res = await apiClient.post('/auth/login', {
-        phone: phone.trim(),
+        identifier: identifier.trim(),
+        phone: identifier.trim(),
+        email: identifier.trim(),
         password: pass.trim(),
         role: roleKey,
       });
@@ -236,6 +239,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           designation: u.designation,
           organization_name: u.organization_name,
           factory_id: u.factory_id,
+          vendor_id: u.vendor_id,
+          supplier_id: u.supplier_id,
+          partner_code: u.partner_code,
           token,
         };
         setCurrentUser(userObj);
@@ -244,13 +250,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     } catch (err: any) {
       console.warn('[Login API warning]', err.message);
+      if (err?.response?.data?.message) {
+        throw new Error(err.response.data.message);
+      }
     }
 
     // Seamless Fallback
+    const isEmail = identifier.includes('@');
     const fallbackUser = {
       id: 1,
       name: roleKey === 'fac' ? 'আরিফ হোসেন (মালিক)' : roleKey === 'ven' ? 'মো. কামরুল হাসান' : 'নিটপার্টস ট্রেডিং',
-      phone: phone || '01711223344',
+      phone: isEmail ? '01711223344' : identifier || '01711223344',
+      email: isEmail ? identifier : 'rafiqul@example.com',
       role: roleKey,
       designation: roleKey === 'fac' ? 'মালিক' : 'মার্চেন্ডাইজার',
       organization_name: roleKey === 'fac' ? 'রহমান নিটিং ইন্ডাস্ট্রিজ' : roleKey === 'ven' ? 'ABC Knit Composite' : 'নিটপার্টস ট্রেডিং',
@@ -259,6 +270,37 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setCurrentUser(fallbackUser);
     localStorage.setItem('silposetu_user', JSON.stringify(fallbackUser));
     return { success: true, message: 'সফলভাবে সাইন ইন হয়েছে' };
+  };
+
+  const resetPasswordUser = async (identifier: string, code: string, pass: string): Promise<{ success: boolean; message?: string }> => {
+    const res = await apiClient.post('/auth/reset-password', {
+      identifier: identifier.trim(),
+      code: code.trim(),
+      password: pass.trim(),
+    });
+
+    if (res && res.success && res.data) {
+      const u = res.data.user;
+      const token = res.data.token;
+      if (token) {
+        apiClient.setToken(token);
+      }
+      const userObj = {
+        id: u.id,
+        name: u.name,
+        phone: u.phone,
+        email: u.email,
+        role: u.role,
+        designation: u.designation,
+        organization_name: u.organization_name,
+        factory_id: u.factory_id,
+        token,
+      };
+      setCurrentUser(userObj);
+      localStorage.setItem('silposetu_user', JSON.stringify(userObj));
+      return { success: true, message: res.message || 'পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে।' };
+    }
+    return { success: false, message: 'পাসওয়ার্ড রিসেট করতে সমস্যা হয়েছে।' };
   };
 
   const registerUser = async (data: any): Promise<{ success: boolean; message?: string; user?: any }> => {
@@ -795,6 +837,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setCurrentUser,
         loginUser,
         registerUser,
+        resetPasswordUser,
         logout,
         addToast,
         dismissToast,

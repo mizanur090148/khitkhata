@@ -16,19 +16,26 @@ class AuthController extends Controller
     }
 
     /**
-     * User Login
+     * User Login (Supports Mobile Phone OR Email Address)
      */
     public function login(Request $request): JsonResponse
     {
+        $identifier = $request->input('identifier') ?? $request->input('phone') ?? $request->input('email');
+
+        if (empty($identifier)) {
+            return $this->error('মোবাইল নম্বর অথবা ইমেইল অ্যাড্রেস লিখুন।', 422, [
+                'identifier' => ['মোবাইল নম্বর অথবা ইমেইল আবশ্যক।'],
+            ]);
+        }
+
         $validated = $request->validate([
-            'phone' => ['required', 'string'],
             'password' => ['required', 'string'],
             'role' => ['nullable', 'string', 'in:fac,ven,sup,par'],
         ]);
 
         try {
             $result = $this->authService->authenticate(
-                $validated['phone'],
+                (string) $identifier,
                 $validated['password'],
                 $validated['role'] ?? 'fac'
             );
@@ -138,6 +145,35 @@ class AuthController extends Controller
     }
 
     /**
+     * Reset Password via OTP
+     */
+    public function resetPassword(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'identifier' => ['required', 'string'],
+            'code' => ['required', 'string', 'size:6'],
+            'password' => ['required', 'string', 'min:6'],
+        ]);
+
+        try {
+            $result = $this->authService->resetPassword(
+                $validated['identifier'],
+                $validated['code'],
+                $validated['password']
+            );
+
+            return $this->success([
+                'token' => $result['token'],
+                'user' => $result['user'],
+            ], 'পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে।');
+        } catch (ValidationException $e) {
+            return $this->error($e->getMessage(), 422, $e->errors());
+        } catch (\Throwable $e) {
+            return $this->error('পাসওয়ার্ড রিসেট করতে ত্রুটি হয়েছে: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
      * Get Current Authenticated User & Tenant Info
      */
     public function me(Request $request): JsonResponse
@@ -147,12 +183,13 @@ class AuthController extends Controller
             return $this->error('অননুমোদিত অ্যাক্সেস', 401);
         }
 
-        $user->load(['factory.machines', 'vendor', 'partner']);
+        $user->load(['factory.machines', 'vendor', 'supplier', 'partner']);
 
         return $this->success([
             'user' => $user,
             'factory' => $user->factory,
             'vendor' => $user->vendor,
+            'supplier' => $user->supplier,
             'partner' => $user->partner,
         ]);
     }

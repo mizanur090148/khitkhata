@@ -79,3 +79,4 @@ Visit: `http://localhost:5173`
 
 ## 🔒 Multi-Tenant Security & SaaS Gating
 Each query executed by authenticated factory users is automatically isolated to `factory_id` via `App\Scopes\TenantScope`. Cross-tenant data leakage is completely prevented at the ORM layer.
+

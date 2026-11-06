@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
+import { apiClient } from '@/api/client';
 
 type RoleKey = 'fac' | 'ven' | 'sup' | 'par';
 type TabKey = 'in' | 'up';
@@ -172,6 +173,7 @@ export const AuthScreen: React.FC = () => {
     addToast,
     loginUser,
     registerUser,
+    resetPasswordUser,
   } = useApp();
 
   const [loginRole, setLoginRole] = useState<RoleKey>('fac');
@@ -181,9 +183,42 @@ export const AuthScreen: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [suErr, setSuErr] = useState<Record<string, string>>({});
 
-  // Sign In inputs
-  const [inPhone, setInPhone] = useState('01XXXXXXXXX');
+  // Sign In inputs (Supports Mobile Number OR Email Address)
+  const [inIdentifier, setInIdentifier] = useState('01711889900');
   const [inPass, setInPass] = useState('demo1234');
+  const [showPass, setShowPass] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
+
+  // Forgot Password Modal State
+  const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
+  const [forgotIdentifier, setForgotIdentifier] = useState('');
+  const [forgotOtp, setForgotOtp] = useState('');
+  const [forgotNewPass, setForgotNewPass] = useState('');
+  const [showForgotPass, setShowForgotPass] = useState(false);
+  const [forgotStep, setForgotStep] = useState<1 | 2>(1);
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotError, setForgotError] = useState('');
+
+  // Sign Up OTP Resend Countdown
+  const [otpTimer, setOtpTimer] = useState(60);
+  const [canResendOtp, setCanResendOtp] = useState(false);
+
+  // OTP Countdown Effect
+  useEffect(() => {
+    let interval: any;
+    if (lgTab === 'up' && suStep === 2 && otpTimer > 0) {
+      interval = setInterval(() => {
+        setOtpTimer((prev) => {
+          if (prev <= 1) {
+            setCanResendOtp(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [lgTab, suStep, otpTimer]);
 
   // Sign Up form state
   const [suD, setSuD] = useState<SuData>({
@@ -249,25 +284,38 @@ export const AuthScreen: React.FC = () => {
 
   const handleSignInSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!inIdentifier.trim()) {
+      addToast({ type: 'error', message: 'মোবাইল নম্বর অথবা ইমেইল লিখুন।' });
+      return;
+    }
+    if (!inPass.trim()) {
+      addToast({ type: 'error', message: 'পাসওয়ার্ড লিখুন।' });
+      return;
+    }
+
     setIsLoading(true);
     setLoginMsg(`✓ ${ROLES.find((x) => x[0] === loginRole)?.[1]} যাচাই হচ্ছে…`);
 
     try {
-      const res = await loginUser(inPhone, inPass, loginRole);
+      await loginUser(inIdentifier, inPass, loginRole);
       setLoginMsg(`✓ ${ROLES.find((x) => x[0] === loginRole)?.[1]} ড্যাশবোর্ড খুলছে…`);
 
       setTimeout(() => {
         setIsLoading(false);
         handlePortalJump(loginRole);
       }, 350);
-    } catch {
+    } catch (err: any) {
       setIsLoading(false);
-      handlePortalJump(loginRole);
+      setLoginMsg('');
+      addToast({
+        type: 'error',
+        title: 'লগইন ব্যর্থ',
+        message: err.message || 'মোবাইল/ইমেইল অথবা পাসওয়ার্ড সঠিক নয়।',
+      });
     }
   };
 
-
-  const handleSignUpStep1Submit = (e: React.FormEvent) => {
+  const handleSignUpStep1Submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const r = loginRole;
     const errors: Record<string, string> = {};
@@ -303,8 +351,8 @@ export const AuthScreen: React.FC = () => {
       errors.em = 'সঠিক ইমেইল লিখুন, যেমন: name@gmail.com';
     }
 
-    if (v('pw').length < 8) {
-      errors.pw = 'কমপক্ষে ৮ অক্ষরের পাসওয়ার্ড দিন';
+    if (v('pw').length < 6) {
+      errors.pw = 'কমপক্ষে ৬ অক্ষরের পাসওয়ার্ড দিন';
     } else if (v('pw') !== v('pw2')) {
       errors.pw2 = 'দুটো পাসওয়ার্ড মিলছে না';
     }
@@ -316,6 +364,11 @@ export const AuthScreen: React.FC = () => {
     setSuErr(errors);
 
     if (Object.keys(errors).length === 0) {
+      // Trigger background SMS OTP request
+      apiClient.post('/auth/send-otp', { phone: suD.ph, purpose: 'register' }).catch(() => {});
+      setOtpTimer(60);
+      setCanResendOtp(false);
+
       if (r === 'fac') {
         const mcCount = suMc();
         const rec = planFor(mcCount);
@@ -363,9 +416,61 @@ export const AuthScreen: React.FC = () => {
         loginRole === 'fac' && planObj ? ` · ${planObj.n} প্যাকেজ, প্রথম মাস ফ্রি` : ''
       }`;
       handlePortalJump(loginRole, toastMsg);
-    } catch {
+    } catch (err: any) {
       setIsLoading(false);
+      setSuErr({ otp: err?.message || 'অ্যাকাউন্ট খুলতে সমস্যা হয়েছে।' });
+    }
+  };
+
+  // Forgot Password Handlers
+  const handleForgotRequestOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotIdentifier.trim()) {
+      setForgotError('মোবাইল নম্বর অথবা ইমেইল লিখুন');
+      return;
+    }
+    setForgotLoading(true);
+    setForgotError('');
+
+    try {
+      await apiClient.post('/auth/send-otp', { phone: forgotIdentifier, purpose: 'reset' });
+      setForgotLoading(false);
+      setForgotStep(2);
+      addToast({ type: 'info', message: 'OTP কোড পাঠানো হয়েছে।' });
+    } catch {
+      setForgotLoading(false);
+      setForgotStep(2);
+      addToast({ type: 'info', message: 'ডেমো মোডে কোড লিখুন (যেমন: 123456)।' });
+    }
+  };
+
+  const handleForgotResetSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotOtp.trim()) {
+      setForgotError('৬ সংখ্যার OTP কোড লিখুন');
+      return;
+    }
+    if (forgotNewPass.length < 6) {
+      setForgotError('কমপক্ষে ৬ অক্ষরের নতুন পাসওয়ার্ড দিন');
+      return;
+    }
+
+    setForgotLoading(true);
+    setForgotError('');
+
+    try {
+      await resetPasswordUser(forgotIdentifier, forgotOtp, forgotNewPass);
+      setForgotLoading(false);
+      setIsForgotModalOpen(false);
+      addToast({
+        type: 'success',
+        title: 'পাসওয়ার্ড পরিবর্তিত',
+        message: 'নতুন পাসওয়ার্ড সফলভাবে সেট হয়েছে। ড্যাশবোর্ড সক্রিয়।',
+      });
       handlePortalJump(loginRole);
+    } catch (err: any) {
+      setForgotLoading(false);
+      setForgotError(err?.message || 'ওটিপি কোড সঠিক নয়।');
     }
   };
 
@@ -497,26 +602,132 @@ export const AuthScreen: React.FC = () => {
             {renderHeader()}
             {renderRoles('আপনি কী হিসেবে লগইন করছেন?')}
 
+            {/* Quick Fill Demo Pills */}
+            <div style={{ margin: '4px 0 10px' }}>
+              <span className="small muted" style={{ display: 'block', marginBottom: '6px' }}>
+                দ্রুত টেস্ট করতে ক্লিক করুন (ডেমো অ্যাকাউন্ট):
+              </span>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="demo-pill-btn"
+                  onClick={() => {
+                    setLoginRole('fac');
+                    setInIdentifier('01711889900');
+                    setInPass('demo1234');
+                  }}
+                >
+                  ⚡ ফ্যাক্টরি মালিক (মোবাইল: 01711889900)
+                </button>
+                <button
+                  type="button"
+                  className="demo-pill-btn"
+                  onClick={() => {
+                    setLoginRole('fac');
+                    setInIdentifier('demo@knitkhata.com');
+                    setInPass('demo1234');
+                  }}
+                >
+                  ⚡ ফ্যাক্টরি (ইমেইল: demo@knitkhata.com)
+                </button>
+                <button
+                  type="button"
+                  className="demo-pill-btn"
+                  onClick={() => {
+                    setLoginRole('ven');
+                    setInIdentifier('01819556677');
+                    setInPass('demo1234');
+                  }}
+                >
+                  ⚡ ভেন্ডর মার্চেন্ডাইজার
+                </button>
+                <button
+                  type="button"
+                  className="demo-pill-btn"
+                  onClick={() => {
+                    setLoginRole('sup');
+                    setInIdentifier('01911223344');
+                    setInPass('demo1234');
+                  }}
+                >
+                  ⚡ পার্টস সাপ্লায়ার
+                </button>
+              </div>
+            </div>
+
             <div className="lg-f">
-              <label className="fld">
-                <span>মোবাইল নম্বর</span>
-                <input
-                  type="text"
-                  inputMode="tel"
-                  value={inPhone}
-                  onChange={(e) => setInPhone(e.target.value)}
-                  autoComplete="username"
-                />
+              {/* Dual Identifier Field: Phone OR Email */}
+              <label className="fld full">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>
+                    মোবাইল নম্বর অথবা ইমেইল <b className="req">*</b>
+                  </span>
+                  <span className="small muted" style={{ fontSize: '0.8rem', color: 'var(--accent)' }}>
+                    {inIdentifier.includes('@') ? '✉️ ইমেইল অ্যাকাউন্ট' : '📱 মোবাইল নম্বর'}
+                  </span>
+                </div>
+                <div className="input-with-action">
+                  <input
+                    type="text"
+                    value={inIdentifier}
+                    onChange={(e) => setInIdentifier(e.target.value)}
+                    placeholder="01XXXXXXXXX অথবা name@example.com"
+                    autoComplete="username"
+                    required
+                  />
+                </div>
               </label>
-              <label className="fld">
-                <span>পাসওয়ার্ড</span>
-                <input
-                  type="password"
-                  value={inPass}
-                  onChange={(e) => setInPass(e.target.value)}
-                  autoComplete="current-password"
-                />
+
+              {/* Password with Eye Toggle */}
+              <label className="fld full">
+                <span>
+                  পাসওয়ার্ড <b className="req">*</b>
+                </span>
+                <div className="input-with-action">
+                  <input
+                    type={showPass ? 'text' : 'password'}
+                    value={inPass}
+                    onChange={(e) => setInPass(e.target.value)}
+                    placeholder="পাসওয়ার্ড লিখুন"
+                    autoComplete="current-password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="input-action-btn"
+                    onClick={() => setShowPass(!showPass)}
+                    title={showPass ? 'পাসওয়ার্ড লুকান' : 'পাসওয়ার্ড দেখুন'}
+                  >
+                    {showPass ? '🙈' : '👁️'}
+                  </button>
+                </div>
               </label>
+            </div>
+
+            {/* Remember Me and Forgot Password */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '4px 0' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  style={{ width: '15px', height: '15px', accentColor: 'var(--accent)' }}
+                />
+                <span>লগইন মনে রাখুন</span>
+              </label>
+              <button
+                type="button"
+                className="lnk"
+                style={{ fontSize: '0.85rem' }}
+                onClick={() => {
+                  setForgotIdentifier(inIdentifier);
+                  setForgotStep(1);
+                  setForgotError('');
+                  setIsForgotModalOpen(true);
+                }}
+              >
+                পাসওয়ার্ড ভুলে গেছেন?
+              </button>
             </div>
 
             {loginMsg && (
@@ -525,29 +736,28 @@ export const AuthScreen: React.FC = () => {
               </div>
             )}
 
-            <button className="btn pri" type="submit" disabled={isLoading} style={{ padding: '11px' }}>
-              {isLoading ? 'সাইন ইন হচ্ছে…' : 'সাইন ইন'}
+            <button className="btn pri" type="submit" disabled={isLoading} style={{ padding: '12px', fontSize: '1rem' }}>
+              {isLoading ? 'যাচাই করে সাইন ইন হচ্ছে…' : 'সাইন ইন করুন →'}
             </button>
 
             <div className="lg-foot">
               <span>
-                পাসওয়ার্ড ভুলে গেছেন?{' '}
+                পাসওয়ার্ড মনে নেই?{' '}
                 <button
                   type="button"
                   className="lnk"
-                  onClick={() =>
-                    addToast({
-                      type: 'info',
-                      title: 'OTP সার্ভিস',
-                      message: 'মোবাইলে ৬ সংখ্যার OTP পাঠানো হয়েছে (নমুনা ডেমো)।',
-                    })
-                  }
+                  onClick={() => {
+                    setForgotIdentifier(inIdentifier);
+                    setForgotStep(1);
+                    setForgotError('');
+                    setIsForgotModalOpen(true);
+                  }}
                 >
-                  OTP দিয়ে ঢুকুন
+                  OTP দিয়ে রিকভার করুন
                 </button>
               </span>
               <span>
-                অ্যাকাউন্ট নেই?{' '}
+                নতুন ফ্যাক্টরি বা ভেন্ডর?{' '}
                 <button
                   type="button"
                   className="lnk"
@@ -562,8 +772,8 @@ export const AuthScreen: React.FC = () => {
             </div>
 
             <p className="small muted" style={{ margin: 0 }}>
-              মোবাইল নম্বর দেখেই সিস্টেম বুঝে নেয় আপনি কোন প্রতিষ্ঠানের। ডেমো: নমুনা নম্বর আর পাসওয়ার্ড বসানো আছে,
-              যেকোনো ধরন বেছে সাইন ইন চাপলেই সেই পোর্টাল খুলবে।
+              মোবাইল নম্বর বা ইমেইল দেখেই সিস্টেম বুঝে নেয় আপনি কোন প্রতিষ্ঠানের। ডেমো: নমুনা তথ্য বসানো আছে,
+              যেকোনো ধরন বেছে সাইন ইন চাপলেই সেই পোর্টাল সক্রিয় হবে।
             </p>
           </form>
         )}
@@ -820,15 +1030,27 @@ export const AuthScreen: React.FC = () => {
                 <button
                   type="button"
                   className="lnk"
-                  onClick={() =>
-                    addToast({
-                      type: 'info',
-                      title: 'OTP কোড',
-                      message: `${suD.ph} নম্বরে নতুন কোড পাঠানো হয়েছে।`,
-                    })
-                  }
+                  disabled={!canResendOtp}
+                  onClick={async () => {
+                    setCanResendOtp(false);
+                    setOtpTimer(60);
+                    try {
+                      await apiClient.post('/auth/send-otp', { phone: suD.ph, purpose: 'register' });
+                      addToast({
+                        type: 'info',
+                        title: 'নতুন OTP কোড',
+                        message: `${suD.ph} নম্বরে নতুন ৬ সংখ্যার ওটিপি পাঠানো হয়েছে।`,
+                      });
+                    } catch {
+                      addToast({
+                        type: 'info',
+                        title: 'OTP সার্ভিস (ডেমো)',
+                        message: 'ডেমো ওটিপি কোড: 123456',
+                      });
+                    }
+                  }}
                 >
-                  আবার পাঠান
+                  {canResendOtp ? 'আবার পাঠান' : `আবার পাঠান (${bnN(otpTimer)} সে.)`}
                 </button>
               </span>
             </div>
@@ -1164,6 +1386,95 @@ export const AuthScreen: React.FC = () => {
           </form>
         )}
       </div>
+
+      {/* Forgot Password / OTP Reset Modal */}
+      {isForgotModalOpen && (
+        <div className="modal-backdrop" onClick={() => setIsForgotModalOpen(false)}>
+          <div className="modal-content-box" onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontSize: '1.15rem', color: 'var(--ink)' }}>
+                পাসওয়ার্ড পুনরুদ্ধার (Reset Password)
+              </h3>
+              <button
+                type="button"
+                className="lnk"
+                style={{ fontSize: '1.2rem', padding: '0 4px', color: 'var(--muted)' }}
+                onClick={() => setIsForgotModalOpen(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            {forgotStep === 1 ? (
+              <form onSubmit={handleForgotRequestOtp} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <p className="small muted" style={{ margin: 0 }}>
+                  আপনার অ্যাকাউন্টের মোবাইল নম্বর বা ইমেইল লিখুন। আমরা ৬ সংখ্যার OTP ভেরিফিকেশন কোড পাঠাব।
+                </p>
+                <label className="fld">
+                  <span>মোবাইল নম্বর অথবা ইমেইল</span>
+                  <input
+                    type="text"
+                    value={forgotIdentifier}
+                    onChange={(e) => setForgotIdentifier(e.target.value)}
+                    placeholder="01XXXXXXXXX অথবা name@example.com"
+                    required
+                  />
+                </label>
+                {forgotError && <p className="ferr" style={{ margin: 0 }}>{forgotError}</p>}
+                <button className="btn pri" type="submit" disabled={forgotLoading} style={{ padding: '11px' }}>
+                  {forgotLoading ? 'কোড পাঠানো হচ্ছে…' : 'OTP কোড পাঠান →'}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleForgotResetSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <p className="small muted" style={{ margin: 0 }}>
+                  <b className="mono">{forgotIdentifier}</b> ঠিকানায় পাঠানো ৬ সংখ্যার OTP কোড এবং নতুন পাসওয়ার্ড দিন।
+                </p>
+                <label className="fld">
+                  <span>OTP কোড</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={forgotOtp}
+                    onChange={(e) => setForgotOtp(e.target.value)}
+                    placeholder="যেমন: 123456"
+                    required
+                  />
+                </label>
+                <label className="fld">
+                  <span>নতুন পাসওয়ার্ড</span>
+                  <div className="input-with-action">
+                    <input
+                      type={showForgotPass ? 'text' : 'password'}
+                      value={forgotNewPass}
+                      onChange={(e) => setForgotNewPass(e.target.value)}
+                      placeholder="কমপক্ষে ৬ অক্ষর"
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="input-action-btn"
+                      onClick={() => setShowForgotPass(!showForgotPass)}
+                    >
+                      {showForgotPass ? '🙈' : '👁️'}
+                    </button>
+                  </div>
+                </label>
+                {forgotError && <p className="ferr" style={{ margin: 0 }}>{forgotError}</p>}
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
+                  <button type="button" className="btn sec" onClick={() => setForgotStep(1)}>
+                    ← পেছনে
+                  </button>
+                  <button className="btn pri" type="submit" disabled={forgotLoading} style={{ flex: 1 }}>
+                    {forgotLoading ? 'সেভ হচ্ছে…' : 'পাসওয়ার্ড রিসেট করুন'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -17,6 +17,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/register', [AuthController::class, 'register']);
         Route::post('/send-otp', [AuthController::class, 'sendOtp']);
         Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
+        Route::post('/reset-password', [AuthController::class, 'resetPassword']);
         Route::get('/me', [AuthController::class, 'me'])->middleware('auth:sanctum');
         Route::put('/profile', [AuthController::class, 'updateProfile']);
         Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
