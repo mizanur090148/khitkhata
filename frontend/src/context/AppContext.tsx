@@ -187,37 +187,34 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const setScreen = (scr: AppScreenMode) => {
     setScreenState(scr);
-    if (scr === 'site' && location.pathname !== '/') {
-      navigate('/');
-    } else if (scr === 'auth' && !['/login', '/register', '/auth'].includes(location.pathname)) {
-      navigate('/login');
-    } else if (scr === 'factory' && !location.pathname.startsWith('/factory')) {
-      navigate('/factory');
-    } else if (scr === 'vendor' && !location.pathname.startsWith('/vendor')) {
-      navigate('/vendor');
-    } else if (scr === 'supplier' && !location.pathname.startsWith('/supplier')) {
-      navigate('/supplier');
+    if (scr === 'site') {
+      if (location.pathname !== '/' && location.pathname !== '/home') {
+        navigate('/home');
+      }
+    } else if (scr === 'auth') {
+      if (!['/login', '/register', '/auth'].includes(location.pathname)) {
+        navigate('/login');
+      }
+    } else {
+      if (location.pathname !== '/dashboard') {
+        navigate('/dashboard');
+      }
     }
   };
 
   // Sync route changes (URL direct load, browser back/forward buttons) to state
   useEffect(() => {
     const path = location.pathname;
-    if (path.startsWith('/factory')) {
-      setScreenState('factory');
-      setRole('owner');
-    } else if (path.startsWith('/vendor')) {
-      setScreenState('vendor');
-      setRole('vendor');
-    } else if (path.startsWith('/supplier')) {
-      setScreenState('supplier');
-      setRole('supplier');
+    if (path.startsWith('/dashboard')) {
+      if (role === 'vendor') setScreenState('vendor');
+      else if (role === 'supplier') setScreenState('supplier');
+      else setScreenState('factory');
     } else if (path.startsWith('/login') || path.startsWith('/auth') || path.startsWith('/register')) {
       setScreenState('auth');
-    } else if (path === '/') {
+    } else if (path === '/' || path.startsWith('/home')) {
       setScreenState('site');
     }
-  }, [location.pathname]);
+  }, [location.pathname, role]);
 
   // Auth User Session
   const [currentUser, setCurrentUser] = useState<any>(() => {

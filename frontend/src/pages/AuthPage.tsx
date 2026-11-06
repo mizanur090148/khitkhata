@@ -271,23 +271,20 @@ export const AuthScreen: React.FC = () => {
       setRole('owner');
       setFactoryView('dash'); // SHOW FACTORY DASHBOARD
       setScreen('factory');
-      navigate('/factory');
     } else if (role === 'ven') {
       setRole('vendor');
       setVendorView('dash'); // SHOW VENDOR DASHBOARD
       setScreen('vendor');
-      navigate('/vendor');
     } else if (role === 'sup') {
       setRole('supplier');
       setSupplierView('sdash'); // SHOW SUPPLIER DASHBOARD
       setScreen('supplier');
-      navigate('/supplier');
     } else {
       setRole('owner');
       setFactoryView('pdash');
       setScreen('factory');
-      navigate('/factory');
     }
+    navigate('/dashboard');
 
     addToast({
       type: 'success',
@@ -603,7 +600,7 @@ export const AuthScreen: React.FC = () => {
     <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
       {/* Top Navbar matching KnitKhata.html #kkOv .kkbar */}
       <div className="kkbar">
-        <button type="button" onClick={() => { setScreen('site'); navigate('/'); }}>
+        <button type="button" onClick={() => { setScreen('site'); navigate('/home'); }}>
           ← নিটখাতা হোম
         </button>
         <span>লগইন ও পোর্টাল (প্রোটোটাইপ)</span>

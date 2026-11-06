@@ -13,6 +13,19 @@ import { CallModal } from '@/components/common/CallModal';
 import { PrintDialog } from '@/components/common/PrintDialog';
 import '@/styles/knitkhata.css';
 
+export const DashboardRoute: React.FC = () => {
+  const { role, currentUser } = useApp();
+  const activeRole = currentUser?.role || role;
+
+  if (activeRole === 'vendor' || activeRole === 'ven') {
+    return <VendorPortalPage />;
+  }
+  if (activeRole === 'supplier' || activeRole === 'sup') {
+    return <SupplierPortalPage />;
+  }
+  return <FactoryPortalPage />;
+};
+
 export const AppContent: React.FC = () => {
   const {
     toasts,
@@ -27,12 +40,14 @@ export const AppContent: React.FC = () => {
     <>
       <Routes>
         <Route path="/" element={<HomePage />} />
+        <Route path="/home" element={<HomePage />} />
+        <Route path="/dashboard" element={<DashboardRoute />} />
         <Route path="/login" element={<AuthPage />} />
         <Route path="/auth" element={<Navigate to="/login" replace />} />
         <Route path="/register" element={<AuthPage />} />
-        <Route path="/factory" element={<FactoryPortalPage />} />
-        <Route path="/vendor" element={<VendorPortalPage />} />
-        <Route path="/supplier" element={<SupplierPortalPage />} />
+        <Route path="/factory" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/vendor" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/supplier" element={<Navigate to="/dashboard" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 
