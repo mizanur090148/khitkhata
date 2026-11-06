@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
 import { apiClient } from '@/api/client';
 
@@ -164,6 +165,9 @@ const RoleSvg: React.FC<{ r: RoleKey }> = ({ r }) => {
 };
 
 export const AuthScreen: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
   const {
     setScreen,
     setRole,
@@ -179,6 +183,14 @@ export const AuthScreen: React.FC = () => {
   const [loginRole, setLoginRole] = useState<RoleKey>('fac');
   const [lgTab, setLgTab] = useState<TabKey>('in');
   const [suStep, setSuStep] = useState<SuStep>(1);
+
+  // If visiting /register, default to Sign Up tab
+  useEffect(() => {
+    if (location.pathname === '/register') {
+      setLgTab('up');
+      setSuStep(1);
+    }
+  }, [location.pathname]);
   const [loginMsg, setLoginMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [suErr, setSuErr] = useState<Record<string, string>>({});
@@ -259,18 +271,22 @@ export const AuthScreen: React.FC = () => {
       setRole('owner');
       setFactoryView('dash'); // SHOW FACTORY DASHBOARD
       setScreen('factory');
+      navigate('/factory');
     } else if (role === 'ven') {
       setRole('vendor');
       setVendorView('dash'); // SHOW VENDOR DASHBOARD
       setScreen('vendor');
+      navigate('/vendor');
     } else if (role === 'sup') {
       setRole('supplier');
       setSupplierView('sdash'); // SHOW SUPPLIER DASHBOARD
       setScreen('supplier');
+      navigate('/supplier');
     } else {
       setRole('owner');
       setFactoryView('pdash');
       setScreen('factory');
+      navigate('/factory');
     }
 
     addToast({
@@ -587,7 +603,7 @@ export const AuthScreen: React.FC = () => {
     <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
       {/* Top Navbar matching KnitKhata.html #kkOv .kkbar */}
       <div className="kkbar">
-        <button type="button" onClick={() => setScreen('site')}>
+        <button type="button" onClick={() => { setScreen('site'); navigate('/'); }}>
           ← নিটখাতা হোম
         </button>
         <span>লগইন ও পোর্টাল (প্রোটোটাইপ)</span>

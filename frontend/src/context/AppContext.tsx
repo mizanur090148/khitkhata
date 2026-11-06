@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   AppScreenMode,
   AppUserItem,
@@ -172,14 +173,51 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
   // Navigation & Screen States
-  const [screen, setScreen] = useState<AppScreenMode>('site');
+  const [screen, setScreenState] = useState<AppScreenMode>('site');
   const [marketingPage, setMarketingPage] = useState<MarketingSubPage>('home');
   const [factoryView, setFactoryView] = useState<string>('dash');
   const [vendorView, setVendorView] = useState<string>('dash');
   const [supplierView, setSupplierView] = useState<string>('sdash');
   const [role, setRole] = useState<UserRoleKey>('owner');
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+
+  const setScreen = (scr: AppScreenMode) => {
+    setScreenState(scr);
+    if (scr === 'site' && location.pathname !== '/') {
+      navigate('/');
+    } else if (scr === 'auth' && !['/login', '/register', '/auth'].includes(location.pathname)) {
+      navigate('/login');
+    } else if (scr === 'factory' && !location.pathname.startsWith('/factory')) {
+      navigate('/factory');
+    } else if (scr === 'vendor' && !location.pathname.startsWith('/vendor')) {
+      navigate('/vendor');
+    } else if (scr === 'supplier' && !location.pathname.startsWith('/supplier')) {
+      navigate('/supplier');
+    }
+  };
+
+  // Sync route changes (URL direct load, browser back/forward buttons) to state
+  useEffect(() => {
+    const path = location.pathname;
+    if (path.startsWith('/factory')) {
+      setScreenState('factory');
+      setRole('owner');
+    } else if (path.startsWith('/vendor')) {
+      setScreenState('vendor');
+      setRole('vendor');
+    } else if (path.startsWith('/supplier')) {
+      setScreenState('supplier');
+      setRole('supplier');
+    } else if (path.startsWith('/login') || path.startsWith('/auth') || path.startsWith('/register')) {
+      setScreenState('auth');
+    } else if (path === '/') {
+      setScreenState('site');
+    }
+  }, [location.pathname]);
 
   // Auth User Session
   const [currentUser, setCurrentUser] = useState<any>(() => {
@@ -207,6 +245,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     localStorage.removeItem('silposetu_user');
     setCurrentUser(null);
     setScreen('auth');
+    navigate('/login');
     addToast({
       type: 'info',
       title: 'লগআউট',

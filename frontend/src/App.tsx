@@ -1,4 +1,5 @@
 import React from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
 import {
   HomePage,
@@ -14,7 +15,6 @@ import '@/styles/knitkhata.css';
 
 export const AppContent: React.FC = () => {
   const {
-    screen,
     toasts,
     dismissToast,
     callModal,
@@ -25,11 +25,16 @@ export const AppContent: React.FC = () => {
 
   return (
     <>
-      {screen === 'site' && <HomePage />}
-      {screen === 'auth' && <AuthPage />}
-      {screen === 'factory' && <FactoryPortalPage />}
-      {screen === 'vendor' && <VendorPortalPage />}
-      {screen === 'supplier' && <SupplierPortalPage />}
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/login" element={<AuthPage />} />
+        <Route path="/auth" element={<Navigate to="/login" replace />} />
+        <Route path="/register" element={<AuthPage />} />
+        <Route path="/factory" element={<FactoryPortalPage />} />
+        <Route path="/vendor" element={<VendorPortalPage />} />
+        <Route path="/supplier" element={<SupplierPortalPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
 
       {/* Global Dialogs & Alerts */}
       <Toast toasts={toasts} onDismiss={dismissToast} />
