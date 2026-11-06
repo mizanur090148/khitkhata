@@ -183,300 +183,289 @@ export const FactoryPortal: React.FC = () => {
   ];
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#f8fafc' }}>
-      {/* Sidebar Navigation */}
-      <aside
-        style={{
-          width: 270,
-          background: '#0f172a',
-          color: '#cbd5e1',
-          display: 'flex',
-          flexDirection: 'column',
-          borderRight: '1px solid #1e293b',
-          position: 'sticky',
-          top: 0,
-          height: '100vh',
-          overflowY: 'auto',
-          flexShrink: 0,
-        }}
-      >
-        {/* Brand Header */}
-        <div style={{ padding: '20px 18px', borderBottom: '1px solid #1e293b', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: '#e6f4ea', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <KnittedKCanvas size={22} fgColor="#0d6e4f" />
+    <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+      {/* Top Header exact from KnitKhata.html */}
+      <header className="top">
+        <div className="brand">
+          <div className="logo">
+            <KnittedKCanvas size={20} fgColor="#FFFFFF" />
           </div>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: '#ffffff' }}>
-              {currentUser?.organization_name || 'রহমান নিটিং ইন্ডাস্ট্রিজ'}
-            </div>
-            <div style={{ fontSize: 11, color: '#34d399', fontWeight: 600 }}>২৪টি সার্কুলার মেশিন ফ্লোর</div>
+            <b>নিটখাতা</b>
+            <small>{currentUser?.organization_name || 'রহমান নিটিং ইন্ডাস্ট্রিজ (নমুনা ফ্যাক্টরি)'}</small>
           </div>
         </div>
 
-        {/* Current User Role Pill */}
-        <div style={{ padding: '12px 18px', background: '#1e293b', margin: 12, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#ffffff' }}>
-              {currentUser?.name || 'আরিফ হোসেন'}
-            </div>
-            <div style={{ fontSize: 11, color: '#94a3b8' }}>
-              {currentUser?.designation || ROLES_MAP[role].bn}
-            </div>
-          </div>
-          <span className="badge badge-green">সক্রিয়</span>
-        </div>
+        <span className="proto">লাইভ সিঙ্ক: MySQL</span>
 
-        {/* Menu Items */}
-        <div style={{ flex: 1, padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {menuGroups.map((grp, gIdx) => (
-            <div key={gIdx}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, padding: '4px 10px 8px' }}>
-                {grp.group}
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {grp.items.map((it) => {
-                  const Icon = it.icon;
-                  const active = factoryView === it.id;
-                  return (
-                    <button
-                      key={it.id}
-                      onClick={() => setFactoryView(it.id)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '8px 12px',
-                        borderRadius: 8,
-                        background: active ? '#0d6e4f' : 'transparent',
-                        color: active ? '#ffffff' : '#94a3b8',
-                        border: 'none',
-                        cursor: 'pointer',
-                        fontSize: 13,
-                        fontWeight: active ? 700 : 500,
-                        textAlign: 'left',
-                        transition: 'all 0.15s ease',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <Icon size={16} />
-                        <span>{it.label}</span>
-                      </div>
-                      {it.badge && (
-                        <span
-                          style={{
-                            fontSize: 10,
-                            padding: '1px 6px',
-                            borderRadius: 99,
-                            background: active ? '#ffffff' : '#334155',
-                            color: active ? '#0d6e4f' : '#ffffff',
-                            fontWeight: 700,
-                          }}
-                        >
-                          {it.badge}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Footer Actions */}
-        <div style={{ padding: 14, borderTop: '1px solid #1e293b', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div className="roleswitch" role="group" aria-label="কার চোখে দেখবেন">
           <button
-            onClick={logout}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              background: 'rgba(239, 68, 68, 0.12)',
-              border: '1px solid rgba(239, 68, 68, 0.25)',
-              borderRadius: 6,
-              color: '#f87171',
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: 'pointer',
-              padding: '8px 10px',
-              transition: 'background 0.15s',
+            className={role === 'owner' || (role as string) === 'factory' || (role as string) === 'fac' ? 'on' : ''}
+            onClick={() => setRole('owner')}
+          >
+            ফ্যাক্টরি ভিউ
+          </button>
+          <button
+            className={role === 'vendor' ? 'on' : ''}
+            onClick={() => {
+              setRole('vendor');
+              setScreen('vendor');
             }}
           >
-            <LogOut size={16} />
+            ভেন্ডর ভিউ (ABC)
+          </button>
+          <button
+            className={role === 'supplier' ? 'on' : ''}
+            onClick={() => {
+              setRole('supplier');
+              setScreen('supplier');
+            }}
+          >
+            সাপ্লায়ার ভিউ
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--muted)' }}>
+          <span>রোল:</span>
+          <select
+            className="select"
+            style={{ width: 125, padding: '3px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink)' }}
+            value={role}
+            onChange={(e) => setRole(e.target.value as any)}
+          >
+            <option value="owner">মালিক (Owner)</option>
+            <option value="manager">ম্যানেজার</option>
+            <option value="prod">প্রোডাকশন</option>
+            <option value="qc">QC ইন্সপেক্টর</option>
+            <option value="store">স্টোর কিপার</option>
+            <option value="acc">হিসাবরক্ষক</option>
+          </select>
+        </div>
+
+        <button
+          type="button"
+          className="top-user"
+          onClick={() => setFactoryView('profile')}
+          aria-label="প্রোফাইল ও সেটিংস"
+        >
+          <span className="av">আ</span>
+          <span>
+            <b>{currentUser?.name || 'আরিফ হোসেন'}</b>
+            <small>{currentUser?.designation || ROLES_MAP[role]?.bn || 'মালিক'}</small>
+          </span>
+        </button>
+
+        <button
+          type="button"
+          className="btn sm"
+          onClick={logout}
+          style={{ color: 'var(--bad)', borderColor: 'var(--line)' }}
+        >
+          লগআউট
+        </button>
+      </header>
+
+      {/* App Shell with Left Rail & Working Canvas */}
+      <div className="shell">
+        <nav className="rail" id="rail">
+          {menuGroups.map((grp, gIdx) => (
+            <React.Fragment key={gIdx}>
+              <div className="grp">{grp.group}</div>
+              {grp.items.map((it) => {
+                const Icon = it.icon;
+                const active = factoryView === it.id;
+                return (
+                  <button
+                    key={it.id}
+                    className={active ? 'on' : ''}
+                    onClick={() => setFactoryView(it.id)}
+                  >
+                    <Icon size={17} />
+                    <span>{it.label}</span>
+                    {it.badge && (
+                      <span
+                        className="ch-un"
+                        style={{
+                          marginLeft: 'auto',
+                          fontSize: 10,
+                          padding: '1px 6px',
+                          borderRadius: 99,
+                          background: active ? '#ffffff' : 'var(--surface2)',
+                          color: active ? 'var(--accent)' : 'var(--ink)',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {it.badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </React.Fragment>
+          ))}
+
+          <div className="grp" style={{ marginTop: 'auto', paddingTop: 16 }}>অ্যাকশন</div>
+          <button onClick={logout} style={{ color: 'var(--bad)' }}>
+            <LogOut size={17} />
             <span>লগআউট করুন</span>
           </button>
-          <button
-            onClick={() => setScreen('site')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              background: 'none',
-              border: 'none',
-              color: '#94a3b8',
-              fontSize: 12,
-              cursor: 'pointer',
-              padding: '6px 8px',
-            }}
-          >
-            <ArrowLeft size={16} />
-            <span>মূল ওয়েবসাইটে ফিরুন</span>
+          <button onClick={() => setScreen('site')} style={{ color: 'var(--muted)' }}>
+            <ArrowLeft size={17} />
+            <span>ওয়েবসাইটে ফিরুন</span>
           </button>
-        </div>
-      </aside>
+        </nav>
 
-      {/* Main Content Area */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflowX: 'hidden' }}>
-        {/* Top Navbar */}
-        <header
-          style={{
-            background: '#ffffff',
-            borderBottom: '1px solid #e2e8f0',
-            padding: '12px 24px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            position: 'sticky',
-            top: 0,
-            zIndex: 10,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0f172a' }}>
-              {menuGroups.flatMap((g) => g.items).find((i) => i.id === factoryView)?.label || 'ড্যাশবোর্ড'}
-            </h2>
-            <span className="badge badge-green">লাইভ সিঙ্ক: MySQL</span>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            {/* Quick Switcher for Demo */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#64748b' }}>
-              <span>সুইচ রোল:</span>
-              <select
-                className="select"
-                style={{ width: 140, padding: '4px 8px', fontSize: 12 }}
-                value={role}
-                onChange={(e) => setRole(e.target.value as any)}
-              >
-                <option value="owner">মালিক (Owner)</option>
-                <option value="manager">ম্যানেজার</option>
-                <option value="prod">প্রোডাকশন</option>
-                <option value="qc">QC ইন্সপেক্টর</option>
-                <option value="store">স্টোর কিপার</option>
-                <option value="acc">হিসাবরক্ষক</option>
-              </select>
-            </div>
-
-            <button
-              onClick={() => {
-                setRole('vendor');
-                setScreen('vendor');
-              }}
-              className="btn btn-secondary btn-sm"
-              style={{ borderColor: '#c85a14', color: '#c85a14' }}
-            >
-              বায়ার ভিউ দেখুন
-            </button>
-
-            <button
-              onClick={logout}
-              className="btn btn-secondary btn-sm"
-              style={{ color: '#ef4444', borderColor: '#fca5a5', display: 'flex', alignItems: 'center', gap: 4 }}
-              title="লগআউট"
-            >
-              <LogOut size={14} />
-              <span>লগআউট</span>
-            </button>
-          </div>
-        </header>
-
-        {/* View Router */}
-        <main style={{ padding: 24, flex: 1 }}>
+        {/* Working Canvas matching KnitKhata.html */}
+        <main id="main">
           {/* ================= 1. DASHBOARD VIEW ================= */}
           {factoryView === 'dash' && (
-            <div>
-              {/* Metric Cards Grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
-                <div className="card" style={{ borderLeft: '4px solid #0d6e4f' }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>আজকের মোট উৎপাদন</div>
-                  <div style={{ fontSize: 26, fontWeight: 800, color: '#0f172a', marginTop: 6 }}>
-                    ১,৪২৫ <span style={{ fontSize: 14 }}>kg</span>
-                  </div>
-                  <div style={{ fontSize: 11, color: '#0d6e4f', marginTop: 4 }}>৮টি মেশিনের শিফট এন্ট্রি</div>
+            <>
+              {/* Header section matching KnitKhata.html */}
+              <div className="head">
+                <div>
+                  <h2>আজকের অবস্থা</h2>
+                  <p>শনিবার, ৩ অক্টোবর ২০২৬ · শিফট A চলছে · লাইভ সিঙ্ক: MySQL</p>
                 </div>
-
-                <div className="card" style={{ borderLeft: '4px solid #2364aa' }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>সক্রিয় রানিং অর্ডার</div>
-                  <div style={{ fontSize: 26, fontWeight: 800, color: '#0f172a', marginTop: 6 }}>
-                    {orders.filter((o) => o.status === 'Running').length} <span style={{ fontSize: 14 }}>টি PO</span>
-                  </div>
-                  <div style={{ fontSize: 11, color: '#2364aa', marginTop: 4 }}>মোট অর্ডার: {bnNum(orders.reduce((acc, o) => acc + o.lines.reduce((lacc, l) => lacc + l.orderKg, 0), 0))} kg</div>
-                </div>
-
-                <div className="card" style={{ borderLeft: '4px solid #c85a14' }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>ফ্রি মেশিন (বুকিং ওপেন)</div>
-                  <div style={{ fontSize: 26, fontWeight: 800, color: '#c85a14', marginTop: 6 }}>
-                    {machines.filter((m) => m.status === 'Free' || m.status === 'Idle').length} <span style={{ fontSize: 14 }}>টি</span>
-                  </div>
-                  <div style={{ fontSize: 11, color: '#c85a14', marginTop: 4 }}>M-06, M-08 প্রস্তুত</div>
-                </div>
-
-                <div className="card" style={{ borderLeft: '4px solid #b8860b' }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>বকেয়া বিল আদায়যোগ্য</div>
-                  <div style={{ fontSize: 26, fontWeight: 800, color: '#b8860b', marginTop: 6 }}>
-                    ৳ ২,০৩,৪০০
-                  </div>
-                  <div style={{ fontSize: 11, color: '#b8860b', marginTop: 4 }}>৩টি পার্টির চালান বিল বাকি</div>
+                <div className="row" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <button className="btn" onClick={() => setFactoryView('entry')}>+ প্রোডাকশন এন্ট্রি</button>
+                  <button className="btn pri" onClick={() => setFactoryView('orders')}>অর্ডার দেখুন</button>
                 </div>
               </div>
 
-              {/* Floor Machine Status Grid */}
-              <div className="card" style={{ marginBottom: 24 }}>
-                <div className="card-header">
-                  <div>
-                    <h3 style={{ fontSize: 16, fontWeight: 800 }}>ফ্লোর মেশিন লাইভ মনিটর (৮টি মেশিন)</h3>
-                    <p style={{ fontSize: 12, color: '#64748b' }}>প্রতি মেশিনের আরপিএম, বর্তমান অর্ডার ও অপারেটর</p>
+              {/* Exact KPI cards matching KnitKhata.html */}
+              <div className="kpis">
+                <div className="kpi" style={{ borderLeft: '4px solid var(--ok)' }}>
+                  <span>আজকের মোট উৎপাদন</span>
+                  <b>১,৪২৫ <span style={{ fontSize: '0.85rem' }}>kg</span></b>
+                  <i>৮টি মেশিনের শিফট এন্ট্রি</i>
+                </div>
+
+                <div className="kpi" style={{ borderLeft: '4px solid var(--accent)' }}>
+                  <span>সক্রিয় রানিং অর্ডার</span>
+                  <b>{orders.filter((o) => o.status === 'Running').length} <span style={{ fontSize: '0.85rem' }}>টি PO</span></b>
+                  <i>মোট অর্ডার: {bnNum(orders.reduce((acc, o) => acc + o.lines.reduce((lacc, l) => lacc + l.orderKg, 0), 0))} kg</i>
+                </div>
+
+                <div className="kpi" style={{ borderLeft: '4px solid var(--yarn)' }}>
+                  <span>ফ্রি মেশিন (বুকিং ওপেন)</span>
+                  <b>{machines.filter((m) => m.status === 'Free' || m.status === 'Idle').length} <span style={{ fontSize: '0.85rem' }}>টি</span></b>
+                  <i>M-06, M-08 প্রস্তুত</i>
+                </div>
+
+                <div className="kpi" style={{ borderLeft: '4px solid var(--warn)' }}>
+                  <span>বকেয়া বিল আদায়যোগ্য</span>
+                  <b>৳ ২,০৩,৪০০</b>
+                  <i>৩টি পার্টির চালান বিল বাকি</i>
+                </div>
+
+                <div className="kpi" style={{ borderLeft: '4px solid var(--l4)' }}>
+                  <span>আজকের খরচ</span>
+                  <b>৳ ১৮,৪৫০</b>
+                  <i>৬টি ভাউচার এন্ট্রি</i>
+                </div>
+              </div>
+
+              {/* 2-Column Grid for Machine Board & Alerts */}
+              <div className="grid g2">
+                <div className="card">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <h3 style={{ margin: 0 }}>মেশিন বোর্ড (২৪টি মেশিন)</h3>
+                    <button className="btn sm" onClick={() => setFactoryView('freem')}>ফ্রি মেশিন ব্রডকাস্ট</button>
                   </div>
-                  <button onClick={() => setFactoryView('freem')} className="btn btn-outline-green btn-sm">
+                  <div className="machines">
+                    {Array.from({ length: 24 }).map((_, i) => {
+                      const id = `M-${String(i + 1).padStart(2, '0')}`;
+                      const mc = machines.find((m) => m.id === id);
+                      const st = mc ? (mc.status === 'Running' ? 'run' : mc.status === 'Free' ? 'wait' : mc.status === 'Maint' ? 'down' : 'idle') : (i < 16 ? 'run' : i < 18 ? 'wait' : i === 18 ? 'down' : 'idle');
+                      const label = st === 'run' ? '014' : st === 'wait' ? 'রিজার্ভ' : st === 'down' ? 'ব্রেকডাউন' : 'খালি';
+                      return (
+                        <div key={id} className={`mc ${st}`} title={`${id}: ${label}`}>
+                          <b>{id}</b>
+                          {label}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="legend">
+                    <span style={{ '--c': 'var(--accent)' } as any}>অর্ডারে চলছে</span>
+                    <span style={{ '--c': 'var(--yarn)' } as any}>পরের অর্ডারের জন্য রিজার্ভ</span>
+                    <span style={{ '--c': 'var(--bad)' } as any}>ব্রেকডাউন</span>
+                    <span style={{ '--c': 'var(--idle)' } as any}>খালি / প্রস্তুত</span>
+                  </div>
+                </div>
+
+                <div className="card">
+                  <h3 style={{ margin: 0, marginBottom: 12 }}>নজর দেওয়া দরকার</h3>
+                  <div className="alert">
+                    <i className="dot" style={{ background: 'var(--bad)' }}></i>
+                    <div><b>SC-2610-014</b> — M-07 এ needle mark, ১টি রোল (২২ kg) বাতিল। ABC কে জানানো হয়েছে।</div>
+                  </div>
+                  <div className="alert">
+                    <i className="dot" style={{ background: 'var(--yarn)' }}></i>
+                    <div><b>SC-2610-018</b> — Nobo Composite এর সুতা এখনো আসেনি। ৩টি মেশিন রিজার্ভ করে রাখা। <a href="#" onClick={(e) => { e.preventDefault(); setFactoryView('orders'); }} style={{ color: 'var(--accent)' }}>অর্ডার দেখুন</a></div>
+                  </div>
+                  <div className="alert">
+                    <i className="dot" style={{ background: 'var(--warn)' }}></i>
+                    <div><b>SC-2609-011</b> — মাত্র ১৯০ kg বাকি, কাল দুপুরে শেষ হবে। ডেলিভারি চালান রেডি করুন।</div>
+                  </div>
+                  <div className="alert">
+                    <i className="dot" style={{ background: 'var(--accent)' }}></i>
+                    <div>ডেসকো বিদ্যুৎ বিল (সেপ্টেম্বর) জমার শেষ তারিখ ১০ অক্টোবর।</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Floor Machine Live Monitor Card */}
+              <div className="card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                  <div>
+                    <h3 style={{ margin: 0 }}>ফ্লোর মেশিন লাইভ মনিটর (৮টি মেশিন)</h3>
+                    <p style={{ margin: '2px 0 0', fontSize: '0.82rem', color: 'var(--muted)' }}>প্রতি মেশিনের আরপিএম, বর্তমান অর্ডার ও অপারেটর</p>
+                  </div>
+                  <button onClick={() => setFactoryView('freem')} className="btn sm">
                     ফ্রি মেশিন ব্রডকাস্ট দেখুন
                   </button>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
-                  {machines.map((m) => {
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 12 }}>
+                  {machines.slice(0, 8).map((m) => {
                     const isRun = m.status === 'Running';
                     const isFree = m.status === 'Free';
                     const isIdle = m.status === 'Idle';
+                    const isMaint = m.status === 'Maint';
 
                     return (
                       <div
                         key={m.id}
                         style={{
-                          border: '1px solid #e2e8f0',
-                          borderRadius: 12,
-                          padding: 14,
-                          background: isRun ? '#ffffff' : isFree ? '#fff3ec' : '#f8fafc',
+                          border: '1px solid var(--line)',
+                          borderRadius: 10,
+                          padding: 12,
+                          background: isRun ? 'var(--surface)' : isFree ? 'var(--yarn-soft)' : 'var(--surface2)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 6,
                         }}
                       >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                          <span style={{ fontWeight: 800, fontSize: 15, color: '#0f172a' }}>{m.id}</span>
-                          <span className={`badge ${isRun ? 'badge-green' : isFree ? 'badge-orange' : 'badge-amber'}`}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--ink)', fontFamily: 'var(--f-mono)' }}>{m.id}</span>
+                          <span className={`pill ${isRun ? 'p-ok' : isFree ? 'p-warn' : isMaint ? 'p-bad' : 'p-acc'}`}>
                             {m.status}
                           </span>
                         </div>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--ink)' }}>
                           {m.type} ({m.dia} × {m.gg})
                         </div>
-                        <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>{m.brand}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>{m.brand}</div>
 
-                        <div style={{ margin: '10px 0', padding: '6px 8px', background: '#f1f5f9', borderRadius: 6, fontSize: 11 }}>
+                        <div style={{ padding: '6px 8px', background: 'var(--surface2)', borderRadius: 6, fontSize: '0.78rem', color: 'var(--ink)', display: 'flex', flexDirection: 'column', gap: 2 }}>
                           <div><strong>ফ্যাব্রিক:</strong> {m.fabric}</div>
                           <div><strong>অপারেটর:</strong> {m.operator}</div>
                         </div>
 
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#475569' }}>
-                          <span>আজকের: <strong>{m.todayKg} kg</strong></span>
-                          <span>টার্গেট: {m.targetKg} kg</span>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: 'var(--muted)', marginTop: 'auto', paddingTop: 4 }}>
+                          <span>আজকের: <strong className="mono" style={{ color: 'var(--ink)' }}>{m.todayKg} kg</strong></span>
+                          <span>টার্গেট: <span className="mono">{m.targetKg} kg</span></span>
                         </div>
                       </div>
                     );
@@ -484,29 +473,30 @@ export const FactoryPortal: React.FC = () => {
                 </div>
               </div>
 
-              {/* Active Orders List Quick Table */}
+              {/* Running Subcontract Orders Table */}
               <div className="card">
-                <div className="card-header">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                   <div>
-                    <h3 style={{ fontSize: 16, fontWeight: 800 }}>রানিং সাব-কন্ট্রাক্ট অর্ডারসমূহ</h3>
-                    <p style={{ fontSize: 12, color: '#64748b' }}>উৎপাদন ও ডেলিভারি অগ্রগতি</p>
+                    <h3 style={{ margin: 0 }}>চলমান সাব-কন্ট্রাক্ট অর্ডারসমূহ</h3>
+                    <p style={{ margin: '2px 0 0', fontSize: '0.82rem', color: 'var(--muted)' }}>উৎপাদন ও ডেলিভারি অগ্রগতি</p>
                   </div>
-                  <button onClick={() => setFactoryView('neworder')} className="btn btn-primary btn-sm">
-                    <Plus size={14} /> নতুন অর্ডার যোগ করুন
+                  <button onClick={() => setFactoryView('neworder')} className="btn pri sm">
+                    <Plus size={14} style={{ marginRight: 4 }} /> নতুন অর্ডার যোগ করুন
                   </button>
                 </div>
 
-                <div className="table-wrap">
-                  <table className="data-table">
+                <div className="tw">
+                  <table>
                     <thead>
                       <tr>
                         <th>অর্ডার নং</th>
                         <th>পার্টি / বায়ার</th>
-                        <th>স্টাইল ও কালার</th>
-                        <th>অর্ডার পরিমাণ</th>
-                        <th>বোনা হয়েছে</th>
-                        <th>ডেলিভারি</th>
+                        <th>ফেব্রিক ও কালার</th>
+                        <th className="n">অর্ডার (kg)</th>
+                        <th className="n">বোনা (kg)</th>
+                        <th className="n">ডেলিভারি</th>
                         <th>অগ্রগতি</th>
+                        <th>অবস্থা</th>
                         <th>অ্যাকশন</th>
                       </tr>
                     </thead>
@@ -519,17 +509,22 @@ export const FactoryPortal: React.FC = () => {
 
                         return (
                           <tr key={o.id}>
-                            <td><strong>{o.id}</strong><div style={{ fontSize: 11, color: '#64748b' }}>{o.po}</div></td>
-                            <td><strong>{o.party}</strong><div style={{ fontSize: 11, color: '#64748b' }}>{o.buyer}</div></td>
-                            <td>{o.style}<div style={{ fontSize: 11, color: '#64748b' }}>{o.color}</div></td>
-                            <td><strong>{fmtKg(totalKg)}</strong></td>
-                            <td style={{ color: '#0d6e4f', fontWeight: 700 }}>{fmtKg(knitKg)}</td>
-                            <td>{fmtKg(delivKg)}</td>
+                            <td className="mono"><b>{o.id}</b><small style={{ display: 'block', color: 'var(--muted)' }}>{o.po}</small></td>
+                            <td><b>{o.party}</b><small style={{ display: 'block', color: 'var(--muted)' }}>{o.buyer}</small></td>
+                            <td>{o.style}<small style={{ display: 'block', color: 'var(--muted)' }}>{o.color}</small></td>
+                            <td className="n mono">{fmtKg(totalKg)}</td>
+                            <td className="n mono" style={{ color: 'var(--ok)', fontWeight: 600 }}>{fmtKg(knitKg)}</td>
+                            <td className="n mono">{fmtKg(delivKg)}</td>
                             <td>
-                              <div style={{ width: 90, background: '#e2e8f0', borderRadius: 99, height: 8, overflow: 'hidden' }}>
-                                <div style={{ width: `${prog}%`, background: '#0d6e4f', height: '100%' }} />
+                              <div className="row" style={{ flexWrap: 'nowrap', alignItems: 'center', gap: 6 }}>
+                                <div className="bar" style={{ width: 80 }}><i style={{ width: `${prog}%` }}></i></div>
+                                <span className="mono small" style={{ fontSize: '0.78rem' }}>{prog}%</span>
                               </div>
-                              <span style={{ fontSize: 11, fontWeight: 700, color: '#0d6e4f' }}>{prog}%</span>
+                            </td>
+                            <td>
+                              <span className={`pill ${o.status === 'Running' ? 'p-acc' : o.status === 'Completed' ? 'p-ok' : 'p-warn'}`}>
+                                {o.status === 'Running' ? 'চলছে' : o.status === 'Completed' ? 'সম্পন্ন' : 'অপেক্ষায়'}
+                              </span>
                             </td>
                             <td>
                               <button
@@ -537,9 +532,9 @@ export const FactoryPortal: React.FC = () => {
                                   setSelectedOrderId(o.id);
                                   setFactoryView('detail');
                                 }}
-                                className="btn btn-secondary btn-sm"
+                                className="btn sm"
                               >
-                                বিস্তারিত <ChevronRight size={14} />
+                                বিস্তারিত <ChevronRight size={13} />
                               </button>
                             </td>
                           </tr>
@@ -549,10 +544,9 @@ export const FactoryPortal: React.FC = () => {
                   </table>
                 </div>
               </div>
-            </div>
+            </>
           )}
 
-          {/* ================= 2. ORDER LIST & DETAIL ================= */}
           {factoryView === 'orders' && (
             <div className="card">
               <div className="card-header">
