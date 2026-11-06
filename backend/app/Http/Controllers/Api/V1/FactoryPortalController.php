@@ -7,9 +7,12 @@ use App\Models\Bill;
 use App\Models\DeliveryChallan;
 use App\Models\FabricRoll;
 use App\Models\Factory;
+use App\Models\FactoryAttendance;
+use App\Models\FactoryExpense;
 use App\Models\FactoryMachine;
 use App\Models\FreeMachineRequest;
 use App\Models\OrderLine;
+use App\Models\Partner;
 use App\Models\Party;
 use App\Models\ProductionLog;
 use App\Models\QcInspection;
@@ -582,6 +585,168 @@ class FactoryPortalController extends Controller
         $bill->update(['payments_json' => $payments]);
 
         return $this->success($bill, "{$rvNo} তৈরি হলো · লেজার আপডেট");
+    }
+
+    public function storeExpense(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'category' => ['required', 'string', 'max:40'],
+            'title' => ['required', 'string', 'max:180'],
+            'amount_tk' => ['required', 'numeric', 'min:1'],
+            'payment_method' => ['required', 'string', 'in:cash,bank,bkash'],
+            'reference_no' => ['nullable', 'string', 'max:40'],
+            'expense_date' => ['nullable', 'date'],
+            'created_by' => ['nullable', 'string', 'max:60'],
+            'notes' => ['nullable', 'string'],
+        ]);
+
+        $factory = Factory::where('code', 'f1')->firstOrFail();
+
+        $expense = FactoryExpense::create([
+            'factory_id' => $factory->id,
+            'category' => $validated['category'],
+            'title' => $validated['title'],
+            'amount_tk' => (float) $validated['amount_tk'],
+            'payment_method' => $validated['payment_method'],
+            'reference_no' => $validated['reference_no'] ?? ('EX-' . time()),
+            'expense_date' => $validated['expense_date'] ?? now()->toDateString(),
+            'created_by' => $validated['created_by'] ?? 'ম্যানেজার',
+            'notes' => $validated['notes'] ?? null,
+        ]);
+
+        return $this->success($expense, "খরচ '{$expense->title}' (৳{$expense->amount_tk}) সফলভাবে সংরক্ষিত হয়েছে।", 201);
+    }
+
+    public function storeAttendance(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'worker_name' => ['required', 'string', 'max:100'],
+            'role_type' => ['required', 'string', 'max:40'],
+            'shift' => ['required', 'string', 'max:10'],
+            'status' => ['required', 'string', 'in:present,absent,late,leave,overtime'],
+            'attendance_date' => ['nullable', 'date'],
+            'in_time' => ['nullable', 'string'],
+            'out_time' => ['nullable', 'string'],
+            'overtime_hours' => ['nullable', 'numeric'],
+            'daily_wage_tk' => ['nullable', 'numeric'],
+            'note' => ['nullable', 'string'],
+        ]);
+
+        $factory = Factory::where('code', 'f1')->firstOrFail();
+        $date = $validated['attendance_date'] ?? now()->toDateString();
+
+        $att = FactoryAttendance::updateOrCreate(
+            [
+                'factory_id' => $factory->id,
+                'worker_name' => $validated['worker_name'],
+                'attendance_date' => $date,
+                'shift' => $validated['shift'],
+            ],
+            [
+                'role_type' => $validated['role_type'],
+                'status' => $validated['status'],
+                'in_time' => $validated['in_time'] ?? ($validated['status'] === 'present' ? '08:00 AM' : null),
+                'out_time' => $validated['out_time'] ?? ($validated['status'] === 'present' ? '05:00 PM' : null),
+                'overtime_hours' => (float) ($validated['overtime_hours'] ?? 0),
+                'daily_wage_tk' => (float) ($validated['daily_wage_tk'] ?? 550),
+                'note' => $validated['note'] ?? null,
+            ]
+        );
+
+        return $this->success($att, "{$att->worker_name} এর হাজিরা আপডেট হয়েছে।");
+    }
+
+    public function storeUser(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:120'],
+            'phone' => ['required', 'string', 'max:30'],
+            'email' => ['nullable', 'email', 'max:150'],
+            'designation' => ['required', 'string', 'max:80'],
+            'role' => ['required', 'string', 'in:fac,ven,sup,par'],
+            'can_message' => ['nullable', 'boolean'],
+        ]);
+
+        $factory = Factory::where('code', 'f1')->firstOrFail();
+
+        $user = User::create([
+            'name' => $validated['name'],
+            'phone' => $validated['phone'],
+            'email' => $validated['email'] ?? null,
+            'password' => bcrypt('demo1234'),
+            'role' => $validated['role'],
+            'designation' => $validated['designation'],
+            'organization_name' => $factory->name,
+            'factory_id' => $factory->id,
+            'is_owner' => false,
+            'is_vendor_rep' => false,
+            'can_message' => (bool) ($validated['can_message'] ?? true),
+            'is_active' => true,
+            'last_login_label' => 'নতুন যোগকৃত',
+        ]);
+
+        return $this->success($user, "{$user->name} টিম মেম্বার হিসেবে যুক্ত হয়েছেন।", 201);
+    }
+
+    public function toggleUser(Request $request, int $id): JsonResponse
+    {
+        $user = User::findOrFail($id);
+        $user->is_active = !$user->is_active;
+        $user->save();
+
+        return $this->success($user, "{$user->name} এর অ্যাক্টিভেশন স্ট্যাটাস আপডেট হয়েছে।");
+    }
+
+    public function requestPayout(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'amount_tk' => ['required', 'numeric', 'min:500'],
+            'payout_method' => ['required', 'string', 'in:bkash,nagad,rocket,bank'],
+            'account_number' => ['required', 'string', 'max:30'],
+        ]);
+
+        $partner = Partner::first();
+        if (!$partner) {
+            $partner = Partner::create([
+                'partner_code' => 'KNIT-P27',
+                'total_referrals' => 8,
+                'active_factories_count' => 6,
+                'total_commission_tk' => 45000,
+                'withdrawn_commission_tk' => 15000,
+                'balance_commission_tk' => 30000,
+                'payout_method' => $validated['payout_method'],
+                'payout_number' => $validated['account_number'],
+            ]);
+        }
+
+        $amt = (float) $validated['amount_tk'];
+        if ($amt > $partner->balance_commission_tk) {
+            return $this->error("উত্তোলনযোগ্য ব্যালেন্স মাত্র ৳{$partner->balance_commission_tk}", 422);
+        }
+
+        $partner->withdrawn_commission_tk += $amt;
+        $partner->balance_commission_tk -= $amt;
+        $partner->payout_method = $validated['payout_method'];
+        $partner->payout_number = $validated['account_number'];
+        $partner->save();
+
+        return $this->success($partner, "৳{$amt} উত্তোলনের অনুরোধ সফলভাবে গ্রহণ করা হয়েছে।");
+    }
+
+    public function updateFactoryProfile(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:180'],
+            'area' => ['nullable', 'string', 'max:120'],
+            'address' => ['nullable', 'string', 'max:255'],
+            'phone' => ['nullable', 'string', 'max:30'],
+            'total_machines' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        $factory = Factory::where('code', 'f1')->firstOrFail();
+        $factory->update($validated);
+
+        return $this->success($factory, 'ফ্যাক্টরি প্রোফাইল ও সেটিংস সংরক্ষিত হয়েছে।');
     }
 }
 

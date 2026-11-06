@@ -45,6 +45,12 @@ Route::prefix('v1')->group(function () {
         Route::post('/parties', [FactoryPortalController::class, 'storeParty']);
         Route::post('/bills', [FactoryPortalController::class, 'storeBill']);
         Route::post('/bills/{billNo}/pay', [FactoryPortalController::class, 'recordBillPayment']);
+        Route::post('/accounts/expenses', [FactoryPortalController::class, 'storeExpense']);
+        Route::post('/attendance/punch', [FactoryPortalController::class, 'storeAttendance']);
+        Route::post('/users', [FactoryPortalController::class, 'storeUser']);
+        Route::post('/users/{id}/toggle', [FactoryPortalController::class, 'toggleUser']);
+        Route::post('/partner/payout', [FactoryPortalController::class, 'requestPayout']);
+        Route::post('/profile', [FactoryPortalController::class, 'updateFactoryProfile']);
         Route::post('/threads/{threadCode}/messages', [PublicAndMarketplaceController::class, 'sendMessage']);
     });
 

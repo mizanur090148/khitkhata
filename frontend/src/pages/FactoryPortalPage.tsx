@@ -86,6 +86,14 @@ export const FactoryPortal: React.FC = () => {
     issueStoreItem,
     addToast,
     dashboardData,
+    factoryProfile,
+    expenses,
+    addExpense,
+    punchAttendance,
+    updateFactoryProfileInfo,
+    addUser,
+    toggleUserStatus,
+    requestPartnerPayout,
     isDashboardSyncing,
     fetchDashboardData,
     quickProductionEntry,
@@ -157,6 +165,56 @@ export const FactoryPortal: React.FC = () => {
   const [rfqProposedRate, setRfqProposedRate] = useState('15.5');
   const [rfqCommitment, setRfqCommitment] = useState('২টি মেশিন বরাদ্দ');
   const [rfqNote, setRfqNote] = useState('আমাদের মায়ার অ্যান্ড সি সিঙ্গেল জার্সি মেশিনে সর্বোচ্চ কোয়ালিটি গ্যারান্টি।');
+
+  // --- NEW ORDER FORM STATE ---
+  const [noParty, setNoParty] = useState(parties[0]?.id || 'abc');
+  const [noBuyer, setNoBuyer] = useState('H&M / C&A');
+  const [noId, setNoId] = useState('SC-2610-021');
+  const [noDueDate, setNoDueDate] = useState('2026-10-28');
+  const [noRate, setNoRate] = useState('14.5');
+  const [noLines, setNoLines] = useState<any[]>([
+    { place: 'Body', kt: 'c', fab: 'Single Jersey', ggsm: '160', fgsm: '160', dia: '30" × 24G', sl: '2.65', color: 'Navy Blue', qty: 5000, machines: ['M-01', 'M-02'], count: '30/1 Combed', brand: 'Square', lot: 'SQ-884' }
+  ]);
+
+  // --- LEDGER STATE ---
+  const [ledgerParty, setLedgerParty] = useState(parties[0]?.id || 'abc');
+
+  // --- EXPENSE FORM STATE ---
+  const [expCategory, setExpCategory] = useState('maintenance');
+  const [expTitle, setExpTitle] = useState('');
+  const [expAmount, setExpAmount] = useState('');
+  const [expMethod, setExpMethod] = useState('cash');
+  const [expRef, setExpRef] = useState('');
+
+  // --- ATTENDANCE STATE ---
+  const [attShift, setAttShift] = useState('All');
+
+  // --- WHATSAPP BUILDER STATE ---
+  const [waType, setWaType] = useState<'daily' | 'order' | 'challan' | 'qc'>('daily');
+  const [waTargetPhone, setWaTargetPhone] = useState('01711000111');
+
+  // --- USER FORM STATE ---
+  const [newUserName, setNewUserName] = useState('');
+  const [newUserPhone, setNewUserPhone] = useState('');
+  const [newUserDesig, setNewUserDesig] = useState('অপারেটর');
+  const [newUserRole, setNewUserRole] = useState<any>('operator');
+
+  // --- PARTNER PAYOUT STATE ---
+  const [payoutAmt, setPayoutAmt] = useState('5000');
+  const [payoutMethod, setPayoutMethod] = useState('bkash');
+  const [payoutNumber, setPayoutNumber] = useState('01819000000');
+
+  // --- READY ROLLS SELECTION ---
+  const [selectedReadyRolls, setSelectedReadyRolls] = useState<string[]>([]);
+  const [freadyFilter, setFreadyFilter] = useState('all');
+
+  // --- PROFILE EDIT STATE ---
+  const [profName, setProfName] = useState(factoryProfile?.name || 'আল-মদিনা নিটওয়্যার লিঃ');
+  const [profOwner, setProfOwner] = useState(factoryProfile?.owner || 'হাজী মোঃ রফিকুল ইসলাম');
+  const [profPhone, setProfPhone] = useState(factoryProfile?.phone || '01711-889900');
+  const [profAddress, setProfAddress] = useState(factoryProfile?.address || 'বিসিক শিল্পনগরী, ফতুল্লা, নারায়ণগঞ্জ');
+  const [profLoc, setProfLoc] = useState(factoryProfile?.loc || 'নারায়ণগঞ্জ');
+  const [profMachines, setProfMachines] = useState(String(factoryProfile?.machinesCount || 24));
 
   // Sidebar Menu Config
   interface MenuItem {
@@ -297,7 +355,7 @@ export const FactoryPortal: React.FC = () => {
         >
           <span className="av">আ</span>
           <span>
-            <b>{currentUser?.name || 'আরিফ হোসেন'}</b>
+            <b>{users[0]?.name || 'আরিফ হোসেন'}</b>
             <small>{currentUser?.designation || ROLES_MAP[role]?.bn || 'মালিক'}</small>
           </span>
         </button>
@@ -1542,29 +1600,1282 @@ export const FactoryPortal: React.FC = () => {
           )}
 
           {/* Fallback for other view tabs */}
-          {![
-            'dash',
-            'orders',
-            'detail',
-            'entry',
-            'qc',
-            'challan',
-            'yarn',
-            'bill',
-            'fmsg',
-            'subcontract',
-            'party',
-            'store',
-          ].includes(factoryView) && (
-            <div className="card" style={{ padding: 40, textAlign: 'center' }}>
-              <Building size={48} color="#0d6e4f" style={{ margin: '0 auto 16px' }} />
-              <h3 style={{ fontSize: 20, fontWeight: 800 }}>মডিউল সক্রিয়: {factoryView}</h3>
-              <p style={{ fontSize: 14, color: '#64748b', marginTop: 8, maxWidth: 480, margin: '8px auto 20px' }}>
-                এই মডিউলটির পূর্ণাঙ্গ ডাটাবেজ টেবিল এবং এপিআই এন্ডপয়েন্ট Laravel 13 ও MySQL এ লাইভ আছে।
-              </p>
-              <button onClick={() => setFactoryView('dash')} className="btn btn-primary">
-                ড্যাশবোর্ডে ফিরুন
-              </button>
+                    {/* ================= 1. NEW SUBCONTRACT ORDER VIEW (neworder) ================= */}
+          {factoryView === 'neworder' && (
+            <div className="card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.2rem' }}>+ নতুন সাব-কন্ট্রাক্ট নিটিং অর্ডার এন্ট্রি</h3>
+                  <small style={{ color: 'var(--muted)' }}>পার্টি ও বায়ারের ওয়ার্ক অর্ডার, ফেব্রিক স্পেসিফিকেশন ও মেশিন বরাদ্দ খাতা</small>
+                </div>
+                <button type="button" className="btn sm" onClick={() => setFactoryView('orders')}>অর্ডার তালিকায় ফিরুন</button>
+              </div>
+
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  const totalKg = noLines.reduce((acc, l) => acc + (parseFloat(l.qty) || 0), 0);
+                  const selectedPartyObj = parties.find((p) => p.id === noParty) || parties[0];
+                  
+                  await createOrder({
+                    po: noId,
+                    party: selectedPartyObj?.name || 'ABC Knit Composite',
+                    partyPhone: selectedPartyObj?.phone || '01711-000111',
+                    buyer: noBuyer,
+                    style: 'Export Jersey Tee',
+                    season: 'Autumn 2026',
+                    color: noLines[0]?.color || 'Navy Blue',
+                    orderDate: new Date().toISOString().split('T')[0],
+                    delivDate: noDueDate,
+                    status: 'Running',
+                    payStatus: 'Due',
+                    paidAmt: 0,
+                    advanceAmt: 0,
+                    discountAmt: 0,
+                    deductAmt: 0,
+                    notes: 'নিয়মিত সাব-কন্ট্রাক্ট অর্ডার',
+                    lines: noLines.map((l, idx) => ({
+                      id: idx + 1,
+                      lineIdx: idx,
+                      fabric: l.fab || 'Single Jersey',
+                      dia: l.dia || '30" × 24G',
+                      gsm: parseInt(l.ggsm) || 160,
+                      color: l.color || 'Navy Blue',
+                      yarn: l.count || '30/1 Combed',
+                      brand: l.brand || 'Square',
+                      lot: l.lot || 'SQ-884',
+                      stitch: l.sl || '2.65 mm',
+                      orderKg: parseFloat(l.qty) || 5000,
+                      rate: parseFloat(noRate) || 14.5,
+                      processLoss: 2.0,
+                      yarnRcv: parseFloat(l.qty) || 5000,
+                      knitKg: 0,
+                      qcPass: 0,
+                      rejectKg: 0,
+                      delivKg: 0,
+                      machine: (l.machines || ['M-01']).join(', '),
+                      rolls: 0,
+                    })),
+                  });
+
+                  addToast({
+                    type: 'success',
+                    title: 'অর্ডার সংরক্ষিত হয়েছে',
+                    message: `ওয়ার্ক অর্ডার ${noId} (${totalKg.toLocaleString('en-IN')} kg) সফলভাবে চালু হয়েছে।`,
+                  });
+                  setSelectedOrderId(noId);
+                  setFactoryView('detail');
+                }}
+                style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
+              >
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
+                  <div>
+                    <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>পার্টি / ভেন্ডর নির্বাচন</label>
+                    <select
+                      className="select"
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink)' }}
+                      value={noParty}
+                      onChange={(e) => setNoParty(e.target.value)}
+                    >
+                      {parties.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name} ({p.contact || 'ভেন্ডর'})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>বায়ার নাম / ব্র্যান্ড</label>
+                    <input
+                      type="text"
+                      required
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink)' }}
+                      value={noBuyer}
+                      onChange={(e) => setNoBuyer(e.target.value)}
+                      placeholder="যেমন: H&M / C&A / Zara"
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>ওয়ার্ক অর্ডার নম্বর (PO)</label>
+                    <input
+                      type="text"
+                      required
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink)' }}
+                      value={noId}
+                      onChange={(e) => setNoId(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>ডেলিভারির শেষ তারিখ (Deadline)</label>
+                    <input
+                      type="date"
+                      required
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink)' }}
+                      value={noDueDate}
+                      onChange={(e) => setNoDueDate(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>নিটিং রেট (৳/কেজি)</label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      required
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink)' }}
+                      value={noRate}
+                      onChange={(e) => setNoRate(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ borderTop: '1px solid var(--line)', paddingTop: 14 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                    <h4 style={{ margin: 0, fontSize: '0.95rem' }}>ফেব্রিক স্পেসিফিকেশন ও লাইন ব্রেকডাউন</h4>
+                    <button
+                      type="button"
+                      className="btn sm"
+                      onClick={() => {
+                        setNoLines([
+                          ...noLines,
+                          { place: 'Collar/Cuff', kt: 'f', fab: '1x1 Lycra Rib', ggsm: '220', fgsm: '220', dia: '32" × 18G', sl: '2.80', color: 'Navy Blue', qty: 1500, machines: ['M-03'], count: '30/1 Combed', brand: 'Square', lot: 'SQ-884' }
+                        ]);
+                      }}
+                    >
+                      + লাইন যোগ করুন
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {noLines.map((ln, idx) => (
+                      <div key={idx} style={{ padding: 14, background: 'var(--surface2)', borderRadius: 10, border: '1px solid var(--line)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
+                        <div>
+                          <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>প্লেসমেন্ট</label>
+                          <input
+                            type="text"
+                            style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--line)', background: 'var(--surface)', fontSize: '0.82rem' }}
+                            value={ln.place}
+                            onChange={(e) => {
+                              const updated = [...noLines];
+                              updated[idx].place = e.target.value;
+                              setNoLines(updated);
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>ফেব্রিক বিবরণ</label>
+                          <input
+                            type="text"
+                            style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--line)', background: 'var(--surface)', fontSize: '0.82rem' }}
+                            value={ln.fab}
+                            onChange={(e) => {
+                              const updated = [...noLines];
+                              updated[idx].fab = e.target.value;
+                              setNoLines(updated);
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>জিএসএম (GSM)</label>
+                          <input
+                            type="text"
+                            style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--line)', background: 'var(--surface)', fontSize: '0.82rem' }}
+                            value={ln.ggsm}
+                            onChange={(e) => {
+                              const updated = [...noLines];
+                              updated[idx].ggsm = e.target.value;
+                              setNoLines(updated);
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>ডায়া × গেজ</label>
+                          <input
+                            type="text"
+                            style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--line)', background: 'var(--surface)', fontSize: '0.82rem' }}
+                            value={ln.dia}
+                            onChange={(e) => {
+                              const updated = [...noLines];
+                              updated[idx].dia = e.target.value;
+                              setNoLines(updated);
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>স্টিচ লেন্থ (SL)</label>
+                          <input
+                            type="text"
+                            style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--line)', background: 'var(--surface)', fontSize: '0.82rem' }}
+                            value={ln.sl}
+                            onChange={(e) => {
+                              const updated = [...noLines];
+                              updated[idx].sl = e.target.value;
+                              setNoLines(updated);
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>রং (Color)</label>
+                          <input
+                            type="text"
+                            style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--line)', background: 'var(--surface)', fontSize: '0.82rem' }}
+                            value={ln.color}
+                            onChange={(e) => {
+                              const updated = [...noLines];
+                              updated[idx].color = e.target.value;
+                              setNoLines(updated);
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>পরিমাণ (কেজি)</label>
+                          <input
+                            type="number"
+                            style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--line)', background: 'var(--surface)', fontSize: '0.82rem' }}
+                            value={ln.qty}
+                            onChange={(e) => {
+                              const updated = [...noLines];
+                              updated[idx].qty = parseFloat(e.target.value) || 0;
+                              setNoLines(updated);
+                            }}
+                          />
+                        </div>
+
+                        {noLines.length > 1 && (
+                          <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                            <button
+                              type="button"
+                              className="btn sm"
+                              style={{ color: 'var(--bad)', borderColor: 'var(--bad)', padding: '6px 10px', height: 33 }}
+                              onClick={() => setNoLines(noLines.filter((_, i) => i !== idx))}
+                            >
+                              মুছুন
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, borderTop: '1px solid var(--line)', paddingTop: 14 }}>
+                  <button type="button" className="btn" onClick={() => setFactoryView('orders')}>বাতিল</button>
+                  <button type="submit" className="btn pri">💾 নতুন সাব-কন্ট্রাক্ট অর্ডার সেভ করুন</button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* ================= 2. KNITTING JOB CARD VIEW (jobcard) ================= */}
+          {factoryView === 'jobcard' && (
+            <div className="card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.2rem' }}>নিটিং প্রোডাকশন জব কার্ড (Job Card / Program)</h3>
+                  <small style={{ color: 'var(--muted)' }}>অর্ডার: {activeOrder?.id} · বায়ার: {activeOrder?.buyer} · পার্টি: {parties.find((p) => p.id === activeOrder?.party)?.name || 'ABC Knit'}</small>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    type="button"
+                    className="btn sm"
+                    onClick={() => openPrintModal('jobcard', `জব কার্ড - ${activeOrder?.id}`, activeOrder)}
+                  >
+                    🖨️ জব কার্ড প্রিন্ট
+                  </button>
+                  <button
+                    type="button"
+                    className="btn pri sm"
+                    onClick={() => openPrintModal('rolltag', `রোল ট্যাগ বারকোড - ${activeOrder?.id}`, activeOrder)}
+                  >
+                    🏷️ রোল ট্যাগ স্টিকার
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+                <div style={{ border: '1px solid var(--line)', borderRadius: 10, padding: 14, background: 'var(--surface2)' }}>
+                  <h4 style={{ margin: '0 0 10px', fontSize: '0.95rem' }}>📋 টেকনিক্যাল নিটিং স্পেসিফিকেশন</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: '0.85rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--muted)' }}>ফেব্রিক টাইপ:</span>
+                      <b>{activeOrder?.lines[0]?.fabric}</b>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--muted)' }}>গ্রে জিএসএম / ফিনিশ জিএসএম:</span>
+                      <b>{activeOrder?.lines[0]?.gsm} / {activeOrder?.lines[0]?.gsm + ' GSM' || '160 GSM'}</b>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--muted)' }}>ডায়া ও গেজ:</span>
+                      <b>{activeOrder?.lines[0]?.dia}</b>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--muted)' }}>স্টিচ লেন্থ (SL):</span>
+                      <b>{activeOrder?.lines[0]?.stitch || '2.65 mm'}</b>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--muted)' }}>সুতার কাউন্ট ও লট:</span>
+                      <b>{activeOrder?.lines[0]?.yarn} (Lot: SQ-88410)</b>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--muted)' }}>বরাদ্দকৃত ফ্লোর মেশিন:</span>
+                      <b>{activeOrder?.lines[0]?.machine || 'M-03, M-04, M-07, M-08'}</b>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ border: '1px solid var(--line)', borderRadius: 10, padding: 14, background: 'var(--surface2)' }}>
+                  <h4 style={{ margin: '0 0 10px', fontSize: '0.95rem' }}>📊 উৎপাদন অগ্রগতি ও ডেলিভারি কমিটমেন্ট</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: '0.85rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--muted)' }}>মোট বরাদ্দ পরিমাণ:</span>
+                      <b>{bnNum(activeOrder?.lines.reduce((a, b) => a + b.orderKg, 0) || 0)} kg</b>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--muted)' }}>বোনা সম্পন্ন (Knitted):</span>
+                      <b style={{ color: 'var(--ok)' }}>{bnNum(activeOrder?.lines.reduce((a, b) => a + b.knitKg, 0) || 0)} kg ({pct(activeOrder?.lines.reduce((a, b) => a + b.knitKg, 0) || 0, activeOrder?.lines.reduce((a, b) => a + b.orderKg, 0) || 1)}%)</b>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--muted)' }}>ডেলিভারি হয়েছে:</span>
+                      <b>{bnNum(activeOrder?.lines.reduce((a, b) => a + b.delivKg, 0) || 0)} kg</b>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--muted)' }}>অবশিষ্ট নিটিং বাকি:</span>
+                      <b style={{ color: 'var(--warn)' }}>{bnNum(Math.max(0, (activeOrder?.lines.reduce((a, b) => a + b.orderKg, 0) || 0) - (activeOrder?.lines.reduce((a, b) => a + b.knitKg, 0) || 0)))} kg</b>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--muted)' }}>ডেলিভারির শেষ তারিখ:</span>
+                      <b>{activeOrder?.delivDate || '28 Oct 2026'}</b>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ marginTop: 20 }}>
+                <h4 style={{ margin: '0 0 10px', fontSize: '0.95rem' }}>🏷️ প্রোডাকশন রোল ট্যাগ ও কিউআর প্রিভিউ</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+                  {rolls.filter((r) => r.orderId === activeOrder?.id).slice(0, 4).map((rl) => (
+                    <div key={rl.rollId} style={{ border: '1px dashed var(--line)', borderRadius: 8, padding: 10, background: 'var(--surface)', display: 'flex', gap: 10, alignItems: 'center' }}>
+                      <QrCodeSvg value={`RL:${rl.rollId}|MC:${rl.machine}|KG:${rl.kg}`} size={56} />
+                      <div style={{ fontSize: '0.78rem' }}>
+                        <div><b>{rl.rollId}</b></div>
+                        <div>মেশিন: {rl.machine} · শিফট: {rl.shift}</div>
+                        <div>ওজন: <b>{rl.kg} kg</b></div>
+                        <span className="pill p-ok" style={{ fontSize: '0.7rem', padding: '1px 6px' }}>{rl.status}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ================= 3. FREE MACHINE MANAGER (freem) ================= */}
+          {factoryView === 'freem' && (
+            <div className="card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.2rem' }}>📡 ফ্রি মেশিন বুকিং ও মার্কেটপ্লেস ব্রডকাস্ট</h3>
+                  <small style={{ color: 'var(--muted)' }}>খালি মেশিনের শিডিউল ওপেন করুন এবং বায়ারদের কাছ থেকে সরাসরি সাব-কন্ট্রাক্ট কাজ পান</small>
+                </div>
+                <button type="button" className="btn pri sm" onClick={() => setIsBroadcastModalOpen(true)}>
+                  + নতুন ব্রডকাস্ট তৈরি করুন
+                </button>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 16 }}>
+                <div className="kpi">
+                  <div className="t">মোট ফ্রি মেশিন</div>
+                  <div className="v">{machines.filter((m) => m.status === 'Free' || m.status === 'Idle').length} টি</div>
+                  <div className="s">অর্ডারের জন্য প্রস্তুত</div>
+                </div>
+                <div className="kpi">
+                  <div className="t">দৈনিক উন্মুক্ত ক্ষমতা</div>
+                  <div className="v">{bnNum(machines.filter((m) => m.status === 'Free' || m.status === 'Idle').length * 190)} kg</div>
+                  <div className="s">প্রতিদিন ডেলিভারি সক্ষমতা</div>
+                </div>
+                <div className="kpi">
+                  <div className="t">বায়ারদের ইনকোয়ারি</div>
+                  <div className="v">{freeOffers.length} টি</div>
+                  <div className="s">পেন্ডিং সাব-কন্ট্রাক্ট অফার</div>
+                </div>
+              </div>
+
+              <h4 style={{ margin: '14px 0 10px', fontSize: '0.95rem' }}>সব মেশিনের লাইভ ব্রডকাস্ট স্ট্যাটাস</h4>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
+                {machines.map((mc) => (
+                  <div key={mc.id} style={{ border: '1px solid var(--line)', borderRadius: 10, padding: 12, background: mc.status === 'Free' ? 'var(--yarn-soft)' : 'var(--surface)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        <b>{mc.id}</b>
+                        <span className="pill" style={{ background: mc.status === 'Running' ? 'var(--accent-soft)' : mc.status === 'Free' ? 'var(--ok-soft)' : 'var(--surface2)', color: mc.status === 'Running' ? 'var(--accent)' : mc.status === 'Free' ? 'var(--ok)' : 'var(--muted)', fontSize: '0.72rem' }}>
+                          {mc.status}
+                        </span>
+                      </div>
+                      <small style={{ color: 'var(--muted)' }}>{mc.brand} · {mc.dia} × {mc.gg}</small>
+                      <div style={{ fontSize: '0.78rem', marginTop: 4 }}>দৈনিক: {mc.todayKg || 180} kg / {mc.targetKg || 240} kg</div>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn sm"
+                      onClick={() => toggleMachineStatus(mc.id, mc.status === 'Free' ? 'Running' : 'Free')}
+                      style={{ fontSize: '0.75rem', padding: '4px 8px' }}
+                    >
+                      {mc.status === 'Free' ? 'বুকিং বন্ধ' : 'ফ্রি ব্রডকাস্ট'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ================= 4. READY FABRIC ROLLS INVENTORY (fready) ================= */}
+          {factoryView === 'fready' && (
+            <div className="card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.2rem' }}>📦 ওয়্যারহাউজে প্রস্তুত রোল ও রেডি স্টক</h3>
+                  <small style={{ color: 'var(--muted)' }}>নিটিং ও QC সম্পন্ন প্রস্তুত রোল — এখান থেকে সরাসরি চালান কাটা যাবে</small>
+                </div>
+                {selectedReadyRolls.length > 0 && (
+                  <button
+                    type="button"
+                    className="btn pri sm"
+                    onClick={() => {
+                      setChRolls(String(selectedReadyRolls.length));
+                      const totalWeight = rolls.filter((r) => selectedReadyRolls.includes(r.rollId)).reduce((a, r) => a + r.kg, 0);
+                      setChGrossKg(String(Math.round(totalWeight + 8)));
+                      setChNetKg(String(Math.round(totalWeight)));
+                      setFactoryView('challan');
+                    }}
+                  >
+                    🚚 নির্বাচিত {selectedReadyRolls.length}টি রোলের চালান তৈরি করুন
+                  </button>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+                <button
+                  type="button"
+                  className={`btn sm ${freadyFilter === 'all' ? 'pri' : ''}`}
+                  onClick={() => setFreadyFilter('all')}
+                >
+                  সব রোল ({rolls.length})
+                </button>
+                <button
+                  type="button"
+                  className={`btn sm ${freadyFilter === 'qcpass' ? 'pri' : ''}`}
+                  onClick={() => setFreadyFilter('qcpass')}
+                >
+                  QC পাস রোল
+                </button>
+                <button
+                  type="button"
+                  className={`btn sm ${freadyFilter === 'pending' ? 'pri' : ''}`}
+                  onClick={() => setFreadyFilter('pending')}
+                >
+                  চালান বাকি
+                </button>
+              </div>
+
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--surface2)', textAlign: 'left', borderBottom: '1px solid var(--line)' }}>
+                      <th style={{ padding: '8px 10px' }}>নির্বাচন</th>
+                      <th style={{ padding: '8px 10px' }}>রোল আইডি</th>
+                      <th style={{ padding: '8px 10px' }}>অর্ডার নং</th>
+                      <th style={{ padding: '8px 10px' }}>মেশিন ও শিফট</th>
+                      <th style={{ padding: '8px 10px' }}>ফেব্রিক বিবরণ</th>
+                      <th style={{ padding: '8px 10px' }}>ওজন (কেজি)</th>
+                      <th style={{ padding: '8px 10px' }}>QC স্ট্যাটাস</th>
+                      <th style={{ padding: '8px 10px' }}>তারিখ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rolls.map((r) => {
+                      const isSel = selectedReadyRolls.includes(r.rollId);
+                      return (
+                        <tr key={r.rollId} style={{ borderBottom: '1px solid var(--line)', background: isSel ? 'var(--accent-soft)' : 'transparent' }}>
+                          <td style={{ padding: '8px 10px' }}>
+                            <input
+                              type="checkbox"
+                              checked={isSel}
+                              onChange={(e) => {
+                                if (e.target.checked) setSelectedReadyRolls([...selectedReadyRolls, r.rollId]);
+                                else setSelectedReadyRolls(selectedReadyRolls.filter((id) => id !== r.rollId));
+                              }}
+                            />
+                          </td>
+                          <td style={{ padding: '8px 10px' }}><b>{r.rollId}</b></td>
+                          <td style={{ padding: '8px 10px' }}>{r.orderId}</td>
+                          <td style={{ padding: '8px 10px' }}>{r.machine} ({r.shift})</td>
+                          <td style={{ padding: '8px 10px' }}>{r.fabric}</td>
+                          <td style={{ padding: '8px 10px' }}><b>{r.kg} kg</b></td>
+                          <td style={{ padding: '8px 10px' }}>
+                            <span className="pill p-ok" style={{ fontSize: '0.72rem' }}>{r.status}</span>
+                          </td>
+                          <td style={{ padding: '8px 10px' }}>{r.date}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* ================= 5. PARTY LEDGER & KHATA (ledger) ================= */}
+          {factoryView === 'ledger' && (
+            <div className="card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.2rem' }}>📖 পার্টি খাতা ও লেনদেন বিবরণী (Ledger)</h3>
+                  <small style={{ color: 'var(--muted)' }}>চালান অনুযায়ী ডেবিট (পাওনা), পেমেন্ট ক্রেডিট (জমা) ও রানিং ব্যালেন্স</small>
+                </div>
+                <button
+                  type="button"
+                  className="btn sm"
+                  onClick={() => openPrintModal('bill', `পার্টি লেজার - ${parties.find((p) => p.id === ledgerParty)?.name || 'ABC Knit'}`, vouchers)}
+                >
+                  🖨️ খাতা স্টেটমেন্ট প্রিন্ট
+                </button>
+              </div>
+
+              {/* Party Selector Pills */}
+              <div style={{ display: 'flex', gap: 8, marginBottom: 16, overflowX: 'auto', paddingBottom: 4 }}>
+                {parties.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className={`btn sm ${ledgerParty === p.id ? 'pri' : ''}`}
+                    onClick={() => setLedgerParty(p.id)}
+                  >
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+
+              {/* Party Financial Summary Cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 16 }}>
+                <div className="kpi">
+                  <div className="t">মোট নিটিং বিল</div>
+                  <div className="v">{fmtTk(vouchers.reduce((acc, v) => acc + v.debit, 240000))}</div>
+                  <div className="s">ডেলিভারিকৃত চালানের মোট পাওনা</div>
+                </div>
+                <div className="kpi">
+                  <div className="t">মোট আদায় / জমা</div>
+                  <div className="v">{fmtTk(vouchers.reduce((acc, v) => acc + v.credit, 180000))}</div>
+                  <div className="s">নগদ / ব্যাংক মাধ্যমে প্রাপ্ত</div>
+                </div>
+                <div className="kpi">
+                  <div className="t">চলতি বকেয়া পাওনা</div>
+                  <div className="v" style={{ color: 'var(--warn)' }}>{fmtTk(60000)}</div>
+                  <div className="s">বিলের ৩০ দিনের মধ্যে পরিশোধযোগ্য</div>
+                </div>
+              </div>
+
+              {/* Ledger Statement Table */}
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--surface2)', textAlign: 'left', borderBottom: '1px solid var(--line)' }}>
+                      <th style={{ padding: '8px 10px' }}>তারিখ</th>
+                      <th style={{ padding: '8px 10px' }}>ভাউচার / রেফারেন্স</th>
+                      <th style={{ padding: '8px 10px' }}>বিবরণ</th>
+                      <th style={{ padding: '8px 10px' }}>মাধ্যম</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'right' }}>ডেবিট (পাওনা)</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'right' }}>ক্রেডিট (জমা)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {vouchers.map((v) => (
+                      <tr key={v.id} style={{ borderBottom: '1px solid var(--line)' }}>
+                        <td style={{ padding: '8px 10px' }}>{v.date}</td>
+                        <td style={{ padding: '8px 10px' }}><b>{v.id}</b></td>
+                        <td style={{ padding: '8px 10px' }}>{v.narration}</td>
+                        <td style={{ padding: '8px 10px' }}><span className="pill p-acc" style={{ fontSize: '0.72rem' }}>{v.method}</span></td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', color: v.debit > 0 ? 'var(--ink)' : 'var(--muted)' }}>
+                          {v.debit > 0 ? fmtTk(v.debit) : '—'}
+                        </td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', color: v.credit > 0 ? 'var(--ok)' : 'var(--muted)' }}>
+                          {v.credit > 0 ? fmtTk(v.credit) : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* ================= 6. FACTORY EXPENSES & COSTING (acc) ================= */}
+          {factoryView === 'acc' && (
+            <div className="card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.2rem' }}>💰 ফ্যাক্টরি দৈনিক খরচ, ব্যাংক ও কস্টিং</h3>
+                  <small style={{ color: 'var(--muted)' }}>বিদ্যুৎ, স্পেয়ার পার্টস, নিডেল, লুব অয়েল ও ফ্লোর কর্মচারীদের দৈনন্দিন হিসাব</small>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 16 }}>
+                <div className="kpi">
+                  <div className="t">চলতি মাসের খরচ</div>
+                  <div className="v">{fmtTk(expenses.reduce((acc, e) => acc + e.amount, 0))}</div>
+                  <div className="s">বিদ্যুৎ, নিডেল ও ফ্লোর মেইনটেন্যান্স</div>
+                </div>
+                <div className="kpi">
+                  <div className="t">প্রতি কেজি নিটিং খরচ</div>
+                  <div className="v">৳৪.৫০ / kg</div>
+                  <div className="s">বিদ্যুৎ + অপারেটর + মেইনটেন্যান্স</div>
+                </div>
+                <div className="kpi">
+                  <div className="t">গড় নিটিং বিলিং রেট</div>
+                  <div className="v">৳১৪.০০ / kg</div>
+                  <div className="s">নেট মার্জিন: ৳৯.৫০/কেজি</div>
+                </div>
+              </div>
+
+              {/* Add Expense Form */}
+              <div style={{ padding: 14, background: 'var(--surface2)', borderRadius: 10, border: '1px solid var(--line)', marginBottom: 18 }}>
+                <h4 style={{ margin: '0 0 10px', fontSize: '0.95rem' }}>+ নতুন ফ্যাক্টরি খরচ লিখুন</h4>
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (!expTitle || !expAmount) return;
+                    await addExpense({
+                      category: expCategory,
+                      title: expTitle,
+                      amount: parseFloat(expAmount) || 0,
+                      method: expMethod,
+                      ref: expRef || ('EX-' + Date.now().toString().slice(-4)),
+                      date: new Date().toISOString().split('T')[0],
+                      createdBy: users[0]?.name || 'ম্যানেজার',
+                    });
+                    setExpTitle('');
+                    setExpAmount('');
+                    setExpRef('');
+                  }}
+                  style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10, alignItems: 'flex-end' }}
+                >
+                  <div>
+                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 3 }}>ক্যাটাগরি</label>
+                    <select
+                      className="select"
+                      style={{ width: '100%', padding: '7px 8px', borderRadius: 6, border: '1px solid var(--line)', fontSize: '0.82rem', background: 'var(--surface)' }}
+                      value={expCategory}
+                      onChange={(e) => setExpCategory(e.target.value)}
+                    >
+                      <option value="electricity">পল্লী বিদ্যুৎ বিল</option>
+                      <option value="maintenance">মেশিন মেরামত ও বিয়ারিং</option>
+                      <option value="needle_oil">নিডেল ও লুব অয়েল</option>
+                      <option value="snacks">স্টাফ নাস্তা ও চা</option>
+                      <option value="transport">পরিবহন ও ডেলিভারি</option>
+                      <option value="other">অন্যান্য অফিস খরচ</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 3 }}>খরচের বিবরণ</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="যেমন: M-03 ক্যাম সার্ভিসিং"
+                      style={{ width: '100%', padding: '7px 8px', borderRadius: 6, border: '1px solid var(--line)', fontSize: '0.82rem', background: 'var(--surface)' }}
+                      value={expTitle}
+                      onChange={(e) => setExpTitle(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 3 }}>টাকার পরিমাণ (৳)</label>
+                    <input
+                      type="number"
+                      required
+                      placeholder="যেমন: 2500"
+                      style={{ width: '100%', padding: '7px 8px', borderRadius: 6, border: '1px solid var(--line)', fontSize: '0.82rem', background: 'var(--surface)' }}
+                      value={expAmount}
+                      onChange={(e) => setExpAmount(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 3 }}>পরিশোধ মাধ্যম</label>
+                    <select
+                      className="select"
+                      style={{ width: '100%', padding: '7px 8px', borderRadius: 6, border: '1px solid var(--line)', fontSize: '0.82rem', background: 'var(--surface)' }}
+                      value={expMethod}
+                      onChange={(e) => setExpMethod(e.target.value)}
+                    >
+                      <option value="cash">নগদ ক্যাশ</option>
+                      <option value="bank">ব্যাংক একাউন্ট</option>
+                      <option value="bkash">বিকাশ / নগদ</option>
+                    </select>
+                  </div>
+
+                  <button type="submit" className="btn pri sm" style={{ height: 35 }}>
+                    + খরচ যোগ করুন
+                  </button>
+                </form>
+              </div>
+
+              {/* Expense Table */}
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--surface2)', textAlign: 'left', borderBottom: '1px solid var(--line)' }}>
+                      <th style={{ padding: '8px 10px' }}>তারিখ</th>
+                      <th style={{ padding: '8px 10px' }}>ক্যাটাগরি</th>
+                      <th style={{ padding: '8px 10px' }}>বিবরণ</th>
+                      <th style={{ padding: '8px 10px' }}>ভাউচার / রেফারেন্স</th>
+                      <th style={{ padding: '8px 10px' }}>মাধ্যম</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'right' }}>পরিমাণ (৳)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {expenses.map((ex) => (
+                      <tr key={ex.id} style={{ borderBottom: '1px solid var(--line)' }}>
+                        <td style={{ padding: '8px 10px' }}>{ex.date}</td>
+                        <td style={{ padding: '8px 10px' }}><span className="pill p-acc" style={{ fontSize: '0.72rem' }}>{ex.category}</span></td>
+                        <td style={{ padding: '8px 10px' }}><b>{ex.title}</b></td>
+                        <td style={{ padding: '8px 10px' }}>{ex.ref || '—'}</td>
+                        <td style={{ padding: '8px 10px' }}>{ex.method}</td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600 }}>{fmtTk(ex.amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* ================= 7. WORKER ATTENDANCE & PAYROLL (att) ================= */}
+          {factoryView === 'att' && (
+            <div className="card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.2rem' }}>👥 ফ্লোর অপারেটর ও টেকনিশিয়ান হাজিরা</h3>
+                  <small style={{ color: 'var(--muted)' }}>দৈনিক শিফট হাজিরা পাঞ্চ, ওভারটাইম ঘণ্টা ও বেতন হিসাব</small>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {['All', 'A', 'B', 'C'].map((sh) => (
+                    <button
+                      key={sh}
+                      type="button"
+                      className={`btn sm ${attShift === sh ? 'pri' : ''}`}
+                      onClick={() => setAttShift(sh)}
+                    >
+                      {sh === 'All' ? 'সব শিফট' : `শিফট ${sh}`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--surface2)', textAlign: 'left', borderBottom: '1px solid var(--line)' }}>
+                      <th style={{ padding: '8px 10px' }}>কর্মচারীর নাম</th>
+                      <th style={{ padding: '8px 10px' }}>পদবি</th>
+                      <th style={{ padding: '8px 10px' }}>শিফট</th>
+                      <th style={{ padding: '8px 10px' }}>আজকের স্ট্যাটাস</th>
+                      <th style={{ padding: '8px 10px' }}>হাজিরা পাঞ্চ বাটন</th>
+                      <th style={{ padding: '8px 10px' }}>ওভারটাইম</th>
+                      <th style={{ padding: '8px 10px' }}>দৈনিক হাজিরা</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {attendance
+                      .filter((a) => attShift === 'All' || a.shift === attShift)
+                      .map((worker) => (
+                        <tr key={worker.id} style={{ borderBottom: '1px solid var(--line)' }}>
+                          <td style={{ padding: '8px 10px' }}><b>{worker.name}</b></td>
+                          <td style={{ padding: '8px 10px' }}>{worker.role}</td>
+                          <td style={{ padding: '8px 10px' }}><span className="pill p-acc" style={{ fontSize: '0.72rem' }}>{worker.shift}</span></td>
+                          <td style={{ padding: '8px 10px' }}>
+                            <span
+                              className="pill"
+                              style={{
+                                background: worker.todayStatus === 'Present' ? 'var(--ok-soft)' : worker.todayStatus === 'Late' ? 'var(--yarn-soft)' : 'var(--bad-soft)',
+                                color: worker.todayStatus === 'Present' ? 'var(--ok)' : worker.todayStatus === 'Late' ? 'var(--yarn)' : 'var(--bad)',
+                                fontSize: '0.75rem',
+                              }}
+                            >
+                              {worker.todayStatus}
+                            </span>
+                          </td>
+                          <td style={{ padding: '8px 10px' }}>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <button
+                                type="button"
+                                className="btn sm"
+                                style={{ padding: '3px 8px', fontSize: '0.75rem', background: 'var(--ok-soft)', color: 'var(--ok)', borderColor: 'var(--ok)' }}
+                                onClick={() => punchAttendance(worker.name, 'Present', 0, worker.shift)}
+                              >
+                                ✓ উপস্থিত
+                              </button>
+                              <button
+                                type="button"
+                                className="btn sm"
+                                style={{ padding: '3px 8px', fontSize: '0.75rem', background: 'var(--yarn-soft)', color: 'var(--yarn)', borderColor: 'var(--yarn)' }}
+                                onClick={() => punchAttendance(worker.name, 'Late', 2, worker.shift)}
+                              >
+                                + OT (২ ঘণ্টা)
+                              </button>
+                              <button
+                                type="button"
+                                className="btn sm"
+                                style={{ padding: '3px 8px', fontSize: '0.75rem', background: 'var(--bad-soft)', color: 'var(--bad)', borderColor: 'var(--bad)' }}
+                                onClick={() => punchAttendance(worker.name, 'Absent', 0, worker.shift)}
+                              >
+                                ✗ অনুপস্থিত
+                              </button>
+                            </div>
+                          </td>
+                          <td style={{ padding: '8px 10px' }}>{worker.otHours} ঘণ্টা</td>
+                          <td style={{ padding: '8px 10px' }}><b>৳{worker.dailyWage}</b></td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* ================= 8. WHATSAPP NOTIFICATION BUILDER (wa) ================= */}
+          {factoryView === 'wa' && (
+            <div className="card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.2rem' }}>📲 স্বয়ংক্রিয় WhatsApp আপডেট ও শিট শেয়ার</h3>
+                  <small style={{ color: 'var(--muted)' }}>বায়ার ও মার্চেন্ডাইজারকে ১-ক্লিকে রিয়েলটাইম নিটিং প্রগ্রেস ও ডেলিভারি মেসেজ পাঠান</small>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+                <div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div>
+                      <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>রিপোর্টের ধরন নির্বাচন করুন</label>
+                      <select
+                        className="select"
+                        style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink)' }}
+                        value={waType}
+                        onChange={(e) => setWaType(e.target.value as any)}
+                      >
+                        <option value="daily">📊 দৈনিক শিফট নিটিং ক্লোজিং রিপোর্ট</option>
+                        <option value="order">📦 বায়ার অর্ডার ডেলিভারি অগ্রগতি</option>
+                        <option value="challan">🚚 ডেলিভারি চালান ও গেট পাস নোটিস</option>
+                        <option value="qc">⚠️ QC ইন্সপেকশন ও ফল্ট অ্যালার্ট</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>বায়ার / প্রাপকের WhatsApp নম্বর</label>
+                      <input
+                        type="text"
+                        style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink)' }}
+                        value={waTargetPhone}
+                        onChange={(e) => setWaTargetPhone(e.target.value)}
+                        placeholder="88017XXXXXXXX"
+                      />
+                    </div>
+
+                    {/* WhatsApp Action Buttons */}
+                    <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+                      <button
+                        type="button"
+                        className="btn sm"
+                        onClick={() => {
+                          const text = waType === 'daily'
+                            ? `*আল-মদিনা নিটওয়্যার লিঃ — দৈনিক নিটিং রিপোর্ট*\nতারিখ: ${new Date().toLocaleDateString('bn-BD')}\n\n• আজকের মোট উৎপাদন: ১,৪২৫ kg\n• রানিং অর্ডার: ৩টি\n• ফ্রি মেশিন: ২টি (বুকিং ওপেন)\n\nধন্যবাদ, রহমান নিটিং ফ্লোর ইনচার্জ`
+                            : `*অর্ডার প্রগ্রেস আপডেট — ${activeOrder?.id}*\nবায়ার: ${activeOrder?.buyer}\nফেব্রিক: ${activeOrder?.lines[0]?.fabric}\nমোট পরিমাণ: ${activeOrder?.lines.reduce((a, b) => a + b.orderKg, 0)} kg\nবোনা সম্পন্ন: ${activeOrder?.lines.reduce((a, b) => a + b.knitKg, 0)} kg (${pct(activeOrder?.lines.reduce((a, b) => a + b.knitKg, 0) || 0, activeOrder?.lines.reduce((a, b) => a + b.orderKg, 0) || 1)}%)\nঅবশিষ্ট: ${Math.max(0, (activeOrder?.lines.reduce((a, b) => a + b.orderKg, 0) || 0) - (activeOrder?.lines.reduce((a, b) => a + b.knitKg, 0) || 0))} kg`;
+                          navigator.clipboard.writeText(text);
+                          addToast({ type: 'success', title: 'কপি হয়েছে', message: 'WhatsApp মেসেজ ক্লিপবোর্ডে কপি করা হয়েছে।' });
+                        }}
+                      >
+                        📋 মেসেজ কপি করুন
+                      </button>
+
+                      <button
+                        type="button"
+                        className="btn pri sm"
+                        style={{ background: '#25D366', borderColor: '#25D366', color: '#FFFFFF' }}
+                        onClick={() => {
+                          const text = waType === 'daily'
+                            ? `*আল-মদিনা নিটওয়্যার লিঃ — দৈনিক নিটিং রিপোর্ট*\nতারিখ: ${new Date().toLocaleDateString('bn-BD')}\n\n• আজকের মোট উৎপাদন: ১,৪২৫ kg\n• রানিং অর্ডার: ৩টি\n• ফ্রি মেশিন: ২টি (বুকিং ওপেন)\n\nধন্যবাদ, রহমান নিটিং ফ্লোর ইনচার্জ`
+                            : `*অর্ডার প্রগ্রেস আপডেট — ${activeOrder?.id}*\nবায়ার: ${activeOrder?.buyer}\nফেব্রিক: ${activeOrder?.lines[0]?.fabric}\nমোট পরিমাণ: ${activeOrder?.lines.reduce((a, b) => a + b.orderKg, 0)} kg\nবোনা সম্পন্ন: ${activeOrder?.lines.reduce((a, b) => a + b.knitKg, 0)} kg\n\nধন্যবাদ!`;
+                          const cleanPh = waTargetPhone.replace(/[^0-9]/g, '');
+                          window.open(`https://api.whatsapp.com/send?phone=${cleanPh}&text=${encodeURIComponent(text)}`, '_blank');
+                        }}
+                      >
+                        📲 সরাসরি WhatsApp-এ পাঠান
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* WhatsApp Chat Preview Bubble */}
+                <div style={{ background: '#E5DDD5', borderRadius: 12, padding: 16, border: '1px solid var(--line)' }}>
+                  <div style={{ fontSize: '0.78rem', color: '#667781', textAlign: 'center', marginBottom: 10 }}>আজকের বার্তা প্রিভিউ</div>
+                  <div style={{ background: '#DCF8C6', borderRadius: 10, padding: 12, maxWidth: 320, marginLeft: 'auto', boxShadow: '0 1px 2px rgba(0,0,0,0.1)', fontSize: '0.85rem', color: '#111b21', lineHeight: 1.5 }}>
+                    <div><b>আল-মদিনা নিটওয়্যার লিঃ — দৈনিক নিটিং রিপোর্ট</b></div>
+                    <div style={{ fontSize: '0.78rem', color: '#667781', margin: '4px 0' }}>তারিখ: {new Date().toLocaleDateString('bn-BD')}</div>
+                    <div style={{ marginTop: 6 }}>
+                      <div>• আজকের মোট উৎপাদন: <b>১,৪২৫ kg</b></div>
+                      <div>• রানিং অর্ডার: <b>৩টি PO</b></div>
+                      <div>• ফ্রি মেশিন: <b>২টি (M-06, M-08)</b></div>
+                    </div>
+                    <div style={{ marginTop: 8, fontSize: '0.78rem', color: '#667781', textAlign: 'right' }}>
+                      {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ✓✓
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ================= 9. FACTORY PROFILE & SETTINGS (profile) ================= */}
+          {factoryView === 'profile' && (
+            <div className="card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.2rem' }}>🏭 ফ্যাক্টরি প্রোফাইল ও মেশিন সেটিংস</h3>
+                  <small style={{ color: 'var(--muted)' }}>নিটখাতা ভেরিফায়েড মিল প্রোফাইল, ট্রেড লাইসেন্স ও মেশিন স্পেসিফিকেশন</small>
+                </div>
+                <span className="pill p-ok">✓ ভেরিফায়েড নিটিং ফ্যাক্টরি</span>
+              </div>
+
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  await updateFactoryProfileInfo({
+                    name: profName,
+                    owner: profOwner,
+                    phone: profPhone,
+                    address: profAddress,
+                    loc: profLoc,
+                    machinesCount: parseInt(profMachines) || 24,
+                  });
+                }}
+                style={{ display: 'flex', flexDirection: 'column', gap: 14 }}
+              >
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+                  <div>
+                    <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>ফ্যাক্টরির নাম</label>
+                    <input
+                      type="text"
+                      required
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink)' }}
+                      value={profName}
+                      onChange={(e) => setProfName(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>মালিক / এমডির নাম</label>
+                    <input
+                      type="text"
+                      required
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink)' }}
+                      value={profOwner}
+                      onChange={(e) => setProfOwner(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>অফিস মোবাইল নম্বর</label>
+                    <input
+                      type="text"
+                      required
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink)' }}
+                      value={profPhone}
+                      onChange={(e) => setProfPhone(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>এলাকা / শিল্পাঞ্চল</label>
+                    <input
+                      type="text"
+                      required
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink)' }}
+                      value={profLoc}
+                      onChange={(e) => setProfLoc(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>মোট সার্কুলার মেশিন সংখ্যা</label>
+                    <input
+                      type="number"
+                      required
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink)' }}
+                      value={profMachines}
+                      onChange={(e) => setProfMachines(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>ফ্যাক্টরির পূর্ণাঙ্গ ঠিকানা</label>
+                  <input
+                    type="text"
+                    required
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink)' }}
+                    value={profAddress}
+                    onChange={(e) => setProfAddress(e.target.value)}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--line)', paddingTop: 12 }}>
+                  <button type="submit" className="btn pri">💾 প্রোফাইল তথ্য সংরক্ষণ করুন</button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* ================= 10. TEAM & USERS PERMISSION (users) ================= */}
+          {factoryView === 'users' && (
+            <div className="card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.2rem' }}>👥 ফ্যাক্টরি টিম ও পারমিশন কন্ট্রোল</h3>
+                  <small style={{ color: 'var(--muted)' }}>মালিক, প্রোডাকশন ম্যানেজার, QC ইনচার্জ ও ফ্লোর অপারেটরদের রোলভিত্তিক অনুমতি</small>
+                </div>
+              </div>
+
+              {/* Add User Form */}
+              <div style={{ padding: 14, background: 'var(--surface2)', borderRadius: 10, border: '1px solid var(--line)', marginBottom: 16 }}>
+                <h4 style={{ margin: '0 0 10px', fontSize: '0.95rem' }}>+ নতুন টিম মেম্বার যুক্ত করুন</h4>
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (!newUserName || !newUserPhone) return;
+                    await addUser({
+                      name: newUserName,
+                      phone: newUserPhone,
+                      role: newUserRole,
+                      shift: 'A',
+                      status: 'Active',
+                    });
+                    setNewUserName('');
+                    setNewUserPhone('');
+                  }}
+                  style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, alignItems: 'flex-end' }}
+                >
+                  <div>
+                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 3 }}>কর্মচারীর নাম</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="নাম লিখুন"
+                      style={{ width: '100%', padding: '7px 8px', borderRadius: 6, border: '1px solid var(--line)', fontSize: '0.82rem', background: 'var(--surface)' }}
+                      value={newUserName}
+                      onChange={(e) => setNewUserName(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 3 }}>মোবাইল নম্বর (লগইন আইডি)</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="017XXXXXXXX"
+                      style={{ width: '100%', padding: '7px 8px', borderRadius: 6, border: '1px solid var(--line)', fontSize: '0.82rem', background: 'var(--surface)' }}
+                      value={newUserPhone}
+                      onChange={(e) => setNewUserPhone(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 3 }}>পদবি</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="যেমন: QC সুপারভাইজার"
+                      style={{ width: '100%', padding: '7px 8px', borderRadius: 6, border: '1px solid var(--line)', fontSize: '0.82rem', background: 'var(--surface)' }}
+                      value={newUserDesig}
+                      onChange={(e) => setNewUserDesig(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 3 }}>সিস্টেম পারমিশন রোল</label>
+                    <select
+                      className="select"
+                      style={{ width: '100%', padding: '7px 8px', borderRadius: 6, border: '1px solid var(--line)', fontSize: '0.82rem', background: 'var(--surface)' }}
+                      value={newUserRole}
+                      onChange={(e) => setNewUserRole(e.target.value as any)}
+                    >
+                      <option value="manager">প্রোডাকশন ম্যানেজার</option>
+                      <option value="qc">QC ইনচার্জ</option>
+                      <option value="operator">ফ্লোর অপারেটর</option>
+                      <option value="accounts">হিসাবরক্ষক</option>
+                    </select>
+                  </div>
+
+                  <button type="submit" className="btn pri sm" style={{ height: 35 }}>
+                    + মেম্বার যোগ করুন
+                  </button>
+                </form>
+              </div>
+
+              {/* Users Table */}
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                  <thead>
+                    <tr style={{ background: 'var(--surface2)', textAlign: 'left', borderBottom: '1px solid var(--line)' }}>
+                      <th style={{ padding: '8px 10px' }}>নাম</th>
+                      <th style={{ padding: '8px 10px' }}>মোবাইল নম্বর</th>
+                      <th style={{ padding: '8px 10px' }}>পদবি ও রোল</th>
+                      <th style={{ padding: '8px 10px' }}>লাস্ট সিন</th>
+                      <th style={{ padding: '8px 10px' }}>স্ট্যাটাস</th>
+                      <th style={{ padding: '8px 10px' }}>অ্যাকশন</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users.map((u) => (
+                      <tr key={u.id} style={{ borderBottom: '1px solid var(--line)' }}>
+                        <td style={{ padding: '8px 10px' }}><b>{u.name}</b></td>
+                        <td style={{ padding: '8px 10px' }}>{u.phone}</td>
+                        <td style={{ padding: '8px 10px' }}><span className="pill p-acc" style={{ fontSize: '0.72rem' }}>{u.role}</span></td>
+                        <td style={{ padding: '8px 10px' }}>{u.lastSeen || 'আজ, ২:০০'}</td>
+                        <td style={{ padding: '8px 10px' }}>
+                          <span className="pill" style={{ background: u.status === 'Active' ? 'var(--ok-soft)' : 'var(--bad-soft)', color: u.status === 'Active' ? 'var(--ok)' : 'var(--bad)', fontSize: '0.72rem' }}>
+                            {u.status}
+                          </span>
+                        </td>
+                        <td style={{ padding: '8px 10px' }}>
+                          <button
+                            type="button"
+                            className="btn sm"
+                            style={{ fontSize: '0.72rem', padding: '3px 8px' }}
+                            onClick={() => toggleUserStatus(u.id)}
+                          >
+                            {u.status === 'Active' ? 'নিষ্ক্রিয় করুন' : 'সক্রিয় করুন'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* ================= 11. PARTNER AFFILIATE PROGRAM (pdash) ================= */}
+          {factoryView === 'pdash' && (
+            <div className="card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.2rem' }}>🤝 নিটখাতা পার্টনার আর্নিং ও রেফারেল প্রোগ্রাম</h3>
+                  <small style={{ color: 'var(--muted)' }}>অন্যান্য নিটিং ফ্যাক্টরি রেফার করে প্রতি সাবস্ক্রিপশনে ২০% লাইফটাইম কমিশন আয় করুন</small>
+                </div>
+                <div style={{ padding: '4px 12px', background: 'var(--yarn-soft)', color: 'var(--yarn)', borderRadius: 20, fontWeight: 600, fontSize: '0.82rem' }}>
+                  রেফারেল কোড: {partner.partnerCode || 'KNIT-P27'}
+                </div>
+              </div>
+
+              {/* Referral Link Box */}
+              <div style={{ padding: 14, background: 'var(--surface2)', borderRadius: 10, border: '1px solid var(--line)', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                <div>
+                  <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)' }}>আপনার নিজস্ব রেফারেল লিংক:</div>
+                  <code style={{ fontSize: '0.9rem', color: 'var(--accent)', fontWeight: 600 }}>https://khitkhata.com/register?ref={partner.partnerCode || 'KNIT-P27'}</code>
+                </div>
+                <button
+                  type="button"
+                  className="btn pri sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`https://khitkhata.com/register?ref=${partner.partnerCode || 'KNIT-P27'}`);
+                    addToast({ type: 'success', title: 'লিংক কপি হয়েছে', message: 'রেফারেল লিংক ক্লিপবোর্ডে কপি সম্পন্ন।' });
+                  }}
+                >
+                  🔗 লিংক কপি করুন
+                </button>
+              </div>
+
+              {/* Commission KPIs */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 16 }}>
+                <div className="kpi">
+                  <div className="t">মোট রেফারেল ফ্যাক্টরি</div>
+                  <div className="v">{partner.totalReferrals || 8} টি</div>
+                  <div className="s">{partner.activeFactoriesCount || 6} টি পেইড অ্যাক্টিভ মিল</div>
+                </div>
+                <div className="kpi">
+                  <div className="t">মোট অর্জিত কমিশন</div>
+                  <div className="v">{fmtTk(partner.totalCommissionTk || 45000)}</div>
+                  <div className="s">২০% মাসিক কমিশন রেট</div>
+                </div>
+                <div className="kpi">
+                  <div className="t">উত্তোলনযোগ্য ব্যালেন্স</div>
+                  <div className="v" style={{ color: 'var(--ok)' }}>{fmtTk(partner.balanceCommissionTk || 30000)}</div>
+                  <div className="s">উত্তোলনকৃত: {fmtTk(partner.withdrawnCommissionTk || 15000)}</div>
+                </div>
+              </div>
+
+              {/* Payout Request Form */}
+              <div style={{ padding: 14, background: 'var(--surface2)', borderRadius: 10, border: '1px solid var(--line)' }}>
+                <h4 style={{ margin: '0 0 10px', fontSize: '0.95rem' }}>💸 বিকাশ / নগদ / ব্যাংক একাউন্টে কমিশন উত্তোলন রিকোয়েস্ট</h4>
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    await requestPartnerPayout(parseFloat(payoutAmt) || 5000, payoutMethod, payoutNumber);
+                  }}
+                  style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, alignItems: 'flex-end' }}
+                >
+                  <div>
+                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 3 }}>উত্তোলনের পরিমাণ (৳)</label>
+                    <input
+                      type="number"
+                      required
+                      min={500}
+                      max={partner.balanceCommissionTk || 30000}
+                      style={{ width: '100%', padding: '7px 8px', borderRadius: 6, border: '1px solid var(--line)', fontSize: '0.82rem', background: 'var(--surface)' }}
+                      value={payoutAmt}
+                      onChange={(e) => setPayoutAmt(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 3 }}>মাধ্যম</label>
+                    <select
+                      className="select"
+                      style={{ width: '100%', padding: '7px 8px', borderRadius: 6, border: '1px solid var(--line)', fontSize: '0.82rem', background: 'var(--surface)' }}
+                      value={payoutMethod}
+                      onChange={(e) => setPayoutMethod(e.target.value)}
+                    >
+                      <option value="bkash">বিকাশ (bKash Personal)</option>
+                      <option value="nagad">নগদ (Nagad Personal)</option>
+                      <option value="rocket">রকেট (Rocket)</option>
+                      <option value="bank">ব্যাংক একাউন্ট ট্রান্সফার</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 3 }}>একাউন্ট নম্বর / ব্যাংক ডিটেল</label>
+                    <input
+                      type="text"
+                      required
+                      style={{ width: '100%', padding: '7px 8px', borderRadius: 6, border: '1px solid var(--line)', fontSize: '0.82rem', background: 'var(--surface)' }}
+                      value={payoutNumber}
+                      onChange={(e) => setPayoutNumber(e.target.value)}
+                      placeholder="018XXXXXXXX"
+                    />
+                  </div>
+
+                  <button type="submit" className="btn pri sm" style={{ height: 35 }}>
+                    উত্তোলন পাঠান
+                  </button>
+                </form>
+              </div>
             </div>
           )}
 

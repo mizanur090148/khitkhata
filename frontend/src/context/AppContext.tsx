@@ -6,6 +6,7 @@ import {
   AttendanceItem,
   BillItem,
   ChallanItem,
+  ExpenseItem,
   FactoryProfileInfo,
   FreeMachineOfferItem,
   JobPostItem,
@@ -285,6 +286,13 @@ interface AppContextType {
   toggleMachineStatus: (machineId: string, newStatus: MachineItem['status']) => Promise<void>;
   recordBillPayment: (billNo: string, amount: number) => Promise<void>;
   issueStoreItem: (issue: Omit<StoreIssueItem, 'id'>) => Promise<void>;
+  expenses: ExpenseItem[];
+  addExpense: (expense: Omit<ExpenseItem, 'id'>) => Promise<void>;
+  punchAttendance: (workerName: string, status: AttendanceItem['todayStatus'], otHours?: number, shift?: string) => Promise<void>;
+  addUser: (user: Omit<AppUserItem, 'id' | 'lastSeen'>) => Promise<void>;
+  toggleUserStatus: (userId: string) => Promise<void>;
+  requestPartnerPayout: (amount: number, method: string, account: string) => Promise<boolean>;
+  updateFactoryProfileInfo: (info: Partial<FactoryProfileInfo>) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -522,6 +530,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [storeItems, setStoreItems] = useState<StoreStockItem[]>(INITIAL_STORE_ITEMS);
   const [storeIssues, setStoreIssues] = useState<StoreIssueItem[]>(INITIAL_STORE_ISSUES);
   const [vouchers, setVouchers] = useState<LedgerVoucherItem[]>(INITIAL_VOUCHERS);
+  const [expenses, setExpenses] = useState<ExpenseItem[]>([
+    { id: 1, category: 'electricity', title: 'পল্লী বিদ্যুৎ বিল — সেপ্টেম্বর ২০২৬', amount: 64500, method: 'bank', ref: 'BILL-REB-891', date: '2026-10-01', createdBy: 'হিসাবরক্ষক তানভীর' },
+    { id: 2, category: 'maintenance', title: 'M-03 ও M-07 সিলিন্ডার বিয়ারিং ও ক্যাম অয়েলিং', amount: 8500, method: 'cash', ref: 'VOU-MC-104', date: '2026-10-02', createdBy: 'ম্যানেজার শফিকুল' },
+    { id: 3, category: 'needle_oil', title: 'Groz-Beckert ভোটা নিডেল ৫০০ পিস ও লুব অয়েল ১ ব্যারেল', amount: 22000, method: 'cash', ref: 'INV-SP-09', date: '2026-10-02', createdBy: 'স্টোরকিপার হাবিব' },
+    { id: 4, category: 'snacks', title: 'ফ্লোর নাইট শিফট অপারেটরদের নাস্তা ও চা', amount: 1850, method: 'cash', ref: 'SNK-04', date: '2026-10-03', createdBy: 'সুপারভাইজার মাহমুদুল' },
+    { id: 5, category: 'transport', title: 'ডেলিভারি চালান পিকআপ ভ্যান ভাড়া (গাজীপুর টু জামগড়া)', amount: 3500, method: 'cash', ref: 'TRP-88', date: '2026-10-03', createdBy: 'ম্যানেজার শফিকুল' },
+  ]);
   const [attendance, setAttendance] = useState<AttendanceItem[]>(INITIAL_ATTENDANCE);
   const [users, setUsers] = useState<AppUserItem[]>(INITIAL_USERS);
   const [threads, setThreads] = useState<MessageThreadItem[]>(INITIAL_THREADS);
@@ -748,6 +763,32 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           if (d.jobs && d.jobs.length) setJobs(d.jobs);
           if (d.suppliers && d.suppliers.length) setSuppliers(d.suppliers);
           if (d.subcontract_posts && d.subcontract_posts.length) setMarketplacePosts(d.subcontract_posts);
+          if (d.expenses && d.expenses.length) {
+            setExpenses(d.expenses.map((e: any) => ({
+              id: e.id,
+              category: e.cat,
+              title: e.title,
+              amount: e.amt,
+              method: e.method,
+              ref: e.ref,
+              date: e.date,
+              createdBy: e.by,
+              notes: e.notes,
+            })));
+          }
+          if (d.partner) {
+            setPartner((prev) => ({
+              ...prev,
+              partnerCode: d.partner.code,
+              totalReferrals: d.partner.total_referrals,
+              activeFactoriesCount: d.partner.active_factories,
+              totalCommissionTk: d.partner.commission_earned,
+              withdrawnCommissionTk: d.partner.withdrawn,
+              balanceCommissionTk: d.partner.balance,
+              payoutMethod: d.partner.payout_method,
+              payoutNumber: d.partner.payout_number,
+            }));
+          }
           addToast({ type: 'success', title: 'ডাটাবেজ সংযুক্ত', message: 'Laravel 13 ও MySQL এর সাথে সফলভাবে সিঙ্ক হয়েছে।' });
         }
       })
@@ -1055,6 +1096,176 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  const addExpense = async (expense: Omit<ExpenseItem, 'id'>) => {
+    const newId = Date.now();
+    const full: ExpenseItem = { ...expense, id: newId };
+    setExpenses((prev) => [full, ...prev]);
+
+    const newVoucher: LedgerVoucherItem = {
+      id: `JV-${Math.floor(1000 + Math.random() * 9000)}`,
+      date: expense.date,
+      party: 'ফ্যাক্টরি খরচ খাতা',
+      type: 'Expense',
+      method: expense.method.toUpperCase(),
+      ref: expense.ref || `EX-${newId}`,
+      narration: expense.title,
+      debit: expense.amount,
+      credit: 0,
+    };
+    setVouchers((prev) => [newVoucher, ...prev]);
+
+    addToast({
+      type: 'success',
+      title: 'খরচ রেকর্ড হয়েছে',
+      message: `${expense.title} (৳${expense.amount.toLocaleString('en-IN')}) খরচ এন্ট্রি সংরক্ষিত।`,
+    });
+
+    try {
+      await apiClient.post('portal/accounts/expenses', {
+        category: expense.category,
+        title: expense.title,
+        amount_tk: expense.amount,
+        payment_method: expense.method,
+        reference_no: expense.ref,
+        expense_date: expense.date,
+        created_by: expense.createdBy,
+        notes: expense.notes,
+      });
+    } catch {
+      // Local fallback
+    }
+  };
+
+  const punchAttendance = async (
+    workerName: string,
+    status: AttendanceItem['todayStatus'],
+    otHours?: number,
+    shift?: string
+  ) => {
+    setAttendance((prev) =>
+      prev.map((a) =>
+        a.name === workerName
+          ? {
+              ...a,
+              todayStatus: status,
+              otHours: otHours !== undefined ? a.otHours + otHours : a.otHours,
+              presentDays: status === 'Present' ? a.presentDays + 1 : a.presentDays,
+            }
+          : a
+      )
+    );
+
+    addToast({
+      type: 'success',
+      title: 'হাজিরা সম্পন্ন',
+      message: `${workerName} এর আজকের হাজিরা: ${status} চিহ্নিত করা হয়েছে।`,
+    });
+
+    try {
+      await apiClient.post('portal/attendance/punch', {
+        worker_name: workerName,
+        role_type: 'operator',
+        shift: shift || 'A',
+        status: status.toLowerCase(),
+        overtime_hours: otHours || 0,
+      });
+    } catch {
+      // Local fallback
+    }
+  };
+
+  const addUser = async (user: Omit<AppUserItem, 'id' | 'lastSeen'>) => {
+    const newId = `USR-${Date.now().toString().slice(-4)}`;
+    const full: AppUserItem = { ...user, id: newId, lastSeen: 'নতুন যোগকৃত' };
+    setUsers((prev) => [...prev, full]);
+
+    addToast({
+      type: 'success',
+      title: 'টিম মেম্বার যুক্ত হয়েছে',
+      message: `${user.name} কে ${user.role} রোলে যুক্ত করা হয়েছে।`,
+    });
+
+    try {
+      await apiClient.post('portal/users', {
+        name: user.name,
+        phone: user.phone,
+        designation: user.role === 'owner' ? 'মালিক' : user.role === 'manager' ? 'ম্যানেজার' : 'অপারেটর',
+        role: 'fac',
+      });
+    } catch {
+      // Local fallback
+    }
+  };
+
+  const toggleUserStatus = async (userId: string) => {
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.id === userId
+          ? { ...u, status: u.status === 'Active' ? 'Disabled' : 'Active' }
+          : u
+      )
+    );
+
+    try {
+      await apiClient.post(`portal/users/${userId}/toggle`, {});
+    } catch {
+      // Handled
+    }
+  };
+
+  const requestPartnerPayout = async (amount: number, method: string, account: string) => {
+    if (amount > partner.balanceCommissionTk) {
+      addToast({
+        type: 'error',
+        title: 'ব্যালেন্স অপ্রতুল',
+        message: `উত্তোলনযোগ্য ব্যালেন্স মাত্র ৳${partner.balanceCommissionTk.toLocaleString('en-IN')}`,
+      });
+      return false;
+    }
+
+    setPartner((prev) => ({
+      ...prev,
+      withdrawnCommissionTk: prev.withdrawnCommissionTk + amount,
+      balanceCommissionTk: prev.balanceCommissionTk - amount,
+      payoutMethod: method,
+      payoutNumber: account,
+    }));
+
+    addToast({
+      type: 'success',
+      title: 'উত্তোলন অনুরোধ গৃহীত',
+      message: `৳${amount.toLocaleString('en-IN')} উত্তোলনের অনুরোধ ${method.toUpperCase()} (${account}) নম্বরে পাঠানো হয়েছে।`,
+    });
+
+    try {
+      await apiClient.post('portal/partner/payout', {
+        amount_tk: amount,
+        payout_method: method,
+        account_number: account,
+      });
+      return true;
+    } catch (err: any) {
+      addToast({ type: 'error', title: 'উত্তোলন ত্রুটি', message: err.message || 'অনুরোধ ব্যর্থ হয়েছে।' });
+      return false;
+    }
+  };
+
+  const updateFactoryProfileInfo = async (info: Partial<FactoryProfileInfo>) => {
+    setFactoryProfile((prev) => ({ ...prev, ...info }));
+    addToast({ type: 'success', title: 'প্রোফাইল আপডেট', message: 'ফ্যাক্টরি তথ্য ও সেটিংস সফলভাবে সংরক্ষিত হয়েছে।' });
+    try {
+      await apiClient.post('portal/profile', {
+        name: info.name,
+        area: info.loc,
+        address: info.address,
+        phone: info.phone,
+        total_machines: info.machinesCount,
+      });
+    } catch {
+      // Handled
+    }
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -1136,6 +1347,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         toggleMachineStatus,
         recordBillPayment,
         issueStoreItem,
+        expenses,
+        addExpense,
+        punchAttendance,
+        addUser,
+        toggleUserStatus,
+        requestPartnerPayout,
+        updateFactoryProfileInfo,
       }}
     >
       {children}

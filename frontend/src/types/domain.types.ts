@@ -249,6 +249,18 @@ export interface LedgerVoucherItem {
   credit: number;
 }
 
+export interface ExpenseItem {
+  id: string | number;
+  category: string;
+  title: string;
+  amount: number;
+  method: 'cash' | 'bank' | 'bkash' | string;
+  ref?: string;
+  date: string;
+  createdBy: string;
+  notes?: string;
+}
+
 export interface AttendanceItem {
   id: string;
   name: string;
@@ -429,11 +441,19 @@ export interface PartnerState {
     dyeing: boolean;
   };
   balance: number;
+  balanceCommissionTk: number;
   totalEarned: number;
+  withdrawnCommissionTk: number;
   impressions: number;
   clicks: number;
   rfqLeads: number;
   bkashNo: string;
+  partnerCode?: string;
+  totalReferrals?: number;
+  activeFactoriesCount?: number;
+  totalCommissionTk?: number;
+  payoutMethod?: string;
+  payoutNumber?: string;
   payouts: {
     id: string;
     date: string;

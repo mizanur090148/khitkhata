@@ -7,10 +7,13 @@ use App\Models\Bill;
 use App\Models\DeliveryChallan;
 use App\Models\FabricRoll;
 use App\Models\Factory;
+use App\Models\FactoryAttendance;
+use App\Models\FactoryExpense;
 use App\Models\FactoryMachine;
 use App\Models\FreeMachineRequest;
 use App\Models\JobListing;
 use App\Models\MessageThread;
+use App\Models\Partner;
 use App\Models\Party;
 use App\Models\ProductionLog;
 use App\Models\QcInspection;
@@ -290,6 +293,34 @@ class KnitKhataDomainService
 
         $subcontractPosts = SubcontractPost::with('quotations')->orderByDesc('id')->get();
 
+        $expenses = FactoryExpense::where('factory_id', $primaryFactory?->id)->orderByDesc('expense_date')->get()->map(fn (FactoryExpense $e) => [
+            'id' => $e->id,
+            'cat' => $e->category,
+            'title' => $e->title,
+            'amt' => (float) $e->amount_tk,
+            'method' => $e->payment_method,
+            'ref' => $e->reference_no,
+            'date' => $e->expense_date ? $e->expense_date->format('Y-m-d') : date('Y-m-d'),
+            'by' => $e->created_by,
+            'notes' => $e->notes,
+        ])->values()->all();
+
+        $attendances = FactoryAttendance::where('factory_id', $primaryFactory?->id)->orderByDesc('attendance_date')->get()->map(fn (FactoryAttendance $a) => [
+            'id' => $a->id,
+            'worker' => $a->worker_name,
+            'role' => $a->role_type,
+            'shift' => $a->shift,
+            'status' => $a->status,
+            'date' => $a->attendance_date ? $a->attendance_date->format('Y-m-d') : date('Y-m-d'),
+            'in' => $a->in_time,
+            'out' => $a->out_time,
+            'ot' => (float) $a->overtime_hours,
+            'wage' => (float) $a->daily_wage_tk,
+            'note' => $a->note,
+        ])->values()->all();
+
+        $partner = Partner::first();
+
         return [
             'vendors' => $parties,
             'machineState' => $machineState,
@@ -308,6 +339,18 @@ class KnitKhataDomainService
             'suppliers' => $suppliers,
             'supplierRfqs' => $supplierRfqs,
             'subcontractPosts' => $subcontractPosts,
+            'expenses' => $expenses,
+            'attendances' => $attendances,
+            'partner' => $partner ? [
+                'code' => $partner->partner_code,
+                'total_referrals' => $partner->total_referrals,
+                'active_factories' => $partner->active_factories_count,
+                'commission_earned' => (float) $partner->total_commission_tk,
+                'withdrawn' => (float) $partner->withdrawn_commission_tk,
+                'balance' => (float) $partner->balance_commission_tk,
+                'payout_method' => $partner->payout_method,
+                'payout_number' => $partner->payout_number,
+            ] : null,
             'factories' => $factories->keyBy('code')->map(fn (Factory $f) => [
                 'id' => $f->id,
                 'code' => $f->code,
