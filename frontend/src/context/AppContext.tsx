@@ -279,7 +279,7 @@ interface AppContextType {
   updateRollStatus: (rollId: string, status: RollTagItem['status'], qcData?: Partial<QcLogItem>) => Promise<void>;
   createChallan: (challan: Omit<ChallanItem, 'no'>) => Promise<void>;
   receiveYarnInward: (yarn: Omit<YarnStockItem, 'id'>) => Promise<void>;
-  createOrder: (order: Omit<SubcontractOrderItem, 'id'>) => Promise<void>;
+  createOrder: (order: Omit<SubcontractOrderItem, 'id'> & { id?: string }) => Promise<string>;
   sendChatMessage: (threadId: string, text: string, senderRole?: 'factory' | 'vendor') => Promise<void>;
   applyForJob: (jobId: string, applicant: { name: string; phone: string; exp: string; note: string }) => Promise<void>;
   postRfq: (rfq: Omit<SupplierRfqItem, 'id' | 'time' | 'status'>) => Promise<void>;
@@ -945,8 +945,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
-  const createOrder = async (order: Omit<SubcontractOrderItem, 'id'>) => {
-    const id = `KK-${Math.floor(2600 + Math.random() * 100)}`;
+  const createOrder = async (order: Omit<SubcontractOrderItem, 'id'> & { id?: string }): Promise<string> => {
+    const id = order.id?.trim() || order.po?.trim() || `SC-2610-02${orders.length + 1}`;
     const fullOrder: SubcontractOrderItem = { ...order, id };
     setOrders((prev) => [fullOrder, ...prev]);
 
@@ -961,6 +961,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch {
       // Handled
     }
+    return id;
   };
 
   const sendChatMessage = async (threadId: string, text: string, senderRole: 'factory' | 'vendor' = 'factory') => {

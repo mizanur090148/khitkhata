@@ -9,6 +9,7 @@ import {
   FactoryDashboardPage,
   FactoryOrdersPage,
   FactoryOrderDetailPage,
+  FactoryNewOrderPage,
   VendorPortalPage,
   SupplierPortalPage,
 } from '@/pages';
@@ -52,6 +53,7 @@ export const AppContent: React.FC = () => {
           <Route path="dash" element={<FactoryDashboardPage />} />
           <Route path="orders" element={<FactoryOrdersPage />} />
           <Route path="orders/:id" element={<FactoryOrderDetailPage />} />
+          <Route path="neworder" element={<FactoryNewOrderPage />} />
           <Route path="detail" element={<FactoryOrderDetailPage />} />
           <Route path="detail/:id" element={<FactoryOrderDetailPage />} />
         </Route>
