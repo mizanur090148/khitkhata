@@ -216,62 +216,59 @@ export const FactoryPortal: React.FC = () => {
   const [profLoc, setProfLoc] = useState(factoryProfile?.loc || 'নারায়ণগঞ্জ');
   const [profMachines, setProfMachines] = useState(String(factoryProfile?.machinesCount || 24));
 
-  // Sidebar Menu Config
-  interface MenuItem {
-    id: string;
-    label: string;
-    icon: any;
-    badge?: string | number;
-  }
-  interface MenuGroup {
-    group: string;
-    items: MenuItem[];
-  }
+    // Exact Sidebar Menu from KnitKhata.html
+  const KK_ICONS: Record<string, string> = {
+    dash: '<path d="M3 13h8V3H3zM13 21h8V11h-8zM3 21h8v-6H3zM13 3v6h8V3z"/>',
+    ord: '<path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/>',
+    prod: '<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>',
+    qc: '<path d="M9 12l2 2 4-4"/><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/>',
+    acc: '<path d="M3 7h18v12H3z"/><path d="M3 11h18M7 15h3"/>',
+    att: '<circle cx="9" cy="8" r="3"/><path d="M3 20c0-3 3-5 6-5s6 2 6 5"/><path d="M16 11l2 2 3-4"/>',
+    usr: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6"/>',
+    wa: '<path d="M4 20l1.5-4A8 8 0 1 1 9 19z"/><path d="M9 9c0 3 3 6 6 6"/>',
+    pty2: '<path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+    pty: '<path d="M3 21V8l6-4 6 4v13"/><path d="M15 12h6v9"/><path d="M7 12h4M7 16h4"/>',
+    bill: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h3"/>',
+    led: '<path d="M4 5c3-1 5-1 8 1 3-2 5-2 8-1v14c-3-1-5-1-8 1-3-2-5-2-8-1z"/><path d="M12 6v14"/>',
+    plan: '<path d="M5 4h14v16H5z"/><path d="M9 4v16"/><path d="M12 9h4M12 13h4"/>',
+    chat: '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/>',
+    job: '<path d="M6 3h12v18H6z"/><path d="M9 7h6M9 11h6M9 15h3"/><path d="M14 15h1v1h-1z"/>',
+    truck: '<path d="M3 7h11v9H3z"/><path d="M14 10h4l3 3v3h-7"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/>',
+    yarn: '<circle cx="12" cy="12" r="8"/><path d="M6 8c4 1 8 5 9 11M9 4.5c3 2 6 6 7 12M4.5 13c3-.5 7 1 10 6"/>',
+    box: '<path d="M3 7l9-4 9 4-9 4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/>',
+    search: '<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/>',
+  };
 
-  const menuGroups: MenuGroup[] = [
-    {
-      group: 'কোর অপারেশন',
-      items: [
-        { id: 'dash', label: 'ফ্যাক্টরি ড্যাশবোর্ড', icon: LayoutDashboard },
-        { id: 'orders', label: 'অর্ডার তালিকা', icon: ClipboardList, badge: orders.length },
-        { id: 'detail', label: 'অর্ডার বিস্তারিত', icon: FileSpreadsheet },
-        { id: 'neworder', label: '+ নতুন সাব-কন্ট্রাক্ট অর্ডার', icon: FilePlus },
-        { id: 'jobcard', label: 'প্রোডাকশন জব কার্ড', icon: BookOpen },
-        { id: 'entry', label: 'শিফট এন্ট্রি ও রোল ট্যাগ', icon: Activity },
-      ],
-    },
-    {
-      group: 'বায়ার সংযোগ ও ফ্লোর',
-      items: [
-        { id: 'fmsg', label: 'বায়ার চ্যাট ও বার্তা', icon: MessageSquare, badge: '২' },
-        { id: 'freem', label: 'ফ্রি মেশিন ব্রডকাস্ট', icon: Radio, badge: 'লাইভ' },
-        { id: 'qc', label: '৪-পয়েন্ট ফ্যাব্রিক QC', icon: CheckSquare },
-        { id: 'fready', label: 'রেডি রোল স্টক', icon: PackageCheck },
-        { id: 'challan', label: 'ডেলিভারি চালান ও গেট পাস', icon: Truck },
-        { id: 'subcontract', label: 'সাব-কন্ট্রাক্ট মার্কেটপ্লেস', icon: Sparkles, badge: 'নতুন' },
-      ],
-    },
-    {
-      group: 'ইনভেন্টরি ও স্টোর',
-      items: [
-        { id: 'yarn', label: 'সুতা রিসিভ ও লেজার', icon: Layers },
-        { id: 'store', label: 'নিডেল, সিংকার ও অয়েল স্টোর', icon: Archive },
-        { id: 'party', label: 'পার্টি ও বায়ার তালিকা', icon: Users },
-      ],
-    },
-    {
-      group: 'হিসাব ও অ্যাডমিন',
-      items: [
-        { id: 'bill', label: 'নিটিং বিল ও ইনভয়েস', icon: Receipt },
-        { id: 'ledger', label: 'জমা-খরচ ও ক্যাশ লেজার', icon: DollarSign },
-        { id: 'acc', label: 'লাভ-ক্ষতি ও মেশিন কস্টিং', icon: TrendingUp },
-        { id: 'att', label: 'অপারেটর হাজিরা ও বেতন', icon: UserCheck },
-        { id: 'wa', label: 'হোয়াটসঅ্যাপ নোটিফিকেশন', icon: MessageCircle },
-        { id: 'profile', label: 'ফ্যাক্টরি প্রোফাইল ও মেশিন', icon: Building },
-        { id: 'users', label: 'স্টাফ ও পারমিশন কন্ট্রোল', icon: ShieldCheck },
-        { id: 'pdash', label: 'KnitKhata পার্টনার আর্নিং', icon: DollarSign },
-      ],
-    },
+  const navFac: ([ 'grp', string ] | [ string, string, string ])[] = [
+    ['grp', 'প্রতিদিনের কাজ'],
+    ['dash', 'ড্যাশবোর্ড', 'dash'],
+    ['orders', 'অর্ডার', 'ord'],
+    ['jobcard', 'জব কার্ড', 'job'],
+    ['entry', 'প্রোডাকশন এন্ট্রি', 'prod'],
+    ['fmsg', 'মেসেজ', 'chat'],
+    ['freem', 'খালি মেশিন', 'search'],
+    ['qc', 'QC ও কাপড়ের সমস্যা', 'qc'],
+
+    ['grp', 'কাপড়, সুতা ও স্টোর'],
+    ['fready', 'রেডি কাপড়', 'box'],
+    ['challan', 'ডেলিভারি চালান', 'truck'],
+    ['yarn', 'সুতা ট্র্যাকার', 'yarn'],
+    ['store', 'স্টোর ও পার্টস', 'box'],
+
+    ['grp', 'বিল ও হিসাব'],
+    ['party', 'পার্টি তালিকা', 'pty'],
+    ['bill', 'বিল ও ভাউচার', 'bill'],
+    ['ledger', 'পার্টি লেজার', 'led'],
+    ['acc', 'খরচ, ব্যাংক ও LC', 'acc'],
+    ['att', 'হাজিরা ও বেতন', 'att'],
+
+    ['grp', 'সেটিংস'],
+    ['profile', 'প্রোফাইল ও সেটিংস', 'usr'],
+    ['users', 'ইউজার ও পারমিশন', 'usr'],
+    ['wa', 'WhatsApp রিপোর্ট', 'wa'],
+
+    ['grp', 'আয় করুন'],
+    ['pdash', 'পার্টনার প্রোগ্রাম', 'pty2'],
   ];
 
   return (
@@ -280,7 +277,11 @@ export const FactoryPortal: React.FC = () => {
       <header className="top">
         <div className="brand">
           <div className="logo">
-            <KnittedKCanvas size={20} fgColor="#FFFFFF" />
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--surface)" stroke-width="2">
+              <path d="M4 8c4 0 4 8 8 8s4-8 8-8" />
+              <path d="M4 14c4 0 4 6 8 6s4-6 8-6" opacity=".6" />
+              <path d="M4 3c4 0 4 7 8 7s4-7 8-7" opacity=".35" />
+            </svg>
           </div>
           <div>
             <b>নিটখাতা</b>
@@ -288,29 +289,21 @@ export const FactoryPortal: React.FC = () => {
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span className="proto">লাইভ সিঙ্ক: MySQL</span>
-          <button
-            type="button"
-            className="btn sm"
-            onClick={fetchDashboardData}
-            disabled={isDashboardSyncing}
-            title="ডাটাবেজ রিফ্রেশ করুন"
-            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', fontSize: 11 }}
-          >
-            <RotateCcw size={12} style={{ animation: isDashboardSyncing ? 'spin 1s linear infinite' : 'none' }} />
-            <span>{isDashboardSyncing ? 'সিঙ্ক...' : 'রিফ্রেশ'}</span>
-          </button>
-        </div>
+        <span className="proto">প্রোটোটাইপ · নমুনা ডেটা</span>
 
         <div className="roleswitch" role="group" aria-label="কার চোখে দেখবেন">
           <button
-            className={role === 'owner' || (role as string) === 'factory' || (role as string) === 'fac' ? 'on' : ''}
-            onClick={() => setRole('owner')}
+            id="r-fac"
+            className={role !== 'vendor' ? 'on' : ''}
+            onClick={() => {
+              setRole('owner');
+              setFactoryView('dash');
+            }}
           >
             ফ্যাক্টরি ভিউ
           </button>
           <button
+            id="r-ven"
             className={role === 'vendor' ? 'on' : ''}
             onClick={() => {
               setRole('vendor');
@@ -319,52 +312,30 @@ export const FactoryPortal: React.FC = () => {
           >
             ভেন্ডর ভিউ (ABC)
           </button>
-          <button
-            className={role === 'supplier' ? 'on' : ''}
-            onClick={() => {
-              setRole('supplier');
-              setScreen('supplier');
-            }}
-          >
-            সাপ্লায়ার ভিউ
-          </button>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--muted)' }}>
-          <span>রোল:</span>
-          <select
-            className="select"
-            style={{ width: 125, padding: '3px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink)' }}
-            value={role}
-            onChange={(e) => setRole(e.target.value as any)}
-          >
-            <option value="owner">মালিক (Owner)</option>
-            <option value="manager">ম্যানেজার</option>
-            <option value="prod">প্রোডাকশন</option>
-            <option value="qc">QC ইন্সপেক্টর</option>
-            <option value="store">স্টোর কিপার</option>
-            <option value="acc">হিসাবরক্ষক</option>
-          </select>
         </div>
 
         <button
           type="button"
           className="top-user"
-          onClick={() => setFactoryView('profile')}
+          id="topUser"
+          onClick={() => {
+            setFactoryView('profile');
+            window.scrollTo(0, 0);
+          }}
           aria-label="প্রোফাইল ও সেটিংস"
         >
           <span className="av">আ</span>
           <span>
-            <b>{users[0]?.name || 'আরিফ হোসেন'}</b>
-            <small>{currentUser?.designation || ROLES_MAP[role]?.bn || 'মালিক'}</small>
+            <b id="tuN">{currentUser?.name || users[0]?.name || 'আরিফ হোসেন'}</b>
+            <small id="tuR">{currentUser?.designation || (role === 'vendor' ? 'বায়ার' : 'মালিক')}</small>
           </span>
         </button>
 
         <button
           type="button"
           className="btn sm"
+          id="topOut"
           onClick={logout}
-          style={{ color: 'var(--bad)', borderColor: 'var(--line)' }}
         >
           লগআউট
         </button>
@@ -373,51 +344,48 @@ export const FactoryPortal: React.FC = () => {
       {/* App Shell with Left Rail & Working Canvas */}
       <div className="shell">
         <nav className="rail" id="rail">
-          {menuGroups.map((grp, gIdx) => (
-            <React.Fragment key={gIdx}>
-              <div className="grp">{grp.group}</div>
-              {grp.items.map((it) => {
-                const Icon = it.icon;
-                const active = factoryView === it.id;
-                return (
-                  <button
-                    key={it.id}
-                    className={active ? 'on' : ''}
-                    onClick={() => setFactoryView(it.id)}
-                  >
-                    <Icon size={17} />
-                    <span>{it.label}</span>
-                    {it.badge && (
-                      <span
-                        className="ch-un"
-                        style={{
-                          marginLeft: 'auto',
-                          fontSize: 10,
-                          padding: '1px 6px',
-                          borderRadius: 99,
-                          background: active ? '#ffffff' : 'var(--surface2)',
-                          color: active ? 'var(--accent)' : 'var(--ink)',
-                          fontWeight: 600,
-                        }}
-                      >
-                        {it.badge}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </React.Fragment>
-          ))}
+          {navFac.map((item, idx) => {
+            if (item[0] === 'grp') {
+              return (
+                <div key={`grp-${idx}`} className="grp">
+                  {item[1]}
+                </div>
+              );
+            }
+            const [id, label, iconKey] = item as [string, string, string];
+            const active =
+              factoryView === id ||
+              (factoryView === 'detail' && id === 'orders') ||
+              (factoryView === 'neworder' && id === 'orders') ||
+              (factoryView === 'subcontract' && id === 'freem') ||
+              (factoryView === 'billdoc' && id === 'bill');
 
-          <div className="grp" style={{ marginTop: 'auto', paddingTop: 16 }}>অ্যাকশন</div>
-          <button onClick={logout} style={{ color: 'var(--bad)' }}>
-            <LogOut size={17} />
-            <span>লগআউট করুন</span>
-          </button>
-          <button onClick={() => setScreen('site')} style={{ color: 'var(--muted)' }}>
-            <ArrowLeft size={17} />
-            <span>ওয়েবসাইটে ফিরুন</span>
-          </button>
+            const badge =
+              id === 'fmsg' ? 2 : id === 'freem' ? 1 : null;
+
+            return (
+              <button
+                key={id}
+                data-v={id}
+                className={active ? 'on' : ''}
+                onClick={() => {
+                  setFactoryView(id);
+                  window.scrollTo(0, 0);
+                }}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  dangerouslySetInnerHTML={{ __html: (iconKey && KK_ICONS[iconKey]) || '' }}
+                />
+                {label}
+                {badge !== null && (
+                  <span className="ch-un" style={{ marginLeft: 'auto' }}>
+                    {badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </nav>
 
         {/* Working Canvas matching KnitKhata.html */}
