@@ -1,336 +1,428 @@
-import React, { useState } from 'react';
+import React, { useState, useId } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
 import { bnNum } from '@/utils/formatters';
 import { SubcontractOrderItem, OrderLineItem } from '@/types/domain.types';
 
-interface OrderLineFormState {
-  id: number;
-  place: string;
-  fabric: string;
-  gsm: number;
-  dia: string;
-  stitch: string;
-  color: string;
-  yarnCount: string;
+// Exact constants from KnitKhata.html
+const PLACES = [
+  'Body',
+  'Sleeve',
+  'Neck Rib',
+  'Collar',
+  'Cuff',
+  'Bottom Rib / Waistband',
+  'Placket',
+  'BNT (Back Neck Tape)',
+  'Piping / Binding',
+  'Tipping',
+  'Hood',
+  'Hood Lining',
+  'Pocket',
+  'Pocket Lining',
+  'Yoke',
+  'Side Panel',
+  'Contrast Panel',
+  'Gusset',
+  'Lining',
+  'Others',
+];
+
+const PQUICK = [
+  'Body',
+  'Sleeve',
+  'Neck Rib',
+  'Collar',
+  'Cuff',
+  'Bottom Rib / Waistband',
+  'BNT (Back Neck Tape)',
+  'Piping / Binding',
+  'Tipping',
+  'Hood',
+];
+
+const FABS = [
+  'Flat Knit Collar',
+  'Flat Knit Cuff',
+  'Tipping Collar',
+  'Flat Knit Placket',
+  'Single Jersey',
+  'Single Jersey Lycra',
+  '1×1 Rib',
+  '1×1 Rib Lycra',
+  '1×1 Rib Lycra (Half Feeder)',
+  '1×1 Rib (Double Ply)',
+  'Irregular Rib',
+  '2×1 Rib',
+  '2×2 Rib',
+  'Fleece (2-Thread)',
+  'Fleece (3-Thread)',
+  'Pique',
+  'Pique Lycra',
+  'Lacoste',
+  'Lacoste Lycra',
+  'Interlock',
+  'Terry',
+  'French Terry',
+  'Waffle',
+];
+
+const YROLES = [
+  'বডি সুতা',
+  'লাইক্রা (Spandex)',
+  'Face',
+  'Binder / Tie',
+  'Loop (Back)',
+  'Ply ১',
+  'Ply ২',
+];
+
+const COLORS = [
+  'Grey (RFD)',
+  'White',
+  'Black',
+  'Navy Blue',
+  'Heather Grey',
+  'Red',
+  'Royal Blue',
+  'Olive',
+];
+
+function fabHint(p: string): string {
+  p = (p || '').toLowerCase();
+  if (/rib|collar|cuff|waist|placket/.test(p)) return '1×1 Rib Lycra';
+  if (/bnt|tape|piping|binding|tipping/.test(p)) return 'Single Jersey';
+  if (/hood/.test(p)) return 'Fleece (3-Thread)';
+  return 'Single Jersey';
+}
+
+function isLy(c: string): boolean {
+  return /spandex|lycra|elastane|\b\d+\s*d\b/i.test(String(c || ''));
+}
+
+const ROLE_PCT: Record<string, number> = {
+  Face: 45,
+  'Binder / Tie': 10,
+  'Loop (Back)': 45,
+  'Ply ১': 50,
+  'Ply ২': 50,
+  'লাইক্রা (Spandex)': 5,
+};
+
+interface YarnItemState {
+  role: string;
+  count: string;
   brand: string;
   lot: string;
-  qty: number;
-  processLoss: number;
+  col: string;
+  pct: string;
+}
+
+interface OrderLineState {
+  uid: number;
+  kt: 'c' | 'f';
+  yd: boolean;
+  fsize: string;
+  pcw: string;
+  fdes: string;
+  place: string;
+  fab: string;
+  color: string;
+  qty: string;
+  yarns: YarnItemState[];
+  ggsm: string;
+  fgsm: string;
+  sl: string;
+  gdia: string;
+  mdia: string;
+  mg: string;
   machines: string[];
 }
 
+function yPct(y: YarnItemState, ys: YarnItemState[]): number {
+  if (y.pct !== '' && y.pct != null && !isNaN(Number(y.pct))) return Number(y.pct);
+  if (ROLE_PCT[y.role] != null && ys.length > 1 && !(y.role === 'Face' && ys.length === 2)) {
+    return ROLE_PCT[y.role];
+  }
+  if (isLy(y.count) || y.role === 'লাইক্রা (Spandex)') return 5;
+  const typed = ys
+    .filter((x) => x !== y && x.pct !== '' && x.pct != null && !isNaN(Number(x.pct)))
+    .reduce((a, x) => a + Number(x.pct), 0);
+  const ly =
+    ys.filter(
+      (x) =>
+        x !== y &&
+        (x.pct === '' || x.pct == null) &&
+        (isLy(x.count) || x.role === 'লাইক্রা (Spandex)')
+    ).length * 5;
+  const rest =
+    ys.filter(
+      (x) =>
+        (x.pct === '' || x.pct == null) &&
+        !(isLy(x.count) || x.role === 'লাইক্রা (Spandex)')
+    ).length || 1;
+  return Math.max(0, Math.round(((100 - typed - ly) / rest) * 10) / 10);
+}
+
+function yarnTemplate(fab: string): string[] {
+  const f = (fab || '').toLowerCase();
+  if (f.includes('3-thread')) return ['Face', 'Binder / Tie', 'Loop (Back)'];
+  if (f.includes('2-thread') || f.includes('terry')) return ['Face', 'Loop (Back)'];
+  if (f.includes('double ply')) return ['Ply ১', 'Ply ২'];
+  if (f.includes('lycra') || f.includes('spandex')) return ['বডি সুতা', 'লাইক্রা (Spandex)'];
+  return ['বডি সুতা'];
+}
+
+const newYarn = (role = ''): YarnItemState => ({
+  role,
+  count: '',
+  brand: '',
+  lot: '',
+  col: '',
+  pct: '',
+});
+
+let noSeqCounter = 100;
+
 export const FactoryNewOrderPage: React.FC = () => {
   const navigate = useNavigate();
-  const { orders, parties, machines, createOrder, receiveYarnInward, addToast, setSelectedOrderId } = useApp();
+  const { orders, parties, machines, createOrder, addToast, setSelectedOrderId } = useApp();
 
-  // Basic Order Fields
-  const nextOrderIndex = orders.length + 1;
-  const [orderCode, setOrderCode] = useState<string>(`SC-2610-02${nextOrderIndex}`);
-  const [selectedPartyId, setSelectedPartyId] = useState<string>(parties[0]?.id || 'p-01');
-  const [buyer, setBuyer] = useState<string>('H&M Basic');
-  const [style, setStyle] = useState<string>('Crew Neck Tee');
-  const [season, setSeason] = useState<string>('Autumn 2026');
-  const [mainColor, setMainColor] = useState<string>('Navy Blue');
-  const [delivDate, setDelivDate] = useState<string>(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 15);
-    return d.toISOString().split('T')[0];
-  });
-  const [rateTk, setRateTk] = useState<string>('24.0');
-  const [dailyTargetKg, setDailyTargetKg] = useState<string>('500');
-  const [status, setStatus] = useState<'Running' | 'Pending' | 'Draft'>('Running');
-  const [notes, setNotes] = useState<string>('নিয়মিত সাব-কন্ট্রাক্ট নিটিং অর্ডার');
+  // Basic Form States matching KnitKhata.html
+  const [pubDate, setPubDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [yrecDate, setYrecDate] = useState<string>('');
+  const [delDate, setDelDate] = useState<string>('');
+  const [vendorName, setVendorName] = useState<string>('ABC Knit Composite');
+  const [orderNo, setOrderNo] = useState<string>(`SC-2610-02${orders.length + 1}`);
+  const [buyerName, setBuyerName] = useState<string>('H&M');
+  const [totalQty, setTotalQty] = useState<string>('5000');
 
-  // Part-by-part Fabric Lines
-  const [lines, setLines] = useState<OrderLineFormState[]>([
+  // Lines State
+  const [noLines, setNoLines] = useState<OrderLineState[]>([
     {
-      id: 1,
+      uid: 1,
+      kt: 'c',
+      yd: false,
+      fsize: '',
+      pcw: '',
+      fdes: '',
       place: 'Body',
-      fabric: 'Single Jersey 100% Cotton',
-      gsm: 160,
-      dia: '30" × 24G',
-      stitch: '2.65 mm',
+      fab: 'Single Jersey',
       color: 'Navy Blue',
-      yarnCount: '30/1 Combed Cotton',
-      brand: 'Square Textiles',
-      lot: 'SQ-90112',
-      qty: 4500,
-      processLoss: 2.0,
+      qty: '4500',
+      yarns: [newYarn('বডি সুতা')],
+      ggsm: '150',
+      fgsm: '160',
+      sl: '2.65 mm',
+      gdia: '68',
+      mdia: '30',
+      mg: '24',
       machines: ['M-01', 'M-03'],
     },
     {
-      id: 2,
+      uid: 2,
+      kt: 'c',
+      yd: false,
+      fsize: '',
+      pcw: '',
+      fdes: '',
       place: 'Neck Rib',
-      fabric: '1×1 Lycra Rib (95/5)',
-      gsm: 220,
-      dia: '32" × 18G',
-      stitch: '2.80 mm',
+      fab: '1×1 Rib Lycra',
       color: 'Navy Blue Matching',
-      yarnCount: '30/1 Combed + 20D Spandex',
-      brand: 'Square Textiles',
-      lot: 'SQ-90112',
-      qty: 500,
-      processLoss: 2.5,
+      qty: '500',
+      yarns: [newYarn('বডি সুতা'), newYarn('লাইক্রা (Spandex)')],
+      ggsm: '',
+      fgsm: '220',
+      sl: '2.80 mm',
+      gdia: '',
+      mdia: '32',
+      mg: '18',
       machines: ['M-08'],
     },
   ]);
 
-  // Initial Yarn Inward (Optional)
-  const [hasInitialYarn, setHasInitialYarn] = useState<boolean>(true);
-  const [yarnChallanNo, setYarnChallanNo] = useState<string>(`CH-Y-902${nextOrderIndex}`);
-  const [yarnBags, setYarnBags] = useState<string>('50');
-  const [yarnKg, setYarnKg] = useState<string>('2500');
-  const [yarnWarehouse, setYarnWarehouse] = useState<string>('গোডাউন-১ / র্যাক-বি');
-
-  // Is Submitting
+  const [noActive, setNoActive] = useState<number>(1);
+  const [formMsg, setFormMsg] = useState<string>('');
   const [submitting, setSubmitting] = useState<boolean>(false);
 
-  // Active Party Object
-  const selectedParty = parties.find((p) => p.id === selectedPartyId) || parties[0];
+  // Line Name helper
+  const lname = (l: OrderLineState, i: number) =>
+    [l.place, l.fab].filter(Boolean).join(' · ') || `লাইন ${i + 1}`;
+  const unitOf = (l: OrderLineState) => (l && (l.kt === 'f' || (l as any).unit === 'pcs') ? 'পিস' : 'kg');
 
-  // Quick preset adder
-  const addPresetLine = (preset: 'body' | 'rib' | 'cuff' | 'collar' | 'tipping' | 'custom') => {
-    const newId = lines.length ? Math.max(...lines.map((l) => l.id)) + 1 : 1;
-    let newLine: OrderLineFormState;
+  // Totals Calculation matching noTotals() in KnitKhata.html
+  const totalNum = parseFloat(totalQty) || 0;
+  const sumNum = noLines.filter((l) => l.kt !== 'f').reduce((a, l) => a + (parseFloat(l.qty) || 0), 0);
+  const restNum = totalNum - sumNum;
 
-    switch (preset) {
-      case 'body':
-        newLine = {
-          id: newId,
-          place: 'Body',
-          fabric: 'Single Jersey 100% Cotton',
-          gsm: 160,
-          dia: '30" × 24G',
-          stitch: '2.65 mm',
-          color: mainColor || 'Navy Blue',
-          yarnCount: '30/1 Combed',
-          brand: 'Square Textiles',
-          lot: 'SQ-90112',
-          qty: 3000,
-          processLoss: 2.0,
-          machines: ['M-01'],
-        };
-        break;
-      case 'rib':
-        newLine = {
-          id: newId,
-          place: 'Neck Rib',
-          fabric: '1×1 Lycra Rib (95/5)',
-          gsm: 220,
-          dia: '32" × 18G',
-          stitch: '2.80 mm',
-          color: mainColor ? `${mainColor} Matching` : 'Matching',
-          yarnCount: '30/1 Combed + 20D',
-          brand: 'Square Textiles',
-          lot: 'SQ-90112',
-          qty: 400,
-          processLoss: 2.5,
-          machines: ['M-08'],
-        };
-        break;
-      case 'cuff':
-        newLine = {
-          id: newId,
-          place: 'Cuff Rib',
-          fabric: '1×1 Flat/Circular Rib',
-          gsm: 220,
-          dia: '30" × 18G',
-          stitch: '2.75 mm',
-          color: mainColor || 'Navy Blue',
-          yarnCount: '30/1 Combed',
-          brand: 'Square Textiles',
-          lot: 'SQ-90112',
-          qty: 350,
-          processLoss: 2.0,
-          machines: ['M-08'],
-        };
-        break;
-      case 'collar':
-        newLine = {
-          id: newId,
-          place: 'Collar (Polo/Tee)',
-          fabric: 'Pique Collar Matched',
-          gsm: 230,
-          dia: 'Flat Knit',
-          stitch: '2.70 mm',
-          color: mainColor || 'Navy Blue',
-          yarnCount: '26/1 Carded',
-          brand: 'Beximco',
-          lot: 'BX-4011',
-          qty: 300,
-          processLoss: 2.0,
-          machines: ['M-02'],
-        };
-        break;
-      case 'tipping':
-        newLine = {
-          id: newId,
-          place: 'Tipping Rib',
-          fabric: 'Tipping Rib Contrast',
-          gsm: 240,
-          dia: '30" × 18G',
-          stitch: '2.70 mm',
-          color: 'White Contrast Stripe',
-          yarnCount: '30/1 Combed',
-          brand: 'Square Textiles',
-          lot: 'SQ-90112',
-          qty: 150,
-          processLoss: 3.0,
-          machines: ['M-08'],
-        };
-        break;
-      default:
-        newLine = {
-          id: newId,
-          place: `Part ${newId}`,
-          fabric: 'Cotton Knit Fabric',
-          gsm: 180,
-          dia: '30" × 24G',
-          stitch: '2.65 mm',
-          color: mainColor || 'Color',
-          yarnCount: '30/1 Combed',
-          brand: 'Spinner Mill',
-          lot: 'LOT-01',
-          qty: 500,
-          processLoss: 2.0,
-          machines: [],
-        };
-    }
-    setLines([...lines, newLine]);
-  };
+  // Allocation status class
+  let allocSt = '';
+  let allocCls = '';
+  if (!totalNum) {
+    allocSt = 'মোট অর্ডার কোয়ান্টিটি লিখুন, তারপর ফেব্রিক অনুযায়ী ভাগ করুন।';
+    allocCls = 'idle';
+  } else if (restNum < 0) {
+    allocSt = `মোট অর্ডারের চেয়ে ${bnNum(-restNum)} kg বেশি দেওয়া হয়েছে। কোনো লাইনের কোয়ান্টিটি কমান।`;
+    allocCls = 'over';
+  } else if (restNum > 0) {
+    allocSt = `আরও ${bnNum(restNum)} kg ভাগ করা বাকি।`;
+    allocCls = 'left';
+  } else {
+    allocSt = 'পুরো অর্ডার ভাগ করা হয়েছে।';
+    allocCls = 'ok';
+  }
 
-  const removeLine = (id: number) => {
-    if (lines.length <= 1) {
-      addToast({ type: 'info', title: 'ন্যূনতম একটি অংশ আবশ্যক', message: 'একটি অর্ডারে কমপক্ষে একটি ফেব্রিক লাইন থাকতে হবে।' });
-      return;
-    }
-    setLines(lines.filter((l) => l.id !== id));
-  };
+  // Active line object
+  const activeLineObj = noLines.find((l) => l.uid === noActive) || noLines[0];
 
-  const updateLineField = (id: number, field: keyof OrderLineFormState, value: any) => {
-    setLines((prev) =>
-      prev.map((l) => (l.id === id ? { ...l, [field]: value } : l))
+  // Allocation bar segments
+  const allocSegs = noLines.map((l, i) => {
+    const q = l.kt === 'f' ? 0 : parseFloat(l.qty) || 0;
+    const w = totalNum ? Math.min(100, (q / Math.max(totalNum, sumNum)) * 100) : 0;
+    return {
+      w,
+      color: `var(--l${(i % 5) + 1})`,
+      title: `${lname(l, i)}: ${bnNum(q)} kg`,
+    };
+  });
+
+  // Machine ownership map
+  const mcOwner: Record<string, number> = {};
+  noLines.forEach((l, i) => {
+    l.machines.forEach((m) => {
+      mcOwner[m] = i;
+    });
+  });
+
+  // Unique Buyers list for datalist
+  const buyerList = Array.from(new Set(orders.map((o) => o.buyer).filter(Boolean)));
+
+  // Ysum text helper
+  const ysumText = (l: OrderLineState) => {
+    const t = Math.round(l.yarns.reduce((a, y) => a + yPct(y, l.yarns), 0) * 10) / 10;
+    return t === 100 ? (
+      <>
+        সুতার মোট ভাগ: ১০০% ✓{' '}
+        <span className="muted">(লাইক্রা সাধারণত ৫%, খালি রাখলে এটাই ধরা হয়)</span>
+      </>
+    ) : (
+      <span style={{ color: 'var(--bad)' }}>সুতার মোট ভাগ {t}% · ১০০% হওয়া দরকার</span>
     );
   };
 
-  const toggleLineMachine = (lineId: number, machineId: string) => {
-    setLines((prev) =>
+  // Add Line Handler matching addln
+  const handleAddLine = () => {
+    noSeqCounter += 1;
+    const nextUid = noSeqCounter;
+    const newL: OrderLineState = {
+      uid: nextUid,
+      kt: 'c',
+      yd: false,
+      fsize: '',
+      pcw: '',
+      fdes: '',
+      place: '',
+      fab: '',
+      color: '',
+      qty: restNum > 0 ? String(restNum) : '',
+      yarns: [newYarn('বডি সুতা')],
+      ggsm: '',
+      fgsm: '',
+      sl: '',
+      gdia: '',
+      mdia: '',
+      mg: '',
+      machines: [],
+    };
+    setNoLines([...noLines, newL]);
+    setNoActive(nextUid);
+  };
+
+  // Delete line
+  const handleDeleteLine = (uid: number) => {
+    if (noLines.length <= 1) return;
+    const next = noLines.filter((l) => l.uid !== uid);
+    setNoLines(next);
+    if (noActive === uid) setNoActive(next[0].uid);
+  };
+
+  // Toggle machine for active line
+  const handleToggleMachine = (mId: string) => {
+    if (!activeLineObj) return;
+    setNoLines((prev) =>
       prev.map((l) => {
-        if (l.id !== lineId) return l;
-        const exists = l.machines.includes(machineId);
-        const nextMachines = exists
-          ? l.machines.filter((m) => m !== machineId)
-          : [...l.machines, machineId];
-        return { ...l, machines: nextMachines };
+        if (l.uid === activeLineObj.uid) {
+          const has = l.machines.includes(mId);
+          return {
+            ...l,
+            machines: has ? l.machines.filter((x) => x !== mId) : [...l.machines, mId],
+          };
+        } else {
+          // Remove from other line if assigned
+          return {
+            ...l,
+            machines: l.machines.filter((x) => x !== mId),
+          };
+        }
       })
     );
   };
 
-  // Calculations
-  const totalOrderKg = lines.reduce((acc, l) => acc + (Number(l.qty) || 0), 0);
-  const totalYarnRequiredKg = lines.reduce(
-    (acc, l) => acc + (Number(l.qty) || 0) * (1 + (Number(l.processLoss) || 2) / 100),
-    0
-  );
-  const rateNum = parseFloat(rateTk) || 24;
-  const estimatedBillTk = totalOrderKg * rateNum;
-  const uniqueAllocatedMachines = Array.from(
-    new Set(lines.flatMap((l) => l.machines))
-  );
-
-  // Quick Sample Fill
-  const fillSampleData = () => {
-    setOrderCode(`SC-2610-02${orders.length + 1}`);
-    setBuyer('Zara Casuals (Inditex)');
-    setStyle('Summer Terry Henley');
-    setSeason('Spring/Summer 2026');
-    setMainColor('Olive Green');
-    setRateTk('26.5');
-    setDailyTargetKg('600');
-    setStatus('Running');
-    setNotes('জরুরি রপ্তানি চালান — ডেলিভারি নিশ্চিত করতে হবে।');
-    setLines([
-      {
-        id: 1,
-        place: 'Body',
-        fabric: 'Single Jersey 100% Organic Cotton',
-        gsm: 175,
-        dia: '32" × 24G',
-        stitch: '2.70 mm',
-        color: 'Olive Green',
-        yarnCount: '26/1 Combed Organic',
-        brand: 'Envoy Textiles',
-        lot: 'EV-8820',
-        qty: 6000,
-        processLoss: 2.0,
-        machines: ['M-01', 'M-03'],
-      },
-      {
-        id: 2,
-        place: 'Neck Rib',
-        fabric: '1×1 Rib with Spandex (96/4)',
-        gsm: 230,
-        dia: '30" × 18G',
-        stitch: '2.85 mm',
-        color: 'Olive Matching',
-        yarnCount: '30/1 Combed + 20D Spandex',
-        brand: 'Envoy Textiles',
-        lot: 'EV-8820',
-        qty: 650,
-        processLoss: 2.5,
-        machines: ['M-08'],
-      },
-      {
-        id: 3,
-        place: 'Placket & Cuff',
-        fabric: 'Single Jersey Interlock Finish',
-        gsm: 180,
-        dia: '30" × 24G',
-        stitch: '2.65 mm',
-        color: 'Olive Matching',
-        yarnCount: '26/1 Combed',
-        brand: 'Envoy Textiles',
-        lot: 'EV-8820',
-        qty: 350,
-        processLoss: 2.0,
-        machines: ['M-02'],
-      },
-    ]);
-    setHasInitialYarn(true);
-    setYarnChallanNo(`CH-EV-441${orders.length}`);
-    setYarnBags('70');
-    setYarnKg('3500');
-    setYarnWarehouse('গোডাউন-১ / র্যাক-এ');
-    addToast({ type: 'info', title: 'নমুনা ডেটা পূরণ হয়েছে', message: 'Zara Casuals-এর স্পেসিফিকেশন ও লাইন ডেটা যুক্ত হয়েছে।' });
-  };
-
-  // Submit Handler
+  // Submit Handler exact validation logic from KnitKhata.html
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (totalOrderKg <= 0) {
-      addToast({ type: 'info', title: 'পরিমাণ সঠিক দিন', message: 'মোট অর্ডার পরিমাণ ০ এর বেশি হতে হবে।' });
+    setFormMsg('');
+
+    // Validation
+    const anyC = noLines.some((l) => l.kt !== 'f');
+    const need: string[] = [];
+
+    if (!vendorName.trim()) need.push('Vendor Name');
+    if (!orderNo.trim()) need.push('Order No');
+    if (!buyerName.trim()) need.push('Buyer Name');
+    if (anyC && !(parseFloat(totalQty) > 0)) need.push('Total Order Qty');
+
+    noLines.forEach((l, i) => {
+      if (!l.place.trim()) need.push(`লাইন ${i + 1}-এর Placement`);
+      if (!l.fab.trim()) need.push(`লাইন ${i + 1}-এর Fabrication`);
+      if (!(parseFloat(l.qty) > 0)) need.push(`লাইন ${i + 1}-এর Qty`);
+      if (l.kt !== 'f' && !l.mdia.trim()) need.push(`লাইন ${i + 1}-এর Machine Dia`);
+      if (!l.mg.trim()) need.push(`লাইন ${i + 1}-এর Machine Gauge`);
+    });
+
+    if (need.length > 0) {
+      setFormMsg(`${need.join(', ')} লিখুন।`);
+      return;
+    }
+
+    if (anyC && !(totalNum > 0)) {
+      setFormMsg('Total Order Qty তে সঠিক সংখ্যা লিখুন (kg)।');
+      return;
+    }
+
+    if (restNum < 0) {
+      setFormMsg(
+        `মোট অর্ডার ${bnNum(totalNum)} kg, কিন্তু ফেব্রিকগুলোতে ${bnNum(sumNum)} kg দেওয়া হয়েছে — ${bnNum(-restNum)} kg বেশি। ঠিক করে আবার সেভ করুন।`
+      );
       return;
     }
 
     setSubmitting(true);
     try {
-      const orderDate = new Date().toISOString().split('T')[0];
-      const primaryLine = lines[0];
-
-      const mappedLines: OrderLineItem[] = lines.map((l, idx) => ({
+      const primaryLine = noLines[0];
+      const mappedLines: OrderLineItem[] = noLines.map((l, idx) => ({
         id: idx + 1,
-        fabric: l.fabric,
-        dia: l.dia,
-        gsm: Number(l.gsm) || 160,
-        yarn: l.yarnCount,
-        brand: l.brand,
-        lot: l.lot,
-        stitch: l.stitch,
-        orderKg: Number(l.qty) || 0,
-        rate: rateNum,
-        processLoss: Number(l.processLoss) || 2.0,
-        yarnRcv: hasInitialYarn ? (idx === 0 ? parseFloat(yarnKg) || 0 : 0) : 0,
+        fabric: l.fab,
+        dia: l.kt === 'f' ? l.fsize || 'Flat' : `${l.mdia}" × ${l.mg}G`,
+        gsm: parseInt(l.fgsm || l.ggsm) || 160,
+        yarn: l.yarns.map((y) => y.count).filter(Boolean).join(' + ') || '30/1 Combed',
+        brand: l.yarns[0]?.brand || 'Square Textiles',
+        lot: l.yarns[0]?.lot || 'SQ-88410',
+        stitch: l.sl || '2.65 mm',
+        orderKg: parseFloat(l.qty) || 0,
+        rate: 24.0,
+        processLoss: 2.0,
+        yarnRcv: 0,
         knitKg: 0,
         qcPass: 0,
         rejectKg: 0,
@@ -340,50 +432,32 @@ export const FactoryNewOrderPage: React.FC = () => {
       }));
 
       const newOrderPayload: Omit<SubcontractOrderItem, 'id'> & { id?: string } = {
-        id: orderCode.trim() || undefined,
-        po: orderCode.trim() || `SC-2610-02${orders.length + 1}`,
-        party: selectedParty?.name || 'ABC Knit Composite',
-        partyPhone: selectedParty?.phone || '01711-000111',
-        buyer: buyer.trim() || 'ABC Knit Composite',
-        style: style.trim() || primaryLine.fabric,
-        season: season.trim() || 'Autumn 2026',
-        color: mainColor.trim() || primaryLine.color,
-        orderDate,
-        delivDate,
-        status: status,
+        id: orderNo.trim() || undefined,
+        po: orderNo.trim() || `SC-2610-02${orders.length + 1}`,
+        party: vendorName.trim(),
+        partyPhone: '01711-000111',
+        buyer: buyerName.trim(),
+        style: primaryLine.fab || 'Single Jersey',
+        season: 'Autumn 2026',
+        color: primaryLine.color || 'Navy Blue',
+        orderDate: pubDate || new Date().toISOString().split('T')[0],
+        delivDate: delDate || '2026-11-15',
+        status: 'Running',
         payStatus: 'Due',
         paidAmt: 0,
         advanceAmt: 0,
         discountAmt: 0,
         deductAmt: 0,
-        notes: notes.trim(),
+        notes: `Published: ${pubDate}, Yarn Rec: ${yrecDate}`,
         lines: mappedLines,
       };
 
       const createdId = await createOrder(newOrderPayload);
 
-      // If initial yarn is checked and entered, receive initial yarn inward
-      if (hasInitialYarn && parseFloat(yarnKg) > 0) {
-        await receiveYarnInward({
-          orderId: createdId,
-          lineIdx: 0,
-          date: orderDate,
-          party: selectedParty?.name || 'ABC Knit Composite',
-          lot: primaryLine.lot || 'SQ-90112',
-          brand: primaryLine.brand || 'Square Textiles',
-          count: primaryLine.yarnCount || '30/1 Combed',
-          rcvKg: parseFloat(yarnKg) || 2500,
-          bags: parseInt(yarnBags) || 50,
-          usedKg: 0,
-          retKg: 0,
-          wastageKg: 0,
-        });
-      }
-
       addToast({
         type: 'success',
-        title: 'অর্ডার সফলভাবে সেভ হয়েছে!',
-        message: `ওয়ার্ক অর্ডার ${createdId} তৈরি হয়েছে। জব কার্ড এবং চালান এখন প্রস্তুত।`,
+        title: 'অর্ডার সেভ হয়েছে!',
+        message: `${createdId} সেভ হয়েছে · ড্যাশবোর্ডে যোগ হলো`,
       });
 
       setSelectedOrderId(createdId);
@@ -401,696 +475,945 @@ export const FactoryNewOrderPage: React.FC = () => {
   };
 
   return (
-    <div style={{ maxWidth: 1120, margin: '0 auto', paddingBottom: 60 }}>
-      {/* Top Header */}
-      <div className="head" style={{ marginBottom: 20 }}>
+    <>
+      {/* 1. Header exact from KnitKhata.html */}
+      <div className="head">
         <div>
           <button
             type="button"
             className="btn sm"
-            style={{ marginBottom: 8 }}
-            onClick={() => navigate('/dashboard/orders')}
+            onClick={() => {
+              navigate('/dashboard/orders');
+              window.scrollTo(0, 0);
+            }}
           >
-            ← অর্ডার তালিকায় ফিরুন
+            ← অর্ডার
           </button>
-          <h2>+ নতুন সাব-কন্ট্রাক্ট অর্ডার এন্ট্রি</h2>
-          <p>পার্টি ও বায়ারের ওয়ার্ক অর্ডার, অংশভিত্তিক স্পেসিফিকেশন ও মেশিন বরাদ্দ খাতা</p>
-        </div>
-        <div className="row" style={{ gap: 8 }}>
-          <button
-            type="button"
-            className="btn sm"
-            onClick={fillSampleData}
-            title="দ্রুত পরীক্ষার জন্য নমুনা তথ্য পূরণ করুন"
-          >
-            ⚡ নমুনা ডেটা পূরণ
-          </button>
-          <button
-            type="button"
-            className="btn sm"
-            onClick={() => navigate('/dashboard/orders')}
-          >
-            বাতিল
-          </button>
+          <h2 style={{ marginTop: 8 }}>New Order Entry</h2>
+          <p>
+            একটা অর্ডারে বডি, রিব, কলার, টিপিং-এর মতো একাধিক অংশ থাকলে প্রতিটা আলাদা লাইনে লিখুন।
+            আগে Placement, তারপর ফেব্রিক আর সুতা। লাল তারকা দেওয়া ঘরগুলো লাগবেই।
+          </p>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit}>
-        {/* SECTION 1: PARTY & WORK ORDER BASIC INFO */}
-        <div className="card" style={{ marginBottom: 18, border: '1px solid var(--line)', background: 'var(--surface)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid var(--line)' }}>
-            <div>
-              <b style={{ fontSize: '1rem', color: 'var(--ink)' }}>১. পার্টি ও ওয়ার্ক অর্ডারের মূল তথ্য</b>
-              <div className="small muted">বায়ার, ওয়ার্ক অর্ডার কোড, পার্টি রেট ও সময়সীমা</div>
-            </div>
-            <span className="pill p-acc">অর্ডার বেসিক</span>
-          </div>
+      {/* Datalists from KnitKhata.html */}
+      <datalist id="dl-place">
+        {PLACES.map((x) => (
+          <option key={x} value={x} />
+        ))}
+      </datalist>
+      <datalist id="dl-fab">
+        {FABS.map((x) => (
+          <option key={x} value={x} />
+        ))}
+      </datalist>
+      <datalist id="dl-yrole">
+        {YROLES.map((x) => (
+          <option key={x} value={x} />
+        ))}
+      </datalist>
+      <datalist id="dl-col">
+        {COLORS.map((x) => (
+          <option key={x} value={x} />
+        ))}
+      </datalist>
+      <datalist id="no-vlist">
+        {parties.map((p) => (
+          <option key={p.id} value={p.name} />
+        ))}
+      </datalist>
+      <datalist id="no-blist">
+        {buyerList.map((b) => (
+          <option key={b} value={b} />
+        ))}
+      </datalist>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-            {/* Party / Vendor */}
-            <div>
-              <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>
-                পার্টি / ভেন্ডর প্রতিষ্ঠান *
-              </label>
-              <select
-                className="select"
-                required
-                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink)' }}
-                value={selectedPartyId}
-                onChange={(e) => {
-                  const pId = e.target.value;
-                  setSelectedPartyId(pId);
-                  const p = parties.find((party) => party.id === pId);
-                  if (p && p.rate1J) {
-                    setRateTk(String(p.rate1J));
-                  }
-                }}
-              >
-                {parties.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} ({p.contact || 'ভেন্ডর'} · {p.phone})
-                  </option>
-                ))}
-              </select>
-              {selectedParty && (
-                <small style={{ color: 'var(--muted)', marginTop: 4, display: 'block' }}>
-                  ঠিকানা: {selectedParty.address || 'নারায়ণগঞ্জ'} · স্ট্যান্ডার্ড রেট: ৳{selectedParty.rate1J || 24}/kg
-                </small>
-              )}
-            </div>
-
-            {/* Buyer */}
-            <div>
-              <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>
-                বায়ার নাম / ব্র্যান্ড *
-              </label>
+      {/* Main Form full width matching orders page */}
+      <form id="nof" className="no-wrap" style={{ maxWidth: '100%', width: '100%' }} onSubmit={handleSubmit} noValidate>
+        {/* CARD 1: DATES */}
+        <div className="card">
+          <h3>
+            <span className="stp">১</span>তারিখ
+          </h3>
+          <div className="no-dates">
+            <label className="no-f" htmlFor="no-pub">
+              <span>Order Published Date</span>
               <input
-                type="text"
-                required
-                className="input"
-                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink)' }}
-                placeholder="যেমন: H&M / Zara / Lidl / Walmart"
-                value={buyer}
-                onChange={(e) => setBuyer(e.target.value)}
-              />
-            </div>
-
-            {/* Order Code / PO */}
-            <div>
-              <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>
-                ওয়ার্ক অর্ডার নম্বর / কোড *
-              </label>
-              <input
-                type="text"
-                required
-                className="input mono"
-                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink)', fontWeight: 600 }}
-                placeholder="যেমন: SC-2610-025"
-                value={orderCode}
-                onChange={(e) => setOrderCode(e.target.value)}
-              />
-            </div>
-
-            {/* Delivery Date */}
-            <div>
-              <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>
-                ডেলিভারির শেষ তারিখ (Deadline) *
-              </label>
-              <input
+                id="no-pub"
                 type="date"
-                required
-                className="input"
-                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink)' }}
-                value={delivDate}
-                onChange={(e) => setDelivDate(e.target.value)}
+                value={pubDate}
+                onChange={(e) => setPubDate(e.target.value)}
               />
-            </div>
-
-            {/* Style & Season */}
-            <div>
-              <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>
-                গার্মেন্টস স্টাইল নাম
-              </label>
+            </label>
+            <label className="no-f" htmlFor="no-yrec">
+              <span>Yarn Received Date</span>
               <input
-                type="text"
-                className="input"
-                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink)' }}
-                placeholder="যেমন: Basic Crew Neck Tee"
-                value={style}
-                onChange={(e) => setStyle(e.target.value)}
+                id="no-yrec"
+                type="date"
+                value={yrecDate}
+                onChange={(e) => setYrecDate(e.target.value)}
               />
-            </div>
-
-            {/* Main Color */}
-            <div>
-              <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>
-                মূল বডি রং (Primary Color) *
-              </label>
+            </label>
+            <label className="no-f" htmlFor="no-del">
+              <span>Fabrics Delivery Date</span>
               <input
-                type="text"
-                required
-                className="input"
-                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink)' }}
-                placeholder="যেমন: Navy Blue / Heather Grey"
-                value={mainColor}
-                onChange={(e) => setMainColor(e.target.value)}
+                id="no-del"
+                type="date"
+                value={delDate}
+                onChange={(e) => setDelDate(e.target.value)}
               />
-            </div>
-
-            {/* Knitting Rate Tk */}
-            <div>
-              <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>
-                নিটিং রেট (৳ / kg) *
-              </label>
-              <input
-                type="number"
-                step="0.25"
-                required
-                className="input"
-                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink)' }}
-                value={rateTk}
-                onChange={(e) => setRateTk(e.target.value)}
-              />
-            </div>
-
-            {/* Daily Target Rate Kg */}
-            <div>
-              <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>
-                দৈনিক লক্ষ্য (kg / দিন / মেশিন)
-              </label>
-              <input
-                type="number"
-                className="input"
-                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink)' }}
-                value={dailyTargetKg}
-                onChange={(e) => setDailyTargetKg(e.target.value)}
-              />
-            </div>
-
-            {/* Initial Status */}
-            <div>
-              <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>
-                প্রাথমিক অবস্থা (Initial Status)
-              </label>
-              <select
-                className="select"
-                style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink)' }}
-                value={status}
-                onChange={(e) => setStatus(e.target.value as any)}
-              >
-                <option value="Running">চলমান (এখনই মেশিনে উঠবে)</option>
-                <option value="Pending">সুতার অপেক্ষায় (Pending)</option>
-                <option value="Draft">খসড়া (Draft)</option>
-              </select>
-            </div>
+            </label>
           </div>
         </div>
 
-        {/* SECTION 2: PART-BY-PART FABRIC & MACHINE ALLOCATION */}
-        <div className="card" style={{ marginBottom: 18, border: '1px solid var(--line)', background: 'var(--surface)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, paddingBottom: 10, borderBottom: '1px solid var(--line)' }}>
-            <div>
-              <b style={{ fontSize: '1rem', color: 'var(--ink)' }}>২. অংশ ধরে New Order Entry (ফেব্রিক ও স্পেসিফিকেশন)</b>
-              <div className="small muted">Body, Neck Rib, Cuff, Collar, Tipping আলাদা লাইনে — সুতা, মেশিন ও কেজি বরাদ্দ</div>
-            </div>
-            <div className="row" style={{ gap: 6 }}>
-              <button
-                type="button"
-                className="btn sm"
-                style={{ fontSize: '0.78rem' }}
-                onClick={() => addPresetLine('body')}
-              >
-                + Body
-              </button>
-              <button
-                type="button"
-                className="btn sm"
-                style={{ fontSize: '0.78rem' }}
-                onClick={() => addPresetLine('rib')}
-              >
-                + Neck Rib
-              </button>
-              <button
-                type="button"
-                className="btn sm"
-                style={{ fontSize: '0.78rem' }}
-                onClick={() => addPresetLine('cuff')}
-              >
-                + Cuff
-              </button>
-              <button
-                type="button"
-                className="btn sm"
-                style={{ fontSize: '0.78rem' }}
-                onClick={() => addPresetLine('collar')}
-              >
-                + Collar
-              </button>
-              <button
-                type="button"
-                className="btn sm"
-                style={{ fontSize: '0.78rem' }}
-                onClick={() => addPresetLine('tipping')}
-              >
-                + Tipping
-              </button>
-              <button
-                type="button"
-                className="btn pri sm"
-                style={{ fontSize: '0.78rem' }}
-                onClick={() => addPresetLine('custom')}
-              >
-                + কাস্টম অংশ
-              </button>
-            </div>
+        {/* CARD 2: ORDER INFORMATION */}
+        <div className="card">
+          <h3>
+            <span className="stp">২</span>অর্ডারের তথ্য
+          </h3>
+          <div className="no-grid">
+            <label className="no-f" htmlFor="no-vendor">
+              <span>
+                Vendor Name <b className="req">*</b>
+              </span>
+              <input
+                id="no-vendor"
+                type="text"
+                placeholder="যেমন: ABC Knit Composite"
+                list="no-vlist"
+                autoComplete="off"
+                value={vendorName}
+                onChange={(e) => setVendorName(e.target.value)}
+              />
+            </label>
+
+            <label className="no-f" htmlFor="no-id">
+              <span>
+                Order No <b className="req">*</b>
+              </span>
+              <input
+                id="no-id"
+                type="text"
+                placeholder="যেমন: SC-2610-020"
+                value={orderNo}
+                onChange={(e) => setOrderNo(e.target.value)}
+              />
+            </label>
+
+            <label className="no-f" htmlFor="no-buyer">
+              <span>
+                Buyer Name <b className="req">*</b>
+              </span>
+              <input
+                id="no-buyer"
+                type="text"
+                placeholder="যেমন: বায়ারের নাম"
+                list="no-blist"
+                autoComplete="off"
+                value={buyerName}
+                onChange={(e) => setBuyerName(e.target.value)}
+              />
+            </label>
+
+            <label className="no-f" htmlFor="no-qty">
+              <span>
+                Total Order Qty (kg) <b className="req">*</b>
+              </span>
+              <input
+                id="no-qty"
+                type="text"
+                inputMode="decimal"
+                placeholder="যেমন: 5000"
+                value={totalQty}
+                onChange={(e) => setTotalQty(e.target.value)}
+              />
+            </label>
+          </div>
+        </div>
+
+        {/* CARD 3: ALLOCATION BAR (PART BY PART KG SPLIT) */}
+        <div className={`card alloc ${allocCls}`} id="alloc">
+          <div className="al-top">
+            <b>
+              <span className="stp">৩</span>অংশ অনুযায়ী ভাগ
+            </b>
+            <span className="mono">
+              {bnNum(sumNum)} / {totalNum ? bnNum(totalNum) : '—'} kg
+            </span>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {lines.map((line, idx) => (
+          <div className="al-bar">
+            {allocSegs.map((seg, idx) => (
+              <i
+                key={idx}
+                style={{ width: `${seg.w}%`, background: seg.color }}
+                title={seg.title}
+              />
+            ))}
+          </div>
+
+          <div className="al-legend">
+            {noLines.map((l, i) => (
+              <span key={l.uid} style={{ ['--c' as any]: `var(--l${(i % 5) + 1})` }}>
+                {lname(l, i)}:{' '}
+                <b className="mono">
+                  {bnNum(parseFloat(l.qty) || 0)} {unitOf(l)}
+                </b>
+                {l.kt === 'f' && (
+                  <small className="muted"> (ফ্ল্যাট, kg-র হিসাবে নেই)</small>
+                )}
+              </span>
+            ))}
+          </div>
+
+          <div className="al-st" role="status">
+            {allocSt}
+          </div>
+        </div>
+
+        {/* LINES LIST */}
+        <div id="lines" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {noLines.map((l, i) => {
+            const lc = `var(--l${(i % 5) + 1})`;
+            const tmpl = yarnTemplate(l.fab);
+
+            return (
               <div
-                key={line.id}
-                style={{
-                  background: 'var(--surface2)',
-                  borderRadius: 10,
-                  border: '1px solid var(--line)',
-                  padding: 16,
-                  position: 'relative',
-                }}
+                key={l.uid}
+                className="ln"
+                style={{ ['--lc' as any]: lc }}
+                data-line={l.uid}
+                onClick={() => setNoActive(l.uid)}
               >
                 {/* Line Top Header */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <div className="row" style={{ alignItems: 'center', gap: 8 }}>
-                    <span
-                      style={{
-                        background: 'var(--accent)',
-                        color: '#fff',
-                        borderRadius: 6,
-                        padding: '2px 8px',
-                        fontSize: '0.75rem',
-                        fontWeight: 700,
-                      }}
-                    >
-                      অংশ #{idx + 1}
-                    </span>
-                    <b style={{ fontSize: '0.92rem', color: 'var(--ink)' }}>{line.place || 'ফেব্রিক লাইন'}</b>
-                    <span className="mono small muted">({line.fabric})</span>
-                  </div>
-
-                  {lines.length > 1 && (
+                <div className="ln-h">
+                  <span className="ln-no">{i + 1}</span>
+                  <b className="ln-t" id={`lt${l.uid}`}>
+                    {[l.place, l.fab, l.color].filter(Boolean).join(' · ') || 'নতুন অংশ'}
+                  </b>
+                  <span className="ln-q" id={`lq${l.uid}`}>
+                    {l.qty ? `${bnNum(parseFloat(l.qty) || 0)} ${unitOf(l)}` : ''}
+                  </span>
+                  {noLines.length > 1 && (
                     <button
                       type="button"
-                      className="btn sm"
-                      style={{
-                        color: 'var(--bad)',
-                        borderColor: 'var(--bad)',
-                        padding: '2px 8px',
-                        fontSize: '0.75rem',
+                      className="ln-x"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteLine(l.uid);
                       }}
-                      onClick={() => removeLine(line.id)}
+                      aria-label="এই অংশ বাদ দিন"
                     >
-                      ✕ লাইন মুছুন
+                      ✕
                     </button>
                   )}
                 </div>
 
-                {/* Line Fields Grid */}
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))',
-                    gap: 10,
-                  }}
-                >
-                  {/* Placement */}
-                  <div>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>
-                      অংশ / প্লেসমেন্ট *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--line)', background: 'var(--surface)', fontSize: '0.82rem' }}
-                      value={line.place}
-                      onChange={(e) => updateLineField(line.id, 'place', e.target.value)}
-                      placeholder="Body / Neck Rib / Cuff"
-                    />
+                {/* Knitting Type & Fabric Type Segments */}
+                <div className="ktr">
+                  <div className="seg" role="group" aria-label="নিটিংয়ের ধরন">
+                    <span>নিটিং</span>
+                    <button
+                      type="button"
+                      className={l.kt !== 'f' ? 'on' : ''}
+                      onClick={() => {
+                        setNoLines((prev) =>
+                          prev.map((item) =>
+                            item.uid === l.uid ? { ...item, kt: 'c' } : item
+                          )
+                        );
+                      }}
+                    >
+                      সার্কুলার
+                    </button>
+                    <button
+                      type="button"
+                      className={l.kt === 'f' ? 'on' : ''}
+                      onClick={() => {
+                        setNoLines((prev) =>
+                          prev.map((item) =>
+                            item.uid === l.uid
+                              ? { ...item, kt: 'f', place: item.place || 'Collar' }
+                              : item
+                          )
+                        );
+                      }}
+                    >
+                      ফ্ল্যাট (কলার-কাফ)
+                    </button>
                   </div>
 
-                  {/* Fabric Description */}
-                  <div style={{ gridColumn: 'span 2' }}>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>
-                      ফেব্রিক বিবরণ ও কম্পোজিশন *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--line)', background: 'var(--surface)', fontSize: '0.82rem' }}
-                      value={line.fabric}
-                      onChange={(e) => updateLineField(line.id, 'fabric', e.target.value)}
-                      placeholder="যেমন: Single Jersey 100% Cotton"
-                    />
-                  </div>
-
-                  {/* GSM */}
-                  <div>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>
-                      জিএসএম (GSM) *
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--line)', background: 'var(--surface)', fontSize: '0.82rem' }}
-                      value={line.gsm}
-                      onChange={(e) => updateLineField(line.id, 'gsm', e.target.value)}
-                    />
-                  </div>
-
-                  {/* Dia × Gauge */}
-                  <div>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>
-                      ডায়া × গেজ *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--line)', background: 'var(--surface)', fontSize: '0.82rem' }}
-                      value={line.dia}
-                      onChange={(e) => updateLineField(line.id, 'dia', e.target.value)}
-                      placeholder='30" × 24G'
-                    />
-                  </div>
-
-                  {/* Stitch Length */}
-                  <div>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>
-                      স্টিচ লেন্থ (SL)
-                    </label>
-                    <input
-                      type="text"
-                      style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--line)', background: 'var(--surface)', fontSize: '0.82rem' }}
-                      value={line.stitch}
-                      onChange={(e) => updateLineField(line.id, 'stitch', e.target.value)}
-                      placeholder="2.65 mm"
-                    />
-                  </div>
-
-                  {/* Color */}
-                  <div>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>
-                      রং (Color) *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--line)', background: 'var(--surface)', fontSize: '0.82rem' }}
-                      value={line.color}
-                      onChange={(e) => updateLineField(line.id, 'color', e.target.value)}
-                    />
-                  </div>
-
-                  {/* Yarn Count */}
-                  <div>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>
-                      সুতার কাউন্ট
-                    </label>
-                    <input
-                      type="text"
-                      style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--line)', background: 'var(--surface)', fontSize: '0.82rem' }}
-                      value={line.yarnCount}
-                      onChange={(e) => updateLineField(line.id, 'yarnCount', e.target.value)}
-                      placeholder="30/1 Combed"
-                    />
-                  </div>
-
-                  {/* Spinner Mill */}
-                  <div>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>
-                      স্পিনার মিল
-                    </label>
-                    <input
-                      type="text"
-                      style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--line)', background: 'var(--surface)', fontSize: '0.82rem' }}
-                      value={line.brand}
-                      onChange={(e) => updateLineField(line.id, 'brand', e.target.value)}
-                      placeholder="Square Textiles"
-                    />
-                  </div>
-
-                  {/* Yarn Lot */}
-                  <div>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>
-                      সুতার লট নম্বর
-                    </label>
-                    <input
-                      type="text"
-                      style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--line)', background: 'var(--surface)', fontSize: '0.82rem' }}
-                      value={line.lot}
-                      onChange={(e) => updateLineField(line.id, 'lot', e.target.value)}
-                      placeholder="SQ-90112"
-                    />
-                  </div>
-
-                  {/* Order Quantity Kg */}
-                  <div>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>
-                      অর্ডার পরিমাণ (kg) *
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--line)', background: 'var(--surface)', fontSize: '0.82rem', fontWeight: 700 }}
-                      value={line.qty}
-                      onChange={(e) => updateLineField(line.id, 'qty', e.target.value)}
-                    />
-                  </div>
-
-                  {/* Process Loss % */}
-                  <div>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 2 }}>
-                      প্রসেস লস %
-                    </label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--line)', background: 'var(--surface)', fontSize: '0.82rem' }}
-                      value={line.processLoss}
-                      onChange={(e) => updateLineField(line.id, 'processLoss', e.target.value)}
-                    />
+                  <div className="seg" role="group" aria-label="কাপড়ের ধরন">
+                    <span>কাপড়</span>
+                    <button
+                      type="button"
+                      className={!l.yd ? 'on' : ''}
+                      onClick={() => {
+                        setNoLines((prev) =>
+                          prev.map((item) =>
+                            item.uid === l.uid ? { ...item, yd: false } : item
+                          )
+                        );
+                      }}
+                    >
+                      গ্রে
+                    </button>
+                    <button
+                      type="button"
+                      className={l.yd ? 'on' : ''}
+                      onClick={() => {
+                        setNoLines((prev) =>
+                          prev.map((item) =>
+                            item.uid === l.uid ? { ...item, yd: true } : item
+                          )
+                        );
+                      }}
+                    >
+                      ইয়ার্ন ডাইড (Y/D)
+                    </button>
                   </div>
                 </div>
 
-                {/* Machine Allocation for this part */}
-                <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px dashed var(--line)' }}>
-                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>
-                    মেশিন বরাদ্দ (ক্লিক করে নির্বাচন করুন):
+                {/* Placement with Quick Chips */}
+                <div className="plc">
+                  <label className="no-f" htmlFor={`l${l.uid}-place`}>
+                    <span>
+                      Placement (কোন অংশ) <b className="req">*</b>
+                    </span>
+                    <input
+                      id={`l${l.uid}-place`}
+                      type="text"
+                      placeholder="যেমন: Body, Neck Rib, Cuff"
+                      list="dl-place"
+                      autoComplete="off"
+                      value={l.place}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setNoLines((prev) =>
+                          prev.map((item) =>
+                            item.uid === l.uid ? { ...item, place: val } : item
+                          )
+                        );
+                      }}
+                    />
                   </label>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {machines.map((m) => {
-                      const isSelected = line.machines.includes(m.id);
-                      const isFree = m.status === 'Free' || m.status === 'Idle';
-                      return (
-                        <button
-                          key={m.id}
-                          type="button"
-                          onClick={() => toggleLineMachine(line.id, m.id)}
-                          style={{
-                            padding: '3px 8px',
-                            borderRadius: 6,
-                            fontSize: '0.75rem',
-                            border: isSelected ? '1px solid var(--accent)' : '1px solid var(--line)',
-                            background: isSelected ? 'var(--accent)' : 'var(--surface)',
-                            color: isSelected ? '#fff' : 'var(--ink)',
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 4,
+
+                  <div className="pq" role="group" aria-label="সাধারণ অংশ">
+                    {PQUICK.map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        className={`pqb ${l.place === p ? 'on' : ''}`}
+                        onClick={() => {
+                          setNoLines((prev) =>
+                            prev.map((item) =>
+                              item.uid === l.uid ? { ...item, place: p } : item
+                            )
+                          );
+                        }}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Fabrication, Color, Qty Grid */}
+                <div className="no-grid g3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '12px 16px' }}>
+                  <label className="no-f" htmlFor={`l${l.uid}-fab`}>
+                    <span>
+                      Fabrication <b className="req">*</b>
+                    </span>
+                    <input
+                      id={`l${l.uid}-fab`}
+                      type="text"
+                      list="dl-fab"
+                      autoComplete="off"
+                      placeholder={`যেমন: ${
+                        l.kt === 'f'
+                          ? /cuff|কাফ/i.test(l.place)
+                            ? 'Flat Knit Cuff'
+                            : 'Flat Knit Collar'
+                          : fabHint(l.place)
+                      }`}
+                      value={l.fab}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setNoLines((prev) =>
+                          prev.map((item) => {
+                            if (item.uid !== l.uid) return item;
+                            const empty = item.yarns.every((y) => !y.count && !y.brand && !y.lot);
+                            const t = yarnTemplate(val);
+                            return {
+                              ...item,
+                              fab: val,
+                              yarns: empty ? t.map((r) => newYarn(r)) : item.yarns,
+                            };
+                          })
+                        );
+                      }}
+                    />
+                  </label>
+
+                  <label className="no-f" htmlFor={`l${l.uid}-color`}>
+                    <span>{l.yd ? 'Color / Stripe' : 'Color'}</span>
+                    <input
+                      id={`l${l.uid}-color`}
+                      type="text"
+                      list="dl-col"
+                      autoComplete="off"
+                      placeholder={l.yd ? 'যেমন: Navy + White স্ট্রাইপ' : 'যেমন: Navy Blue'}
+                      value={l.color}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setNoLines((prev) =>
+                          prev.map((item) =>
+                            item.uid === l.uid ? { ...item, color: val } : item
+                          )
+                        );
+                      }}
+                    />
+                  </label>
+
+                  <label className="no-f" htmlFor={`l${l.uid}-qty`}>
+                    <span>
+                      {l.kt === 'f' ? 'Qty (পিস)' : 'Qty (kg)'} <b className="req">*</b>
+                    </span>
+                    <input
+                      id={`l${l.uid}-qty`}
+                      type="text"
+                      inputMode="decimal"
+                      placeholder={l.kt === 'f' ? 'যেমন: 12000' : 'যেমন: 2000'}
+                      value={l.qty}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setNoLines((prev) =>
+                          prev.map((item) =>
+                            item.uid === l.uid ? { ...item, qty: val } : item
+                          )
+                        );
+                      }}
+                    />
+                  </label>
+                </div>
+
+                {/* Yarns Section */}
+                <div className="ln-sub">
+                  সুতা <span className="ycnt">{l.yarns.length}টি</span>
+                </div>
+
+                {l.fab && l.yarns.length < tmpl.length && (
+                  <div className="yhint" style={{ fontSize: '0.84rem', color: 'var(--muted)', background: 'var(--surface2)', padding: '6px 10px', borderRadius: 6, margin: '4px 0' }}>
+                    {l.fab}-এ সাধারণত {tmpl.length}টা সুতা লাগে।{' '}
+                    <button
+                      type="button"
+                      className="linkb"
+                      style={{ background: 'none', border: 0, color: 'var(--accent)', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+                      onClick={() => {
+                        setNoLines((prev) =>
+                          prev.map((item) => {
+                            if (item.uid !== l.uid) return item;
+                            const nextY = [...item.yarns];
+                            tmpl.forEach((r, j) => {
+                              if (!nextY[j]) nextY.push(newYarn(r));
+                              else if (!nextY[j].role) nextY[j].role = r;
+                            });
+                            return { ...item, yarns: nextY };
+                          })
+                        );
+                      }}
+                    >
+                      সুতার ঘরগুলো যোগ করুন
+                    </button>
+                  </div>
+                )}
+
+                <div className="yarns">
+                  {l.yarns.map((y, j) => (
+                    <div key={j} className={`yrow ${l.yd ? 'ydr' : ''}`}>
+                      <span className="yno">{j + 1}</span>
+
+                      <label className="no-f" htmlFor={`y${l.uid}-${j}-count`}>
+                        <span>Yarn Count</span>
+                        <input
+                          id={`y${l.uid}-${j}-count`}
+                          type="text"
+                          placeholder={
+                            /lycra|spandex/i.test(y.role)
+                              ? 'যেমন: 20D Spandex'
+                              : 'যেমন: 30/1 Combed Cotton'
+                          }
+                          value={y.count}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setNoLines((prev) =>
+                              prev.map((item) => {
+                                if (item.uid !== l.uid) return item;
+                                const nextY = [...item.yarns];
+                                nextY[j] = { ...nextY[j], count: val };
+                                return { ...item, yarns: nextY };
+                              })
+                            );
                           }}
-                        >
-                          <b>{m.id}</b>
-                          <span style={{ fontSize: '0.68rem', opacity: isSelected ? 0.9 : 0.6 }}>
-                            ({m.dia} × {m.gg})
-                          </span>
-                          <span
-                            style={{
-                              width: 6,
-                              height: 6,
-                              borderRadius: '50%',
-                              background: isFree ? '#16A34A' : '#D97706',
-                              display: 'inline-block',
+                        />
+                      </label>
+
+                      <label className="no-f" htmlFor={`y${l.uid}-${j}-brand`}>
+                        <span>Yarn Brand</span>
+                        <input
+                          id={`y${l.uid}-${j}-brand`}
+                          type="text"
+                          placeholder="যেমন: মিলের নাম"
+                          value={y.brand}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setNoLines((prev) =>
+                              prev.map((item) => {
+                                if (item.uid !== l.uid) return item;
+                                const nextY = [...item.yarns];
+                                nextY[j] = { ...nextY[j], brand: val };
+                                return { ...item, yarns: nextY };
+                              })
+                            );
+                          }}
+                        />
+                      </label>
+
+                      <label className="no-f" htmlFor={`y${l.uid}-${j}-lot`}>
+                        <span>Yarn Lot</span>
+                        <input
+                          id={`y${l.uid}-${j}-lot`}
+                          type="text"
+                          placeholder="যেমন: SQ-88415"
+                          value={y.lot}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setNoLines((prev) =>
+                              prev.map((item) => {
+                                if (item.uid !== l.uid) return item;
+                                const nextY = [...item.yarns];
+                                nextY[j] = { ...nextY[j], lot: val };
+                                return { ...item, yarns: nextY };
+                              })
+                            );
+                          }}
+                        />
+                      </label>
+
+                      {l.yd && (
+                        <label className="no-f" htmlFor={`y${l.uid}-${j}-col`}>
+                          <span>সুতার রং</span>
+                          <input
+                            id={`y${l.uid}-${j}-col`}
+                            type="text"
+                            placeholder="যেমন: Navy"
+                            value={y.col}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setNoLines((prev) =>
+                                prev.map((item) => {
+                                  if (item.uid !== l.uid) return item;
+                                  const nextY = [...item.yarns];
+                                  nextY[j] = { ...nextY[j], col: val };
+                                  return { ...item, yarns: nextY };
+                                })
+                              );
                             }}
                           />
+                        </label>
+                      )}
+
+                      <label className="no-f ypct" htmlFor={`y${l.uid}-${j}-pct`}>
+                        <span>কাপড়ে %</span>
+                        <input
+                          id={`y${l.uid}-${j}-pct`}
+                          type="text"
+                          inputMode="decimal"
+                          placeholder={String(
+                            yPct(
+                              { ...y, pct: '' },
+                              l.yarns.map((x) => (x === y ? { ...x, pct: '' } : x))
+                            )
+                          )}
+                          value={y.pct}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setNoLines((prev) =>
+                              prev.map((item) => {
+                                if (item.uid !== l.uid) return item;
+                                const nextY = [...item.yarns];
+                                nextY[j] = { ...nextY[j], pct: val };
+                                return { ...item, yarns: nextY };
+                              })
+                            );
+                          }}
+                        />
+                      </label>
+
+                      {l.yarns.length > 1 ? (
+                        <button
+                          type="button"
+                          className="ln-x yx"
+                          onClick={() => {
+                            setNoLines((prev) =>
+                              prev.map((item) => {
+                                if (item.uid !== l.uid) return item;
+                                return {
+                                  ...item,
+                                  yarns: item.yarns.filter((_, idx) => idx !== j),
+                                };
+                              })
+                            );
+                          }}
+                          aria-label="এই সুতা বাদ দিন"
+                        >
+                          ✕
                         </button>
-                      );
-                    })}
-                  </div>
+                      ) : (
+                        <span></span>
+                      )}
+                    </div>
+                  ))}
                 </div>
+
+                <div className="ysum" id={`ys${l.uid}`}>
+                  {ysumText(l)}
+                </div>
+
+                <button
+                  type="button"
+                  className="addy"
+                  style={{
+                    alignSelf: 'flex-start',
+                    background: 'none',
+                    border: '1px dashed var(--line)',
+                    padding: '5px 12px',
+                    borderRadius: 6,
+                    fontSize: '0.82rem',
+                    color: 'var(--accent)',
+                    cursor: 'pointer',
+                    marginTop: 6,
+                  }}
+                  onClick={() => {
+                    const t = yarnTemplate(l.fab);
+                    setNoLines((prev) =>
+                      prev.map((item) => {
+                        if (item.uid !== l.uid) return item;
+                        return {
+                          ...item,
+                          yarns: [...item.yarns, newYarn(t[item.yarns.length] || '')],
+                        };
+                      })
+                    );
+                  }}
+                >
+                  + আরেকটা সুতা যোগ করুন
+                </button>
+
+                {/* Technical Specifications */}
+                <div className="ln-sub">স্পেসিফিকেশন</div>
+
+                {l.kt === 'f' ? (
+                  <div className="no-grid g3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '12px 16px' }}>
+                    <label className="no-f" htmlFor={`l${l.uid}-fsize`}>
+                      <span>সাইজ (সেমি)</span>
+                      <input
+                        id={`l${l.uid}-fsize`}
+                        type="text"
+                        placeholder="যেমন: 38 × 8 cm"
+                        value={l.fsize}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setNoLines((prev) =>
+                            prev.map((item) =>
+                              item.uid === l.uid ? { ...item, fsize: val } : item
+                            )
+                          );
+                        }}
+                      />
+                    </label>
+
+                    <label className="no-f" htmlFor={`l${l.uid}-pcw`}>
+                      <span>প্রতি পিসের ওজন (গ্রাম)</span>
+                      <input
+                        id={`l${l.uid}-pcw`}
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="যেমন: 18"
+                        value={l.pcw}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setNoLines((prev) =>
+                            prev.map((item) =>
+                              item.uid === l.uid ? { ...item, pcw: val } : item
+                            )
+                          );
+                        }}
+                      />
+                    </label>
+
+                    <label className="no-f" htmlFor={`l${l.uid}-mg`}>
+                      <span>
+                        Machine Gauge <b className="req">*</b>
+                      </span>
+                      <input
+                        id={`l${l.uid}-mg`}
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="যেমন: 14"
+                        value={l.mg}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setNoLines((prev) =>
+                            prev.map((item) =>
+                              item.uid === l.uid ? { ...item, mg: val } : item
+                            )
+                          );
+                        }}
+                      />
+                    </label>
+
+                    <label className="no-f" htmlFor={`l${l.uid}-fdes`} style={{ gridColumn: 'span 3' }}>
+                      <span>ডিজাইন / টিপিং</span>
+                      <input
+                        id={`l${l.uid}-fdes`}
+                        type="text"
+                        placeholder="যেমন: ২টা সাদা স্ট্রাইপ, ৩ মিমি"
+                        value={l.fdes}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setNoLines((prev) =>
+                            prev.map((item) =>
+                              item.uid === l.uid ? { ...item, fdes: val } : item
+                            )
+                          );
+                        }}
+                      />
+                    </label>
+                  </div>
+                ) : (
+                  <div className="no-grid g3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '12px 16px' }}>
+                    <label className="no-f" htmlFor={`l${l.uid}-ggsm`}>
+                      <span>Grey GSM</span>
+                      <input
+                        id={`l${l.uid}-ggsm`}
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="যেমন: 150"
+                        value={l.ggsm}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setNoLines((prev) =>
+                            prev.map((item) =>
+                              item.uid === l.uid ? { ...item, ggsm: val } : item
+                            )
+                          );
+                        }}
+                      />
+                    </label>
+
+                    <label className="no-f" htmlFor={`l${l.uid}-fgsm`}>
+                      <span>Finish GSM</span>
+                      <input
+                        id={`l${l.uid}-fgsm`}
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="যেমন: 160"
+                        value={l.fgsm}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setNoLines((prev) =>
+                            prev.map((item) =>
+                              item.uid === l.uid ? { ...item, fgsm: val } : item
+                            )
+                          );
+                        }}
+                      />
+                    </label>
+
+                    <label className="no-f" htmlFor={`l${l.uid}-sl`}>
+                      <span>Stitch Length</span>
+                      <input
+                        id={`l${l.uid}-sl`}
+                        type="text"
+                        placeholder="যেমন: 2.85 mm"
+                        value={l.sl}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setNoLines((prev) =>
+                            prev.map((item) =>
+                              item.uid === l.uid ? { ...item, sl: val } : item
+                            )
+                          );
+                        }}
+                      />
+                    </label>
+
+                    <label className="no-f" htmlFor={`l${l.uid}-gdia`}>
+                      <span>Grey Dia</span>
+                      <input
+                        id={`l${l.uid}-gdia`}
+                        type="text"
+                        placeholder="যেমন: 68"
+                        value={l.gdia}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setNoLines((prev) =>
+                            prev.map((item) =>
+                              item.uid === l.uid ? { ...item, gdia: val } : item
+                            )
+                          );
+                        }}
+                      />
+                    </label>
+
+                    <label className="no-f" htmlFor={`l${l.uid}-mdia`}>
+                      <span>
+                        Machine Dia <b className="req">*</b>
+                      </span>
+                      <input
+                        id={`l${l.uid}-mdia`}
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="যেমন: 30"
+                        value={l.mdia}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setNoLines((prev) =>
+                            prev.map((item) =>
+                              item.uid === l.uid ? { ...item, mdia: val } : item
+                            )
+                          );
+                        }}
+                      />
+                    </label>
+
+                    <label className="no-f" htmlFor={`l${l.uid}-mg`}>
+                      <span>
+                        Machine Gauge <b className="req">*</b>
+                      </span>
+                      <input
+                        id={`l${l.uid}-mg`}
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="যেমন: 24"
+                        value={l.mg}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setNoLines((prev) =>
+                            prev.map((item) =>
+                              item.uid === l.uid ? { ...item, mg: val } : item
+                            )
+                          );
+                        }}
+                      />
+                    </label>
+                  </div>
+                )}
               </div>
+            );
+          })}
+        </div>
+
+        {/* CARD 4: ASSIGN TO M/C NO (EXACT MATCHING KNITKHATA.HTML) */}
+        <div className="card">
+          <h3>
+            <span className="stp">৪</span>Assign to M/C No
+          </h3>
+          <p className="small muted" style={{ margin: '-4px 0 8px' }}>
+            যে অংশটা বাছা আছে, মেশিনে চাপ দিলে সেটা ওই অংশে যাবে। অংশ বদলাতে নিচের রঙিন বাটনে চাপুন।
+          </p>
+
+          <div className="lnpick" id="lnpick">
+            {noLines.map((l, i) => (
+              <button
+                key={l.uid}
+                type="button"
+                className={`lp ${l.uid === noActive ? 'on' : ''}`}
+                style={{ ['--c' as any]: `var(--l${(i % 5) + 1})` }}
+                onClick={() => setNoActive(l.uid)}
+              >
+                <span>{i + 1}</span>
+                {lname(l, i)}
+              </button>
             ))}
           </div>
-        </div>
 
-        {/* SECTION 3: INITIAL YARN INTAKE (OPTIONAL - FROM SHILPOSETU-OLD) */}
-        <div className="card" style={{ marginBottom: 18, border: '1px solid var(--line)', background: 'var(--surface)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-            <div>
-              <b style={{ fontSize: '1rem', color: 'var(--ink)' }}>৩. প্রথম সুতা গ্রহণ চালান (ঐচ্ছিক ইনওয়ার্ড এন্ট্রি)</b>
-              <div className="small muted">অর্ডারের সাথে এখনই প্রথম চালান রিসিভ হলে সরাসরি এন্ট্রি দিন</div>
-            </div>
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}>
-              <input
-                type="checkbox"
-                checked={hasInitialYarn}
-                onChange={(e) => setHasInitialYarn(e.target.checked)}
-                style={{ width: 16, height: 16, accentColor: 'var(--accent)' }}
-              />
-              সুতা গ্রহণ চালান যোগ করুন
-            </label>
+          <div className="mcpick" id="mcpick">
+            {machines.map((m) => {
+              const o = mcOwner[m.id];
+              const isBusy = m.status === 'Running' && o === undefined;
+              const isDown = m.status === 'Maint';
+
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  className={`mcb ${isBusy ? 'busy' : ''} ${isDown ? 'down' : ''} ${
+                    o !== undefined ? 'own' : ''
+                  }`}
+                  style={o !== undefined ? ({ ['--c' as any]: `var(--l${(o % 5) + 1})` } as any) : undefined}
+                  disabled={isBusy || isDown}
+                  title={
+                    isBusy
+                      ? 'অন্য অর্ডারে চলছে'
+                      : isDown
+                      ? 'ব্রেকডাউন'
+                      : o !== undefined
+                      ? noLines[o].fab || `লাইন ${o + 1}`
+                      : 'খালি'
+                  }
+                  onClick={() => handleToggleMachine(m.id)}
+                >
+                  {m.id}
+                  {o !== undefined && <sup>{o + 1}</sup>}
+                </button>
+              );
+            })}
           </div>
 
-          {hasInitialYarn && (
-            <div
-              style={{
-                marginTop: 10,
-                padding: 14,
-                background: 'var(--surface2)',
-                borderRadius: 8,
-                border: '1px solid var(--line)',
-              }}
-            >
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
-                <div>
-                  <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>
-                    চালান নম্বর
-                  </label>
-                  <input
-                    type="text"
-                    className="input mono"
-                    style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid var(--line)', background: 'var(--surface)', fontSize: '0.85rem' }}
-                    value={yarnChallanNo}
-                    onChange={(e) => setYarnChallanNo(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>
-                    মোট গ্রহণকৃত সুতা (kg) *
-                  </label>
-                  <input
-                    type="number"
-                    className="input"
-                    style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid var(--line)', background: 'var(--surface)', fontSize: '0.85rem', fontWeight: 700 }}
-                    value={yarnKg}
-                    onChange={(e) => setYarnKg(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>
-                    ব্যাগ সংখ্যা
-                  </label>
-                  <input
-                    type="number"
-                    className="input"
-                    style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid var(--line)', background: 'var(--surface)', fontSize: '0.85rem' }}
-                    value={yarnBags}
-                    onChange={(e) => setYarnBags(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>
-                    স্টোর / গোডাউন অবস্থান
-                  </label>
-                  <input
-                    type="text"
-                    className="input"
-                    style={{ width: '100%', padding: '7px 10px', borderRadius: 6, border: '1px solid var(--line)', background: 'var(--surface)', fontSize: '0.85rem' }}
-                    value={yarnWarehouse}
-                    onChange={(e) => setYarnWarehouse(e.target.value)}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
+          <div className="small muted" id="mcsum" style={{ marginTop: 10 }}>
+            {noLines.filter((l) => l.machines.length > 0).length > 0 ? (
+              noLines
+                .filter((l) => l.machines.length > 0)
+                .map((l, i) => (
+                  <div key={l.uid}>
+                    <b>{lname(l, i)}:</b> {l.machines.join(', ')}
+                  </div>
+                ))
+            ) : (
+              'কোনো মেশিন বাছাই হয়নি'
+            )}
+          </div>
         </div>
 
-        {/* SECTION 4: NOTES & SPECIAL INSTRUCTIONS */}
-        <div className="card" style={{ marginBottom: 18, border: '1px solid var(--line)', background: 'var(--surface)' }}>
-          <b style={{ fontSize: '0.95rem', color: 'var(--ink)', display: 'block', marginBottom: 6 }}>
-            ৪. বিশেষ নির্দেশনা বা নোট (Notes)
-          </b>
-          <textarea
-            rows={2}
-            className="input"
-            style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--surface)', fontSize: '0.85rem', resize: 'vertical' }}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="ফ্লোর সুপারভাইজার, মাস্টার বা পার্টির জন্য কোনো বিশেষ নির্দেশনা থাকলে লিখুন..."
-          />
-        </div>
-
-        {/* SECTION 5: LIVE CALCULATION & SUMMARY BAR */}
-        <div
-          style={{
-            background: 'var(--surface)',
-            border: '2px solid var(--accent)',
-            borderRadius: 12,
-            padding: '16px 20px',
-            marginBottom: 20,
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-            gap: 16,
-            alignItems: 'center',
-          }}
+        {/* Add Another Line Button */}
+        <button
+          type="button"
+          className="btn addln"
+          id="addln"
+          onClick={handleAddLine}
         >
-          <div>
-            <span style={{ fontSize: '0.78rem', color: 'var(--muted)', display: 'block' }}>অংশ সংখ্যা</span>
-            <b style={{ fontSize: '1.2rem', color: 'var(--ink)' }}>{bnNum(lines.length)}টি অংশ</b>
-          </div>
+          + আরেকটা অংশ যোগ করুন
+        </button>
 
-          <div>
-            <span style={{ fontSize: '0.78rem', color: 'var(--muted)', display: 'block' }}>মোট অর্ডার পরিমাণ</span>
-            <b style={{ fontSize: '1.2rem', color: 'var(--accent)' }}>{bnNum(totalOrderKg.toLocaleString('en-IN'))} kg</b>
+        {/* Validation Message */}
+        {formMsg && (
+          <div className="no-msg" id="no-msg">
+            {formMsg}
           </div>
+        )}
 
-          <div>
-            <span style={{ fontSize: '0.78rem', color: 'var(--muted)', display: 'block' }}>প্রয়োজনীয় সুতা (লস সহ)</span>
-            <b style={{ fontSize: '1.1rem', color: '#D97706' }}>~{bnNum(Math.round(totalYarnRequiredKg).toLocaleString('en-IN'))} kg</b>
-          </div>
-
-          <div>
-            <span style={{ fontSize: '0.78rem', color: 'var(--muted)', display: 'block' }}>বরাদ্দকৃত মোট মেশিন</span>
-            <b style={{ fontSize: '1.1rem', color: 'var(--ink)' }}>
-              {uniqueAllocatedMachines.length ? `${bnNum(uniqueAllocatedMachines.length)}টি মেশিন` : 'মেশিন নির্বাচিত নেই'}
-            </b>
-          </div>
-
-          <div>
-            <span style={{ fontSize: '0.78rem', color: 'var(--muted)', display: 'block' }}>মোট আনুমানিক নিটিং বিল</span>
-            <b style={{ fontSize: '1.25rem', color: '#16A34A' }}>৳ {bnNum(Math.round(estimatedBillTk).toLocaleString('en-IN'))}</b>
-          </div>
-        </div>
-
-        {/* ACTION BUTTONS */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
-          <button
-            type="button"
-            className="btn"
-            style={{ padding: '10px 20px', fontSize: '0.9rem' }}
-            onClick={() => navigate('/dashboard/orders')}
-          >
-            বাতিল
-          </button>
-          <button
-            type="submit"
-            className="btn pri"
-            disabled={submitting}
-            style={{ padding: '10px 24px', fontSize: '0.95rem', fontWeight: 600 }}
-          >
-            {submitting ? 'সংরক্ষণ হচ্ছে...' : '💾 নতুন সাব-কন্ট্রাক্ট অর্ডার সংরক্ষণ করুন'}
-          </button>
-        </div>
+        {/* Submit Button */}
+        <button
+          className="btn pri no-save"
+          type="submit"
+          disabled={submitting}
+        >
+          {submitting ? 'সংরক্ষণ হচ্ছে...' : 'অর্ডার সেভ করুন'}
+        </button>
       </form>
-    </div>
+    </>
   );
 };
