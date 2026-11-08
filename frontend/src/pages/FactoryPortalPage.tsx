@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
 import { KnittedKCanvas } from '@/components/common/KnittedKCanvas';
 import { QrCodeSvg } from '@/components/common/QrCodeSvg';
@@ -103,6 +104,38 @@ export const FactoryPortal: React.FC = () => {
 
   // Active Order Detail Lookup
   const activeOrder = orders.find((o) => o.id === selectedOrderId) || orders[0];
+
+  const navigate = useNavigate();
+  const { view: routeView, id: routeId } = useParams<{ view?: string; id?: string }>();
+
+  // Determine active view: routeView takes precedence, otherwise factoryView
+  const activeView = routeView || factoryView || 'dash';
+
+  // Sync route params with app state
+  useEffect(() => {
+    if (routeView && routeView !== factoryView) {
+      go(routeView);
+    }
+  }, [routeView]);
+
+  useEffect(() => {
+    if (routeId && routeId !== selectedOrderId) {
+      setSelectedOrderId(routeId);
+    }
+  }, [routeId]);
+
+  // Unified router navigation helper
+  const go = (targetView: string, subId?: string) => {
+    go(targetView);
+    if (subId) {
+      setSelectedOrderId(subId);
+      navigate(`/dashboard/${targetView}/${subId}`);
+    } else {
+      navigate(`/dashboard/${targetView}`);
+    }
+    window.scrollTo(0, 0);
+  };
+
 
   // Forms Local State
   // 1. Shift Entry
@@ -297,7 +330,7 @@ export const FactoryPortal: React.FC = () => {
             className={role !== 'vendor' ? 'on' : ''}
             onClick={() => {
               setRole('owner');
-              setFactoryView('dash');
+              go('dash');
             }}
           >
             ফ্যাক্টরি ভিউ
@@ -319,7 +352,7 @@ export const FactoryPortal: React.FC = () => {
           className="top-user"
           id="topUser"
           onClick={() => {
-            setFactoryView('profile');
+            go('profile');
             window.scrollTo(0, 0);
           }}
           aria-label="প্রোফাইল ও সেটিংস"
@@ -354,11 +387,11 @@ export const FactoryPortal: React.FC = () => {
             }
             const [id, label, iconKey] = item as [string, string, string];
             const active =
-              factoryView === id ||
-              (factoryView === 'detail' && id === 'orders') ||
-              (factoryView === 'neworder' && id === 'orders') ||
-              (factoryView === 'subcontract' && id === 'freem') ||
-              (factoryView === 'billdoc' && id === 'bill');
+              activeView === id ||
+              (activeView === 'detail' && id === 'orders') ||
+              (activeView === 'neworder' && id === 'orders') ||
+              (activeView === 'subcontract' && id === 'freem') ||
+              (activeView === 'billdoc' && id === 'bill');
 
             const badge =
               id === 'fmsg' ? 2 : id === 'freem' ? 1 : null;
@@ -369,7 +402,7 @@ export const FactoryPortal: React.FC = () => {
                 data-v={id}
                 className={active ? 'on' : ''}
                 onClick={() => {
-                  setFactoryView(id);
+                  go(id);
                   window.scrollTo(0, 0);
                 }}
               >
@@ -391,7 +424,7 @@ export const FactoryPortal: React.FC = () => {
         {/* Working Canvas matching KnitKhata.html */}
         <main id="main">
           {/* ================= 1. DASHBOARD VIEW ================= */}
-          {factoryView === 'dash' && (
+          {activeView === 'dash' && (
             <>
               {/* Header section matching KnitKhata.html */}
               <div className="head">
@@ -401,7 +434,7 @@ export const FactoryPortal: React.FC = () => {
                 </div>
                 <div className="row" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <button className="btn" onClick={() => setIsQuickEntryOpen(true)}>+ প্রোডাকশন এন্ট্রি</button>
-                  <button className="btn pri" onClick={() => setFactoryView('orders')}>অর্ডার দেখুন</button>
+                  <button className="btn pri" onClick={() => go('orders')}>অর্ডার দেখুন</button>
                 </div>
               </div>
 
@@ -415,7 +448,7 @@ export const FactoryPortal: React.FC = () => {
                   <i>৮টি মেশিনের শিফট এন্ট্রি</i>
                 </div>
 
-                <div className="kpi" style={{ borderLeft: '4px solid var(--accent)', cursor: 'pointer' }} onClick={() => setFactoryView('orders')}>
+                <div className="kpi" style={{ borderLeft: '4px solid var(--accent)', cursor: 'pointer' }} onClick={() => go('orders')}>
                   <span>সক্রিয় রানিং অর্ডার</span>
                   <b>
                     {dashboardData?.kpis ? bnNum(dashboardData.kpis.running_orders_count) : orders.filter((o) => o.status === 'Running').length} <span style={{ fontSize: '0.85rem' }}>টি PO</span>
@@ -431,13 +464,13 @@ export const FactoryPortal: React.FC = () => {
                   <i style={{ color: 'var(--accent)', fontWeight: 600 }}>📡 ব্রডকাস্ট করুন</i>
                 </div>
 
-                <div className="kpi" style={{ borderLeft: '4px solid var(--warn)', cursor: 'pointer' }} onClick={() => setFactoryView('bill')}>
+                <div className="kpi" style={{ borderLeft: '4px solid var(--warn)', cursor: 'pointer' }} onClick={() => go('bill')}>
                   <span>বকেয়া বিল আদায়যোগ্য</span>
                   <b>৳ {dashboardData?.kpis ? (Math.round(dashboardData.kpis.receivable_bills_amount)).toLocaleString('en-IN') : '২,০৩,৪০০'}</b>
                   <i>৩টি পার্টির চালান বিল বাকি</i>
                 </div>
 
-                <div className="kpi" style={{ borderLeft: '4px solid var(--l4)', cursor: 'pointer' }} onClick={() => setFactoryView('ledger')}>
+                <div className="kpi" style={{ borderLeft: '4px solid var(--l4)', cursor: 'pointer' }} onClick={() => go('ledger')}>
                   <span>আজকের খরচ</span>
                   <b>৳ {dashboardData?.kpis ? (Math.round(dashboardData.kpis.today_expense_amount)).toLocaleString('en-IN') : '১৮,৪৫০'}</b>
                   <i>৬টি ভাউচার এন্ট্রি</i>
@@ -502,7 +535,7 @@ export const FactoryPortal: React.FC = () => {
                         <button
                           type="button"
                           className="btn sm"
-                          onClick={() => setFactoryView(alt.action_view)}
+                          onClick={() => go(alt.action_view)}
                           style={{ whiteSpace: 'nowrap', marginLeft: 12, fontSize: '0.78rem' }}
                         >
                           {alt.action_label || 'দেখুন'}
@@ -522,7 +555,7 @@ export const FactoryPortal: React.FC = () => {
                       সরাসরি বায়ার ও গার্মেন্টস থেকে আসা নিটিং অর্ডার — ফ্যাক্টরি রেটে কোটেশন দিন
                     </p>
                   </div>
-                  <button className="btn sm" onClick={() => setFactoryView('subcontract')}>
+                  <button className="btn sm" onClick={() => go('subcontract')}>
                     সব মার্কেটপ্লেস পোস্ট দেখুন
                   </button>
                 </div>
@@ -640,7 +673,7 @@ export const FactoryPortal: React.FC = () => {
                     <h3 style={{ margin: 0 }}>চলমান সাব-কন্ট্রাক্ট অর্ডারসমূহ</h3>
                     <p style={{ margin: '2px 0 0', fontSize: '0.82rem', color: 'var(--muted)' }}>উৎপাদন ও ডেলিভারি অগ্রগতি</p>
                   </div>
-                  <button onClick={() => setFactoryView('neworder')} className="btn pri sm">
+                  <button onClick={() => go('neworder')} className="btn pri sm">
                     <Plus size={14} style={{ marginRight: 4 }} /> নতুন অর্ডার যোগ করুন
                   </button>
                 </div>
@@ -689,8 +722,7 @@ export const FactoryPortal: React.FC = () => {
                             <td>
                               <button
                                 onClick={() => {
-                                  setSelectedOrderId(o.id);
-                                  setFactoryView('detail');
+                                  go('detail', o.id);
                                 }}
                                 className="btn sm"
                               >
@@ -707,56 +739,108 @@ export const FactoryPortal: React.FC = () => {
             </>
           )}
 
-          {factoryView === 'orders' && (
-            <div className="card">
-              <div className="card-header">
+          {/* ================= 2. ORDERS VIEW (exact KnitKhata.html) ================= */}
+          {activeView === 'orders' && (
+            <>
+              <div className="head">
                 <div>
-                  <h3 style={{ fontSize: 18, fontWeight: 800 }}>সকল সাব-কন্ট্রাক্ট ওয়ার্ক অর্ডার ({bnNum(orders.length)})</h3>
-                  <p style={{ fontSize: 13, color: '#64748b' }}>বায়ার ও পার্টি অনুযায়ী কাপড়ের চাহিদা</p>
+                  <h2>অর্ডার</h2>
+                  <p>বিভিন্ন কম্পোজিট/ভেন্ডর থেকে আসা সব নিটিং কাজ এক জায়গায়</p>
                 </div>
-                <button onClick={() => setFactoryView('neworder')} className="btn btn-primary btn-sm">
-                  + নতুন অর্ডার তৈরি করুন
-                </button>
+                <div className="row">
+                  <button className="btn" onClick={() => go('party')}>
+                    + নতুন পার্টি
+                  </button>
+                  <button className="btn pri" onClick={() => go('neworder')}>
+                    + New Order Entry
+                  </button>
+                </div>
               </div>
 
-              <div className="table-wrap">
-                <table className="data-table">
+              {/* Vendor summary KPIs matching KnitKhata.html */}
+              <div className="kpis">
+                {(() => {
+                  const vendorMap = new Map<string, { count: number; qty: number; done: number }>();
+                  orders.forEach((o) => {
+                    const vName = o.party || o.buyer || 'ABC Knit Composite';
+                    const q = o.lines.reduce((acc, l) => acc + (l.orderKg || 0), 0) || 12000;
+                    const d = o.lines.reduce((acc, l) => acc + (l.knitKg || 0), 0) || 7420;
+                    const cur = vendorMap.get(vName) || { count: 0, qty: 0, done: 0 };
+                    vendorMap.set(vName, { count: cur.count + 1, qty: cur.qty + q, done: cur.done + d });
+                  });
+
+                  return Array.from(vendorMap.entries()).map(([vName, stats]) => (
+                    <div className="kpi" key={vName}>
+                      <span>{vName}</span>
+                      <b>
+                        {bnNum(stats.done.toLocaleString('en-IN'))} / {bnNum(stats.qty.toLocaleString('en-IN'))}
+                      </b>
+                      <i>kg · {bnNum(stats.count)}টি অর্ডার</i>
+                    </div>
+                  ));
+                })()}
+              </div>
+
+              {/* Order List Table matching KnitKhata.html */}
+              <div className="tw">
+                <table>
                   <thead>
                     <tr>
                       <th>অর্ডার নং</th>
-                      <th>পার্টি নাম</th>
-                      <th>বায়ার ও স্টাইল</th>
-                      <th>অর্ডার তারিখ</th>
-                      <th>ডেলিভারি তারিখ</th>
-                      <th>মোট কেজি</th>
-                      <th>স্ট্যাটাস</th>
-                      <th>পেমেন্ট</th>
-                      <th>অ্যাকশন</th>
+                      <th>ভেন্ডর</th>
+                      <th>ফেব্রিক</th>
+                      <th className="n">অর্ডার (kg)</th>
+                      <th className="n">হয়েছে (kg)</th>
+                      <th>অগ্রগতি</th>
+                      <th className="n">মেশিন</th>
+                      <th>সম্ভাব্য শেষ</th>
+                      <th>অবস্থা</th>
                     </tr>
                   </thead>
                   <tbody>
                     {orders.map((o) => {
-                      const totalKg = o.lines.reduce((a, b) => a + b.orderKg, 0);
+                      const totalKg = o.lines.reduce((acc, l) => acc + (l.orderKg || 0), 0) || 12000;
+                      const knitKg = o.lines.reduce((acc, l) => acc + (l.knitKg || 0), 0) || 7420;
+                      const progressPct = pct(knitKg, totalKg);
+                      const machineList = Array.from(new Set(o.lines.map((l) => l.machine).filter(Boolean)));
+                      const isDone = o.status === 'Completed' || (o.status as string) === 'done';
+                      const isWait = o.status === 'Pending' || (o.status as string) === 'wait';
+
                       return (
-                        <tr key={o.id}>
-                          <td><strong>{o.id}</strong></td>
-                          <td><strong>{o.party}</strong></td>
-                          <td>{o.buyer} - {o.style}</td>
-                          <td>{o.orderDate}</td>
-                          <td>{o.delivDate}</td>
-                          <td>{fmtKg(totalKg)}</td>
-                          <td><span className="badge badge-green">{o.status}</span></td>
-                          <td><span className={`badge ${o.payStatus === 'Paid' ? 'badge-green' : 'badge-amber'}`}>{o.payStatus}</span></td>
+                        <tr
+                          key={o.id}
+                          className="click"
+                          onClick={() => {
+                            go('detail', o.id);
+                            window.scrollTo(0, 0);
+                          }}
+                        >
+                          <td className="mono">{o.id}</td>
+                          <td>{o.party || o.buyer || 'ABC Knit Composite'}</td>
                           <td>
-                            <button
-                              onClick={() => {
-                                setSelectedOrderId(o.id);
-                                setFactoryView('detail');
-                              }}
-                              className="btn btn-secondary btn-sm"
-                            >
-                              ভিউ
-                            </button>
+                            {o.lines[0]?.fabric || o.style || 'Single Jersey'}
+                            {o.lines[0]?.gsm ? ` ${o.lines[0].gsm} GSM` : ''}
+                          </td>
+                          <td className="n">{bnNum(totalKg.toLocaleString('en-IN'))}</td>
+                          <td className="n">{bnNum(knitKg.toLocaleString('en-IN'))}</td>
+                          <td>
+                            <div className="row" style={{ flexWrap: 'nowrap', alignItems: 'center', gap: 8 }}>
+                              <div className="bar" style={{ width: 90 }}>
+                                <i style={{ width: `${progressPct}%` }}></i>
+                              </div>
+                              <span className="mono small">{bnNum(progressPct)}%</span>
+                            </div>
+                          </td>
+                          <td className="n">{machineList.length ? bnNum(machineList.length) : '—'}</td>
+                          <td className="mono small">{isDone ? '—' : isWait ? 'সুতা এলে' : o.delivDate || '১৫ অক্টো'}</td>
+                          <td>
+                            {isDone ? (
+                              <span className="pill p-ok">ডেলিভারি সম্পন্ন</span>
+                            ) : isWait ? (
+                              <span className="pill p-yarn">সুতার অপেক্ষায়</span>
+                            ) : (
+                              <span className="pill p-acc">চলছে</span>
+                            )}
                           </td>
                         </tr>
                       );
@@ -764,76 +848,438 @@ export const FactoryPortal: React.FC = () => {
                   </tbody>
                 </table>
               </div>
-            </div>
+
+              <p className="small muted" style={{ marginTop: 8 }}>
+                যেকোনো অর্ডারে ক্লিক করলে বিস্তারিত — সুতা, লট, মেশিন, দৈনিক প্রোডাকশন, QC — সব দেখা যাবে।
+              </p>
+            </>
           )}
 
-          {/* ================= 3. ORDER DETAIL VIEW ================= */}
-          {factoryView === 'detail' && activeOrder && (
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                <div>
-                  <button onClick={() => setFactoryView('orders')} className="btn btn-secondary btn-sm" style={{ marginBottom: 8 }}>
-                    ← অর্ডারের তালিকায় ফিরুন
-                  </button>
-                  <h2 style={{ fontSize: 22, fontWeight: 800 }}>অর্ডার {activeOrder.id} — {activeOrder.party}</h2>
-                  <div style={{ fontSize: 13, color: '#64748b' }}>বায়ার: {activeOrder.buyer} · স্টাইল: {activeOrder.style}</div>
-                </div>
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <button
-                    onClick={() => openPrintModal('jobcard', `জব কার্ড - ${activeOrder.id}`, activeOrder)}
-                    className="btn btn-secondary"
-                  >
-                    <Printer size={16} /> জব কার্ড প্রিন্ট
-                  </button>
-                  <button onClick={() => setFactoryView('entry')} className="btn btn-primary">
-                    <Plus size={16} /> প্রোডাকশন এন্ট্রি দিন
-                  </button>
-                </div>
-              </div>
+          {/* ================= 3. ORDER DETAIL VIEW (exact KnitKhata.html) ================= */}
+          {activeView === 'detail' && activeOrder && (
+            (() => {
+              const o = activeOrder;
+              const totalKg = o.lines.reduce((acc, l) => acc + (l.orderKg || 0), 0) || 12000;
+              const knitKg = o.lines.reduce((acc, l) => acc + (l.knitKg || 0), 0) || 7420;
+              const progressPct = pct(knitKg, totalKg);
+              const isDone = o.status === 'Completed' || (o.status as string) === 'done';
+              const isWait = o.status === 'Pending' || (o.status as string) === 'wait';
+              const isRun = !isDone && !isWait;
+              const primaryLine = o.lines[0] || ({} as any);
+              const assignedMachines = Array.from(new Set(o.lines.map((l) => l.machine).filter(Boolean)));
+              const ratePerKg = primaryLine.rate || 14;
+              const orderYarns = yarns.filter((y) => y.orderId === o.id);
+              const orderQc = qcLogs.filter((q) => q.orderId === o.id);
+              const orderLogs = prodLogs.filter((p) => p.orderId === o.id);
+              const totalYarnRcv =
+                o.lines.reduce((acc, l) => acc + (l.yarnRcv || 0), 0) ||
+                orderYarns.reduce((acc, y) => acc + y.rcvKg, 0) ||
+                12247;
+              const lossPct = 2;
+              const allowedKg = Math.round(totalYarnRcv * (1 - lossPct / 100));
+              const yarnBalance = Math.max(0, totalYarnRcv - Math.round(knitKg / (1 - lossPct / 100)));
 
-              {/* Order Lines */}
-              <div className="card" style={{ marginBottom: 24 }}>
-                <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>অর্ডারের ফ্যাব্রিক আইটেমসমূহ</h3>
-                <div className="table-wrap">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>ফ্যাব্রিক ধরন</th>
-                        <th>ডায়া ও গেজ</th>
-                        <th>GSM</th>
-                        <th>ইয়ার্ন কাউন্ট ও লট</th>
-                        <th>অর্ডার (kg)</th>
-                        <th>রেট (৳)</th>
-                        <th>সুতা রিসিভ</th>
-                        <th>বোনা হয়েছে</th>
-                        <th>ডেলিভারি</th>
-                        <th>অ্যাসাইন মেশিন</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {activeOrder.lines.map((ln) => (
-                        <tr key={ln.id}>
-                          <td><strong>{ln.fabric}</strong></td>
-                          <td>{ln.dia}</td>
-                          <td>{ln.gsm}</td>
-                          <td>{ln.yarn} ({ln.lot})</td>
-                          <td><strong>{fmtKg(ln.orderKg)}</strong></td>
-                          <td>৳ {ln.rate}</td>
-                          <td>{fmtKg(ln.yarnRcv)}</td>
-                          <td style={{ color: '#0d6e4f', fontWeight: 700 }}>{fmtKg(ln.knitKg)}</td>
-                          <td>{fmtKg(ln.delivKg)}</td>
-                          <td><span className="badge badge-blue">{ln.machine}</span></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
+              return (
+                <>
+                  <div className="head">
+                    <div>
+                      <button
+                        className="btn sm"
+                        onClick={() => {
+                          go('orders');
+                          window.scrollTo(0, 0);
+                        }}
+                      >
+                        ← সব অর্ডার
+                      </button>
+                      <h2 style={{ marginTop: 8 }}>
+                        {o.id} · {primaryLine.fabric || o.style || 'Single Jersey'}
+                        {primaryLine.gsm ? ` ${primaryLine.gsm} GSM` : ''}
+                      </h2>
+                      <p>
+                        {o.party || o.buyer || 'ABC Knit Composite'} · শুরু {o.orderDate || '০১ মে ২০২৬'}
+                      </p>
+                    </div>
+                    <div className="row" style={{ alignItems: 'center', gap: 8 }}>
+                      <button
+                        className="btn sm"
+                        onClick={() => {
+                          go('jobcard');
+                          window.scrollTo(0, 0);
+                        }}
+                      >
+                        জব কার্ড
+                      </button>
+                      {isDone ? (
+                        <span className="pill p-ok">ডেলিভারি সম্পন্ন</span>
+                      ) : isWait ? (
+                        <span className="pill p-yarn">সুতার অপেক্ষায়</span>
+                      ) : (
+                        <span className="pill p-acc">চলছে</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Facts card matching KnitKhata.html */}
+                  <div className="card">
+                    <div className="facts">
+                      <div>
+                        <span>ফেব্রিক</span>
+                        <b>{primaryLine.fabric || o.style || 'Single Jersey'}</b>
+                      </div>
+                      {o.buyer && (
+                        <div>
+                          <span>বায়ার</span>
+                          <b>{o.buyer}</b>
+                        </div>
+                      )}
+                      <div>
+                        <span>GSM</span>
+                        <b className="mono">{primaryLine.gsm || '160'}</b>
+                      </div>
+                      <div>
+                        <span>Stitch Length</span>
+                        <b className="mono">{primaryLine.stitch || '2.65 mm'}</b>
+                      </div>
+                      <div>
+                        <span>Dia × Gauge</span>
+                        <b className="mono">{primaryLine.dia || '30" × 24G'}</b>
+                      </div>
+                      <div>
+                        <span>রং</span>
+                        <b>{o.color || 'Grey (RFD)'}</b>
+                      </div>
+                      <div>
+                        <span>সুতা</span>
+                        <b>{primaryLine.yarn || '30/1 Combed Cotton'}</b>
+                      </div>
+                      <div>
+                        <span>নিটিং চার্জ</span>
+                        <b className="mono">৳{ratePerKg}/kg</b>
+                      </div>
+                      <div>
+                        <span>অর্ডারের তারিখ</span>
+                        <b className="mono">{o.orderDate || '০১ মে ২০২৬'}</b>
+                      </div>
+                      <div>
+                        <span>ডেলিভারির তারিখ</span>
+                        <b className="mono">{o.delivDate || '১৮ মে ২০২৬'}</b>
+                      </div>
+                    </div>
+
+                    <div style={{ marginTop: 16 }}>
+                      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                        <b>অগ্রগতি</b>
+                        <span className="mono">
+                          {bnNum(knitKg.toLocaleString('en-IN'))} / {bnNum(totalKg.toLocaleString('en-IN'))} kg ·{' '}
+                          {bnNum(progressPct)}%
+                        </span>
+                      </div>
+                      <div className="bar big" style={{ marginTop: 6 }}>
+                        <i style={{ width: `${progressPct}%` }}></i>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ETA Calculation card matching KnitKhata.html */}
+                  {isRun && (
+                    <div className="card">
+                      <h3>কবে শেষ হবে? (হিসাব)</h3>
+                      <div className="eta">
+                        <label className="f">
+                          মেশিন সংখ্যা
+                          <input type="number" min="1" defaultValue={assignedMachines.length || 4} />
+                        </label>
+                        <label className="f">
+                          প্রতি মেশিন/দিন (kg)
+                          <input type="number" min="1" defaultValue={350} />
+                        </label>
+                        <div className="out">
+                          <span className="small muted">বাকি</span>
+                          <b>{bnNum(Math.max(0, totalKg - knitKg).toLocaleString('en-IN'))} kg</b>
+                        </div>
+                        <div className="out">
+                          <span className="small muted">দৈনিক মোট</span>
+                          <b>{bnNum(((assignedMachines.length || 4) * 350).toLocaleString('en-IN'))} kg</b>
+                        </div>
+                        <div className="out">
+                          <span className="small muted">সম্ভাব্য শেষ</span>
+                          <b>{o.delivDate || '১৮ মে ২০২৬'}</b>
+                        </div>
+                      </div>
+                      <p className="small muted" style={{ margin: '8px 0 0' }}>
+                        চলমান মেশিন:{' '}
+                        {assignedMachines.length ? (
+                          assignedMachines.map((m) => (
+                            <span key={m} className="pill p-acc" style={{ marginRight: 4 }}>
+                              {m}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="pill p-acc">M-01</span>
+                        )}{' '}
+                        — মেশিন বাড়ালে/কমালে তারিখ নিজে থেকেই বদলাবে।
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Fabric item lines matching KnitKhata.html */}
+                  {o.lines && o.lines.length > 0 && (
+                    <div className="card">
+                      <h3>অংশ ও ফেব্রিক অনুযায়ী ভাগ</h3>
+                      <div className="tw">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>#</th>
+                              <th>Placement</th>
+                              <th>Fabrication</th>
+                              <th>Color</th>
+                              <th className="n">Qty (kg)</th>
+                              <th>সুতা (Count · Brand · Lot)</th>
+                              <th>GSM</th>
+                              <th>M/C Dia × Gauge</th>
+                              <th>মেশিন</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {o.lines.map((l, i) => (
+                              <tr key={l.id || i}>
+                                <td>
+                                  <span className="ln-no" style={{ width: 22, height: 22, fontSize: '0.75rem' }}>
+                                    {bnNum(i + 1)}
+                                  </span>
+                                </td>
+                                <td>
+                                  <b>{i === 0 ? 'Body' : i === 1 ? 'Collar' : 'Cuff'}</b>
+                                </td>
+                                <td>{l.fabric}</td>
+                                <td>{o.color || 'Grey'}</td>
+                                <td className="n">{bnNum((l.orderKg || 0).toLocaleString('en-IN'))}</td>
+                                <td className="ycell">
+                                  {l.yarn || '30/1 Combed'} · {l.brand || 'Square'} ·{' '}
+                                  <span className="mono">{l.lot || 'LOT-SQ-412'}</span>
+                                </td>
+                                <td className="mono">{l.gsm || '—'}</td>
+                                <td className="mono">{l.dia}</td>
+                                <td className="mono small">{l.machine || '—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 2-column Grid: Yarn Inward & QC */}
+                  <div className="grid g2">
+                    <div className="card">
+                      <h3>সুতা গ্রহণ (Yarn Receive)</h3>
+                      <div className="tw">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>কাউন্ট</th>
+                              <th>স্পিনার</th>
+                              <th>লট</th>
+                              <th className="n">ব্যাগ</th>
+                              <th className="n">kg</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(orderYarns.length > 0
+                              ? orderYarns
+                              : [
+                                  {
+                                    count: primaryLine.yarn || '30/1 Combed',
+                                    spinner: primaryLine.brand || 'Square Yarns',
+                                    lot: primaryLine.lot || 'SQ-88412',
+                                    bags: 120,
+                                    kg: 5443,
+                                  },
+                                  {
+                                    count: primaryLine.yarn || '30/1 Combed',
+                                    spinner: primaryLine.brand || 'Square Yarns',
+                                    lot: 'SQ-88419',
+                                    bags: 150,
+                                    kg: 6804,
+                                  },
+                                ]
+                            ).map((y: any, i: number) => (
+                              <tr key={i}>
+                                <td>{y.count}</td>
+                                <td>{y.spinner || y.brand || 'Square'}</td>
+                                <td className="mono">{y.lot}</td>
+                                <td className="n">{bnNum(y.bags || 120)}</td>
+                                <td className="n">{bnNum((y.kg || y.rcvKg || 5443).toLocaleString('en-IN'))}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="facts" style={{ marginTop: 12 }}>
+                        <div>
+                          <span>মোট সুতা পাওয়া</span>
+                          <b className="mono">{bnNum(totalYarnRcv.toLocaleString('en-IN'))} kg</b>
+                        </div>
+                        <div>
+                          <span>প্রসেস লস ধরে ({lossPct}%)</span>
+                          <b className="mono">{bnNum(allowedKg.toLocaleString('en-IN'))} kg</b>
+                        </div>
+                        <div>
+                          <span>সুতা ব্যালেন্স</span>
+                          <b className="mono">{bnNum(yarnBalance.toLocaleString('en-IN'))} kg</b>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="card">
+                      <h3>QC ও কাপড়ের সমস্যা</h3>
+                      <div className="tw">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>তারিখ</th>
+                              <th>রোল</th>
+                              <th>মেশিন</th>
+                              <th>সমস্যা</th>
+                              <th className="n">kg</th>
+                              <th>অবস্থা</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(orderQc.length > 0
+                              ? orderQc
+                              : [
+                                  {
+                                    date: '০২ অক্টো',
+                                    roll: 'M-07/003',
+                                    machine: 'M-07',
+                                    defect: 'Lycra/hole — needle mark',
+                                    kg: 22,
+                                    status: 'bad',
+                                    res: 'বাতিল, রিনিট হবে',
+                                  },
+                                  {
+                                    date: '০১ অক্টো',
+                                    roll: 'M-04/005',
+                                    machine: 'M-04',
+                                    defect: 'Barre (লট মিক্স সন্দেহ)',
+                                    kg: 24,
+                                    status: 'warn',
+                                    res: 'ভেন্ডরকে জানানো হয়েছে',
+                                  },
+                                  {
+                                    date: '৩০ সেপ্টে',
+                                    roll: 'M-01/001 – 031',
+                                    machine: 'M-01',
+                                    defect: '—',
+                                    kg: 640,
+                                    status: 'ok',
+                                    res: 'QC পাস',
+                                  },
+                                ]
+                            ).map((q: any, i: number) => (
+                              <tr key={i}>
+                                <td>{q.date || q.d}</td>
+                                <td className="mono">{q.roll}</td>
+                                <td className="mono">{q.machine || q.m}</td>
+                                <td>{q.defect || q.issue || q.res}</td>
+                                <td className="n">{bnNum(q.kg)}</td>
+                                <td>
+                                  <span
+                                    className={`pill ${
+                                      q.status === 'bad' || q.s === 'bad'
+                                        ? 'p-warn'
+                                        : q.status === 'ok' || q.s === 'ok'
+                                        ? 'p-ok'
+                                        : 'p-yarn'
+                                    }`}
+                                  >
+                                    {q.status === 'ok' || q.s === 'ok'
+                                      ? 'পাস'
+                                      : q.status === 'bad' || q.s === 'bad'
+                                      ? 'বাতিল'
+                                      : 'তদন্তাধীন'}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Production Log */}
+                  <div className="card">
+                    <h3>দৈনিক প্রোডাকশন লগ</h3>
+                    <div className="tw">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>তারিখ</th>
+                            <th>শিফট</th>
+                            <th>মেশিন</th>
+                            <th className="n">kg</th>
+                            <th className="n">রোল</th>
+                            <th>অপারেটর</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(orderLogs.length > 0
+                            ? orderLogs
+                            : [
+                                { date: '০৩ অক্টো', shift: 'A', machine: 'M-03', kg: 380, rolls: 16, operator: 'মোঃ রফিক' },
+                                { date: '০৩ অক্টো', shift: 'A', machine: 'M-07', kg: 410, rolls: 18, operator: 'মোঃ করিম' },
+                                { date: '০২ অক্টো', shift: 'B', machine: 'M-03', kg: 360, rolls: 15, operator: 'মোঃ আলম' },
+                              ]
+                          ).map((p: any, i: number) => (
+                            <tr key={i}>
+                              <td>{p.date || p.d}</td>
+                              <td>{p.shift || p.sh}</td>
+                              <td className="mono">{p.machine || p.m}</td>
+                              <td className="n">{bnNum((p.kg || p.knitKg || 380).toLocaleString('en-IN'))}</td>
+                              <td className="n">{bnNum(p.rolls || 16)}</td>
+                              <td>{p.operator || p.op || 'মোঃ সোহেল'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Vendor access */}
+                  <div className="card">
+                    <h3>ভেন্ডর অ্যাক্সেস</h3>
+                    <p className="small muted" style={{ marginTop: -4 }}>
+                      {o.party || 'ABC Knit Composite'}-এর যারা এই অর্ডার দেখতে পারেন
+                    </p>
+                    <div
+                      className="row"
+                      style={{ justifyContent: 'space-between', padding: '6px 0', alignItems: 'center' }}
+                    >
+                      <div>
+                        <b>মো. কামরুল হাসান</b> <span className="small muted">· Knitting Merchandiser</span>
+                      </div>
+                      <span className="pill p-ok">সক্রিয়</span>
+                    </div>
+                    <div className="row" style={{ marginTop: 8, gap: 8 }}>
+                      <button className="btn sm" onClick={() => go('users')}>
+                        পারমিশন বদলান
+                      </button>
+                      <button className="btn sm" onClick={() => go('wa')}>
+                        WhatsApp রিপোর্ট সেটিং
+                      </button>
+                    </div>
+                  </div>
+                </>
+              );
+            })()
           )}
 
           {/* ================= 4. SHIFT ENTRY & ROLL TAGGING ================= */}
-          {factoryView === 'entry' && (
+          {activeView === 'entry' && (
             <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: 24 }}>
               <div className="card">
                 <div className="card-header">
@@ -1018,7 +1464,7 @@ export const FactoryPortal: React.FC = () => {
           )}
 
           {/* ================= 5. QC 4-POINT INSPECTION ================= */}
-          {factoryView === 'qc' && (
+          {activeView === 'qc' && (
             <div className="card">
               <div className="card-header">
                 <div>
@@ -1071,7 +1517,7 @@ export const FactoryPortal: React.FC = () => {
           )}
 
           {/* ================= 6. DELIVERY CHALLAN ================= */}
-          {factoryView === 'challan' && (
+          {activeView === 'challan' && (
             <div className="card">
               <div className="card-header">
                 <div>
@@ -1149,7 +1595,7 @@ export const FactoryPortal: React.FC = () => {
           )}
 
           {/* ================= 7. YARN STOCK & INWARD ================= */}
-          {factoryView === 'yarn' && (
+          {activeView === 'yarn' && (
             <div className="card">
               <div className="card-header">
                 <div>
@@ -1201,7 +1647,7 @@ export const FactoryPortal: React.FC = () => {
           )}
 
           {/* ================= 8. BILLING & INVOICE ================= */}
-          {factoryView === 'bill' && (
+          {activeView === 'bill' && (
             <div className="card">
               <div className="card-header">
                 <div>
@@ -1281,7 +1727,7 @@ export const FactoryPortal: React.FC = () => {
           )}
 
           {/* ================= 9. BUYER CHAT ================= */}
-          {factoryView === 'fmsg' && (
+          {activeView === 'fmsg' && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 20, height: 'calc(100vh - 140px)' }}>
               {/* Thread List */}
               <div className="card" style={{ padding: 14, overflowY: 'auto' }}>
@@ -1378,7 +1824,7 @@ export const FactoryPortal: React.FC = () => {
           )}
 
           {/* ================= 10. SUBCONTRACT MARKETPLACE ================= */}
-          {factoryView === 'subcontract' && (
+          {activeView === 'subcontract' && (
             <div className="card">
               <div className="card-header">
                 <div>
@@ -1442,7 +1888,7 @@ export const FactoryPortal: React.FC = () => {
           )}
 
           {/* ================= 11. PARTIES / BUYERS ================= */}
-          {factoryView === 'party' && (
+          {activeView === 'party' && (
             <div className="card">
               <div className="card-header">
                 <div>
@@ -1496,7 +1942,7 @@ export const FactoryPortal: React.FC = () => {
           )}
 
           {/* ================= 12. STORE & INVENTORY ================= */}
-          {factoryView === 'store' && (
+          {activeView === 'store' && (
             <div className="card">
               <div className="card-header">
                 <div>
@@ -1569,14 +2015,14 @@ export const FactoryPortal: React.FC = () => {
 
           {/* Fallback for other view tabs */}
                     {/* ================= 1. NEW SUBCONTRACT ORDER VIEW (neworder) ================= */}
-          {factoryView === 'neworder' && (
+          {activeView === 'neworder' && (
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
                 <div>
                   <h3 style={{ margin: 0, fontSize: '1.2rem' }}>+ নতুন সাব-কন্ট্রাক্ট নিটিং অর্ডার এন্ট্রি</h3>
                   <small style={{ color: 'var(--muted)' }}>পার্টি ও বায়ারের ওয়ার্ক অর্ডার, ফেব্রিক স্পেসিফিকেশন ও মেশিন বরাদ্দ খাতা</small>
                 </div>
-                <button type="button" className="btn sm" onClick={() => setFactoryView('orders')}>অর্ডার তালিকায় ফিরুন</button>
+                <button type="button" className="btn sm" onClick={() => go('orders')}>অর্ডার তালিকায় ফিরুন</button>
               </div>
 
               <form
@@ -1632,7 +2078,7 @@ export const FactoryPortal: React.FC = () => {
                     message: `ওয়ার্ক অর্ডার ${noId} (${totalKg.toLocaleString('en-IN')} kg) সফলভাবে চালু হয়েছে।`,
                   });
                   setSelectedOrderId(noId);
-                  setFactoryView('detail');
+                  go('detail');
                 }}
                 style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
               >
@@ -1834,7 +2280,7 @@ export const FactoryPortal: React.FC = () => {
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, borderTop: '1px solid var(--line)', paddingTop: 14 }}>
-                  <button type="button" className="btn" onClick={() => setFactoryView('orders')}>বাতিল</button>
+                  <button type="button" className="btn" onClick={() => go('orders')}>বাতিল</button>
                   <button type="submit" className="btn pri">💾 নতুন সাব-কন্ট্রাক্ট অর্ডার সেভ করুন</button>
                 </div>
               </form>
@@ -1842,7 +2288,7 @@ export const FactoryPortal: React.FC = () => {
           )}
 
           {/* ================= 2. KNITTING JOB CARD VIEW (jobcard) ================= */}
-          {factoryView === 'jobcard' && (
+          {activeView === 'jobcard' && (
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
                 <div>
@@ -1945,7 +2391,7 @@ export const FactoryPortal: React.FC = () => {
           )}
 
           {/* ================= 3. FREE MACHINE MANAGER (freem) ================= */}
-          {factoryView === 'freem' && (
+          {activeView === 'freem' && (
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
                 <div>
@@ -2004,7 +2450,7 @@ export const FactoryPortal: React.FC = () => {
           )}
 
           {/* ================= 4. READY FABRIC ROLLS INVENTORY (fready) ================= */}
-          {factoryView === 'fready' && (
+          {activeView === 'fready' && (
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
                 <div>
@@ -2020,7 +2466,7 @@ export const FactoryPortal: React.FC = () => {
                       const totalWeight = rolls.filter((r) => selectedReadyRolls.includes(r.rollId)).reduce((a, r) => a + r.kg, 0);
                       setChGrossKg(String(Math.round(totalWeight + 8)));
                       setChNetKg(String(Math.round(totalWeight)));
-                      setFactoryView('challan');
+                      go('challan');
                     }}
                   >
                     🚚 নির্বাচিত {selectedReadyRolls.length}টি রোলের চালান তৈরি করুন
@@ -2100,7 +2546,7 @@ export const FactoryPortal: React.FC = () => {
           )}
 
           {/* ================= 5. PARTY LEDGER & KHATA (ledger) ================= */}
-          {factoryView === 'ledger' && (
+          {activeView === 'ledger' && (
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
                 <div>
@@ -2184,7 +2630,7 @@ export const FactoryPortal: React.FC = () => {
           )}
 
           {/* ================= 6. FACTORY EXPENSES & COSTING (acc) ================= */}
-          {factoryView === 'acc' && (
+          {activeView === 'acc' && (
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
                 <div>
@@ -2325,7 +2771,7 @@ export const FactoryPortal: React.FC = () => {
           )}
 
           {/* ================= 7. WORKER ATTENDANCE & PAYROLL (att) ================= */}
-          {factoryView === 'att' && (
+          {activeView === 'att' && (
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
                 <div>
@@ -2418,7 +2864,7 @@ export const FactoryPortal: React.FC = () => {
           )}
 
           {/* ================= 8. WHATSAPP NOTIFICATION BUILDER (wa) ================= */}
-          {factoryView === 'wa' && (
+          {activeView === 'wa' && (
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
                 <div>
@@ -2511,7 +2957,7 @@ export const FactoryPortal: React.FC = () => {
           )}
 
           {/* ================= 9. FACTORY PROFILE & SETTINGS (profile) ================= */}
-          {factoryView === 'profile' && (
+          {activeView === 'profile' && (
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
                 <div>
@@ -2611,7 +3057,7 @@ export const FactoryPortal: React.FC = () => {
           )}
 
           {/* ================= 10. TEAM & USERS PERMISSION (users) ================= */}
-          {factoryView === 'users' && (
+          {activeView === 'users' && (
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
                 <div>
@@ -2740,7 +3186,7 @@ export const FactoryPortal: React.FC = () => {
           )}
 
           {/* ================= 11. PARTNER AFFILIATE PROGRAM (pdash) ================= */}
-          {factoryView === 'pdash' && (
+          {activeView === 'pdash' && (
             <div className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
                 <div>

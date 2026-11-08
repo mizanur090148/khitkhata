@@ -5,6 +5,10 @@ import {
   HomePage,
   AuthPage,
   FactoryPortalPage,
+  FactoryLayout,
+  FactoryDashboardPage,
+  FactoryOrdersPage,
+  FactoryOrderDetailPage,
   VendorPortalPage,
   SupplierPortalPage,
 } from '@/pages';
@@ -41,13 +45,31 @@ export const AppContent: React.FC = () => {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/home" element={<HomePage />} />
-        <Route path="/dashboard" element={<DashboardRoute />} />
+
+        {/* Dedicated Separate Pages for Factory Portal under FactoryLayout */}
+        <Route path="/dashboard" element={<FactoryLayout />}>
+          <Route index element={<FactoryDashboardPage />} />
+          <Route path="dash" element={<FactoryDashboardPage />} />
+          <Route path="orders" element={<FactoryOrdersPage />} />
+          <Route path="orders/:id" element={<FactoryOrderDetailPage />} />
+          <Route path="detail" element={<FactoryOrderDetailPage />} />
+          <Route path="detail/:id" element={<FactoryOrderDetailPage />} />
+        </Route>
+
+        {/* Other dashboard views / roles */}
+        <Route path="/dashboard/:view" element={<DashboardRoute />} />
+        <Route path="/dashboard/:view/:id" element={<DashboardRoute />} />
+
+        <Route path="/orders" element={<Navigate to="/dashboard/orders" replace />} />
         <Route path="/login" element={<AuthPage />} />
         <Route path="/auth" element={<Navigate to="/login" replace />} />
         <Route path="/register" element={<AuthPage />} />
         <Route path="/factory" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/factory/:view" element={<DashboardRoute />} />
         <Route path="/vendor" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/vendor/:view" element={<DashboardRoute />} />
         <Route path="/supplier" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/supplier/:view" element={<DashboardRoute />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 
