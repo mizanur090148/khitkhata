@@ -280,6 +280,8 @@ interface AppContextType {
   createChallan: (challan: Omit<ChallanItem, 'no'>) => Promise<void>;
   receiveYarnInward: (yarn: Omit<YarnStockItem, 'id'>) => Promise<void>;
   createOrder: (order: Omit<SubcontractOrderItem, 'id'> & { id?: string }) => Promise<string>;
+  deleteOrder: (id: string) => Promise<void>;
+  clearAllOrders: () => Promise<void>;
   sendChatMessage: (threadId: string, text: string, senderRole?: 'factory' | 'vendor') => Promise<void>;
   applyForJob: (jobId: string, applicant: { name: string; phone: string; exp: string; note: string }) => Promise<void>;
   postRfq: (rfq: Omit<SupplierRfqItem, 'id' | 'time' | 'status'>) => Promise<void>;
@@ -293,6 +295,22 @@ interface AppContextType {
   toggleUserStatus: (userId: string) => Promise<void>;
   requestPartnerPayout: (amount: number, method: string, account: string) => Promise<boolean>;
   updateFactoryProfileInfo: (info: Partial<FactoryProfileInfo>) => Promise<void>;
+  fetchOrders: () => Promise<void>;
+  fetchParties: () => Promise<void>;
+  createParty: (partyData: {
+    name: string;
+    type: 'ven' | 'sup';
+    addr?: string;
+    contact?: string;
+    phone?: string;
+    email?: string;
+    bin?: string;
+    rate?: number;
+    terms?: string;
+    open?: number;
+  }) => Promise<PartyItem>;
+  togglePartyStatus: (idOrCode: string | number) => Promise<void>;
+  deleteParty: (idOrCode: string | number) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -723,6 +741,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // On Mount: Sync with Backend API Bootstrap
   useEffect(() => {
+    try {
+      localStorage.removeItem('silposetu_orders');
+    } catch {}
+
     if (currentUser?.token) {
       apiClient.setToken(currentUser.token);
       apiClient
@@ -757,7 +779,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (res && res.data) {
           const d = res.data;
           if (d.factory) setFactoryProfile(d.factory);
-          if (d.orders && d.orders.length) setOrders(d.orders);
+          if (Array.isArray(d.orders)) setOrders(d.orders);
           if (d.machines && d.machines.length) setMachines(d.machines);
           if (d.parties && d.parties.length) setParties(d.parties);
           if (d.jobs && d.jobs.length) setJobs(d.jobs);
@@ -795,6 +817,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       .catch((err) => {
         console.info('API Bootstrap offline/local fallback active:', err.message);
       });
+    fetchOrders();
+    fetchParties();
     fetchDashboardData();
   }, []);
 
@@ -948,20 +972,185 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const createOrder = async (order: Omit<SubcontractOrderItem, 'id'> & { id?: string }): Promise<string> => {
     const id = order.id?.trim() || order.po?.trim() || `SC-2610-02${orders.length + 1}`;
     const fullOrder: SubcontractOrderItem = { ...order, id };
+    const totalKg = (order as any).totalKg || fullOrder.lines.reduce((acc, l) => acc + (l.orderKg || 0), 0) || 0;
+
+    const backendPayload = {
+      id: fullOrder.id,
+      party_id: fullOrder.party_id || undefined,
+      vendor_name: fullOrder.party,
+      buyer: fullOrder.buyer,
+      qty: totalKg,
+      order_date: fullOrder.orderDate,
+      yarn_received_date: fullOrder.orderDate,
+      delivery_due: fullOrder.delivDate,
+      lines: fullOrder.lines.map((l) => ({
+        place: (l as any).place || 'Body',
+        fab: l.fabric || 'Single Jersey',
+        fabric: l.fabric || 'Single Jersey',
+        color: fullOrder.color || 'Raw',
+        dia: l.dia || '30" × 24G',
+        gsm: l.gsm || 160,
+        ggsm: l.gsm || 160,
+        fgsm: l.gsm || 160,
+        sl: l.stitch || '2.65 mm',
+        rate: l.rate || 14,
+        qty: l.orderKg || 0,
+        order_kg: l.orderKg || 0,
+        machines: l.machine ? l.machine.split(',').map((m) => m.trim()).filter(Boolean) : ['M-01'],
+        yarns: [{ count: l.yarn || '30/1 Combed', brand: l.brand || 'Square', lot: l.lot || 'LOT-1', bags: 0, rcv_kg: l.yarnRcv || 0 }],
+      })),
+    };
+
+    // Save directly to backend MySQL database first
+    const res = await apiClient.post('portal/orders', backendPayload);
+    if (!res || res.success === false) {
+      throw new Error(res?.message || 'ডাটাবেজে অর্ডার সেভ করতে সমস্যা হয়েছে।');
+    }
+
+    // After MySQL confirms insert, update local state
     setOrders((prev) => [fullOrder, ...prev]);
 
     addToast({
       type: 'success',
       title: 'নতুন অর্ডার ক্রিয়েট হয়েছে',
-      message: `অর্ডার ${id} (${order.party}) সফলভাবে যুক্ত হয়েছে।`,
+      message: `অর্ডার ${id} (${order.party}) ডাটাবেজে সফলভাবে যুক্ত হয়েছে।`,
     });
 
+    return id;
+  };
+
+  const deleteOrder = async (id: string) => {
+    setOrders((prev) => prev.filter((o) => o.id !== id));
+    addToast({
+      type: 'info',
+      title: 'অর্ডার মুছে ফেলা হয়েছে',
+      message: `অর্ডার ${id} তালিকা থেকে মুছে ফেলা হয়েছে।`,
+    });
     try {
-      await apiClient.post('portal/orders', fullOrder);
+      await apiClient.delete(`portal/orders/${id}`);
     } catch {
       // Handled
     }
-    return id;
+  };
+
+  const clearAllOrders = async () => {
+    setOrders([]);
+    try {
+      localStorage.removeItem('silposetu_orders');
+    } catch {}
+    addToast({
+      type: 'info',
+      title: 'সব অর্ডার মুছে ফেলা হয়েছে',
+      message: 'সব অর্ডার তালিকা থেকে মুছে ফেলা হয়েছে।',
+    });
+    try {
+      await apiClient.delete('portal/orders');
+    } catch {
+      // Handled
+    }
+  };
+
+  const fetchOrders = async () => {
+    try {
+      const res = await apiClient.get('portal/orders');
+      if (res && res.data && Array.isArray(res.data)) {
+        setOrders(res.data);
+      }
+    } catch (err: any) {
+      console.info('Fetch orders fallback:', err.message);
+    }
+  };
+
+  const fetchParties = async () => {
+    try {
+      const res = await apiClient.get('portal/parties');
+      if (res && res.data) {
+        setParties(res.data);
+      }
+    } catch (err: any) {
+      console.info('Parties fetch fallback to local/bootstrap:', err.message);
+    }
+  };
+
+  const createParty = async (partyData: {
+    name: string;
+    type: 'ven' | 'sup';
+    addr?: string;
+    contact?: string;
+    phone?: string;
+    email?: string;
+    bin?: string;
+    rate?: number;
+    terms?: string;
+    open?: number;
+  }): Promise<PartyItem> => {
+    const res = await apiClient.post('portal/parties', partyData);
+    if (!res || res.success === false) {
+      throw new Error(res?.message || 'ডাটাবেজে পার্টি সেভ করতে সমস্যা হয়েছে।');
+    }
+    const newParty: PartyItem = res.data;
+    setParties((prev) => [newParty, ...prev]);
+    addToast({
+      type: 'success',
+      title: 'নতুন পার্টি যোগ হয়েছে',
+      message: res.message || `${newParty.name} যোগ হলো · লেজার খোলা হয়েছে`,
+    });
+    return newParty;
+  };
+
+  const togglePartyStatus = async (idOrCode: string | number) => {
+    try {
+      const res = await apiClient.post(`portal/parties/${idOrCode}/toggle`);
+      const updatedOn = res?.data?.is_active ?? true;
+      setParties((prev) =>
+        prev.map((p) => {
+          if (p.id === idOrCode || p.code === idOrCode) {
+            return { ...p, is_active: updatedOn, on: updatedOn };
+          }
+          return p;
+        })
+      );
+      addToast({
+        type: 'info',
+        title: 'পার্টি স্ট্যাটাস',
+        message: res?.message || 'স্ট্যাটাস আপডেট হয়েছে',
+      });
+    } catch (err: any) {
+      // Local fallback toggle
+      setParties((prev) =>
+        prev.map((p) => {
+          if (p.id === idOrCode || p.code === idOrCode) {
+            const next = !Boolean(p.is_active ?? p.on);
+            return { ...p, is_active: next, on: next };
+          }
+          return p;
+        })
+      );
+      addToast({
+        type: 'info',
+        title: 'পার্টি স্ট্যাটাস',
+        message: 'স্ট্যাটাস পরিবর্তন করা হয়েছে',
+      });
+    }
+  };
+
+  const deleteParty = async (idOrCode: string | number) => {
+    try {
+      const res = await apiClient.delete(`portal/parties/${idOrCode}`);
+      setParties((prev) => prev.filter((p) => p.id !== idOrCode && p.code !== idOrCode));
+      addToast({
+        type: 'info',
+        title: 'পার্টি মুছে ফেলা হয়েছে',
+        message: res?.message || 'পার্টি সফলভাবে মুছে ফেলা হয়েছে',
+      });
+    } catch (err: any) {
+      setParties((prev) => prev.filter((p) => p.id !== idOrCode && p.code !== idOrCode));
+      addToast({
+        type: 'info',
+        title: 'পার্টি মুছে ফেলা হয়েছে',
+        message: 'পার্টি তালিকা থেকে মুছে ফেলা হয়েছে',
+      });
+    }
   };
 
   const sendChatMessage = async (threadId: string, text: string, senderRole: 'factory' | 'vendor' = 'factory') => {
@@ -1342,6 +1531,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         createChallan,
         receiveYarnInward,
         createOrder,
+        deleteOrder,
+        clearAllOrders,
         sendChatMessage,
         applyForJob,
         postRfq,
@@ -1355,6 +1546,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         toggleUserStatus,
         requestPartnerPayout,
         updateFactoryProfileInfo,
+        fetchOrders,
+        fetchParties,
+        createParty,
+        togglePartyStatus,
+        deleteParty,
       }}
     >
       {children}

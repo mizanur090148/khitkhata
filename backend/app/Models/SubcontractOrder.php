@@ -6,13 +6,15 @@ use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class SubcontractOrder extends Model
 {
-    use BelongsToTenant;
+    use BelongsToTenant, SoftDeletes;
     protected $fillable = [
         'order_no',
         'factory_id',
+        'party_id',
         'party_code',
         'buyer',
         'fabric_summary',
@@ -62,6 +64,11 @@ class SubcontractOrder extends Model
     public function factory(): BelongsTo
     {
         return $this->belongsTo(Factory::class);
+    }
+
+    public function party(): BelongsTo
+    {
+        return $this->belongsTo(Party::class, 'party_id');
     }
 
     public function lines(): HasMany

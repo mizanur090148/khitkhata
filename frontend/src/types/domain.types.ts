@@ -46,6 +46,8 @@ export interface SubcontractOrderItem {
   id: string;
   po: string;
   party: string;
+  party_id?: number | string;
+  party_code?: string;
   partyPhone: string;
   buyer: string;
   style: string;
@@ -194,17 +196,36 @@ export interface BillItem {
 }
 
 export interface PartyItem {
-  id: string;
+  id: string | number;
+  code?: string;
   name: string;
-  type: 'Buying House' | 'Composite' | 'Direct Export' | 'Local Trader';
-  contact: string;
-  phone: string;
-  address: string;
-  rate1J: number;
-  rateRib: number;
-  rateFleece: number;
-  creditLimit: number;
-  openingDue: number;
+  type: 'ven' | 'sup' | 'Buying House' | 'Composite' | 'Direct Export' | 'Local Trader' | string;
+  contact?: string;
+  contact_person?: string;
+  phone?: string;
+  address?: string;
+  addr?: string;
+  email?: string;
+  bin?: string;
+  bin_tin?: string;
+  rate?: number;
+  default_rate_tk?: number;
+  terms?: string;
+  payment_terms?: string;
+  open?: number;
+  opening_balance?: number;
+  added?: string;
+  added_date?: string;
+  on?: boolean;
+  is_active?: boolean;
+  orders_count?: number;
+  due?: number;
+  // Legacy optional properties
+  rate1J?: number;
+  rateRib?: number;
+  rateFleece?: number;
+  creditLimit?: number;
+  openingDue?: number;
   totalKnittedKg?: number;
   totalBilled?: number;
   totalPaid?: number;

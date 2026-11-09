@@ -36,10 +36,15 @@ class KnitKhataDomainService
         $factories = Factory::orderBy('id')->get();
         $primaryFactory = $factories->firstWhere('code', 'f1') ?? $factories->first();
 
-        $parties = Party::where('factory_id', $primaryFactory?->id)
-            ->get()
+        $partyList = Party::where('factory_id', $primaryFactory?->id)
+            ->orderBy('id', 'desc')
+            ->get();
+
+        $parties = $partyList
             ->keyBy('code')
             ->map(fn (Party $p) => [
+                'id' => $p->id,
+                'code' => $p->code,
                 'name' => $p->name,
                 'type' => $p->type,
                 'addr' => $p->address ?? '—',
@@ -70,7 +75,7 @@ class KnitKhataDomainService
             }
         }
 
-        $orders = SubcontractOrder::with(['lines', 'qcInspections'])
+        $orders = SubcontractOrder::with(['lines', 'qcInspections', 'party'])
             ->where('factory_id', $primaryFactory?->id)
             ->orderBy('id')
             ->get()
@@ -113,6 +118,9 @@ class KnitKhataDomainService
 
                 return [
                     'id' => $o->order_no,
+                    'party' => $o->party?->name ?? $o->party_code,
+                    'party_id' => $o->party_id,
+                    'party_code' => $o->party_code,
                     'v' => $o->party_code,
                     'buyer' => $o->buyer,
                     'fabric' => $o->fabric_summary,
@@ -323,6 +331,7 @@ class KnitKhataDomainService
 
         return [
             'vendors' => $parties,
+            'parties' => $parties->values()->all(),
             'machineState' => $machineState,
             'freeSet' => $freeSet,
             'freeRequests' => $freeRequests,

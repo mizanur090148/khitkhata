@@ -26,10 +26,93 @@ use Illuminate\Support\Facades\DB;
 
 class FactoryPortalController extends Controller
 {
+    public function getOrders(): JsonResponse
+    {
+        $factory = Factory::where('code', 'f1')->firstOrFail();
+        $orders = SubcontractOrder::with(['lines', 'qcInspections', 'party'])
+            ->where('factory_id', $factory->id)
+            ->orderBy('id', 'desc')
+            ->get()
+            ->map(function (SubcontractOrder $o) {
+                $lines = $o->lines->map(fn ($l) => [
+                    'id' => $l->line_index,
+                    'line_index' => $l->line_index,
+                    'kt' => $l->knit_type,
+                    'yd' => (bool) $l->is_yarn_dyed,
+                    'unit' => $l->unit,
+                    'place' => $l->placement,
+                    'fab' => $l->fabrication,
+                    'color' => $l->color ?? '—',
+                    'qty' => (float) $l->qty,
+                    'done' => (float) $l->done_qty,
+                    'dl' => (float) $l->delivered_qty,
+                    'ggsm' => $l->grey_gsm,
+                    'fgsm' => $l->finish_gsm,
+                    'sl' => $l->stitch_length,
+                    'gdia' => $l->grey_dia,
+                    'dia' => $l->dia_gauge,
+                    'size' => $l->flat_size,
+                    'pcw' => $l->piece_weight_gm,
+                    'fdes' => $l->flat_design,
+                    'machines' => $l->machines_json ?? [],
+                    'yarns' => $l->yarns_json ?? [],
+                ])->values()->all();
+
+                $qc = $o->qcInspections->map(fn ($q) => [
+                    'id' => $q->qc_no,
+                    'roll' => $q->roll_no,
+                    'date' => $q->inspection_date ? $q->inspection_date->format('Y-m-d') : '2026-10-01',
+                    'shift' => $q->shift,
+                    'op' => $q->operator_name,
+                    'res' => $q->result,
+                    'flt' => $q->fault_code,
+                    'kg' => (float) $q->weight_kg,
+                    'issue' => $q->issue_description,
+                    'src' => $q->source,
+                ])->values()->all();
+
+                return [
+                    'id' => $o->order_no,
+                    'po' => $o->order_no,
+                    'party' => $o->party?->name ?? $o->party_code,
+                    'party_id' => $o->party_id,
+                    'party_code' => $o->party_code,
+                    'v' => $o->party_code,
+                    'buyer' => $o->buyer,
+                    'fabric' => $o->fabric_summary,
+                    'gsm' => $o->gsm,
+                    'finishGsm' => $o->finish_gsm,
+                    'stitch' => $o->stitch_length,
+                    'greyDia' => $o->grey_dia,
+                    'dia' => $o->dia_gauge,
+                    'color' => $o->color,
+                    'yarn' => $o->yarn_summary,
+                    'qty' => (float) $o->total_qty_kg,
+                    'done' => (float) $o->done_kg,
+                    'machines' => $o->machines_json ?? [],
+                    'rate' => (float) $o->daily_rate_kg,
+                    'start' => $o->start_label,
+                    'status' => $o->status,
+                    'rateTk' => (float) $o->rate_tk,
+                    'orderDate' => $o->order_date ? $o->order_date->format('Y-m-d') : null,
+                    'delivDate' => $o->delivery_due_date ? $o->delivery_due_date->format('Y-m-d') : null,
+                    'completeDate' => $o->complete_date ? $o->complete_date->format('Y-m-d') : null,
+                    'delivered' => (float) $o->delivered_kg,
+                    'challans' => $o->challans_json ?? [],
+                    'yarnIn' => $o->yarn_in_json ?? [],
+                    'lines' => $lines,
+                    'qc' => $qc,
+                ];
+            });
+
+        return $this->success($orders, 'অর্ডার তালিকা লোড হয়েছে');
+    }
+
     public function storeOrder(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'id' => ['required', 'string', 'max:40'],
+            'party_id' => ['nullable', 'numeric'],
             'vendor_name' => ['required', 'string', 'max:150'],
             'buyer' => ['required', 'string', 'max:150'],
             'qty' => ['required', 'numeric', 'min:0'],
@@ -46,15 +129,24 @@ class FactoryPortalController extends Controller
         $factory = Factory::where('code', 'f1')->firstOrFail();
 
         return DB::transaction(function () use ($validated, $factory) {
-            $party = Party::where('factory_id', $factory->id)
-                ->whereRaw('LOWER(name) = ?', [strtolower($validated['vendor_name'])])
-                ->first();
+            $party = null;
+            if (!empty($validated['party_id'])) {
+                $party = Party::where('factory_id', $factory->id)->find($validated['party_id']);
+            }
+            if (!$party) {
+                $party = Party::where('factory_id', $factory->id)
+                    ->where(function ($q) use ($validated) {
+                        $q->where('code', $validated['vendor_name'])
+                            ->orWhereRaw('LOWER(name) = ?', [strtolower(trim($validated['vendor_name']))]);
+                    })
+                    ->first();
+            }
 
             if (!$party) {
                 $party = Party::create([
                     'factory_id' => $factory->id,
-                    'code' => 'p' . time(),
-                    'name' => $validated['vendor_name'],
+                    'code' => 'p' . time() . rand(10, 99),
+                    'name' => trim($validated['vendor_name']),
                     'type' => 'ven',
                     'address' => '—',
                     'contact_person' => '—',
@@ -88,6 +180,7 @@ class FactoryPortalController extends Controller
             $order = SubcontractOrder::create([
                 'order_no' => $validated['id'],
                 'factory_id' => $factory->id,
+                'party_id' => $party->id,
                 'party_code' => $party->code,
                 'buyer' => $validated['buyer'],
                 'fabric_summary' => collect($lines)->pluck('fab')->implode(' + '),
@@ -177,6 +270,25 @@ class FactoryPortalController extends Controller
         $order->update(['machines_json' => $machines]);
 
         return $this->success(['machines' => $machines], 'মেশিন বরাদ্দ আপডেট হয়েছে');
+    }
+
+    public function deleteOrder(string $orderNo): JsonResponse
+    {
+        $factory = Factory::where('code', 'f1')->firstOrFail();
+        $order = SubcontractOrder::where('factory_id', $factory->id)
+            ->where(function ($q) use ($orderNo) {
+                $q->where('order_no', $orderNo)->orWhere('id', $orderNo);
+            })->firstOrFail();
+
+        $order->delete(); // Soft delete
+        return $this->success(null, "অর্ডার {$orderNo} মুছে ফেলা হয়েছে");
+    }
+
+    public function clearOrders(): JsonResponse
+    {
+        $factory = Factory::where('code', 'f1')->firstOrFail();
+        SubcontractOrder::where('factory_id', $factory->id)->delete(); // Soft delete all
+        return $this->success(null, 'সব অর্ডার মুছে ফেলা হয়েছে');
     }
 
     public function storeProductionEntry(Request $request): JsonResponse
@@ -487,6 +599,96 @@ class FactoryPortalController extends Controller
         return $this->success($item->fresh(), 'স্টোর স্টক আপডেট হয়েছে');
     }
 
+    public function getParties(): JsonResponse
+    {
+        $factory = Factory::where('code', 'f1')->firstOrFail();
+        $parties = Party::where('factory_id', $factory->id)->orderBy('id', 'desc')->get();
+
+        $ordersCount = SubcontractOrder::where('factory_id', $factory->id)
+            ->selectRaw('party_code, count(*) as cnt')
+            ->groupBy('party_code')
+            ->pluck('cnt', 'party_code');
+
+        $bills = Bill::where('factory_code', $factory->code)->get();
+
+        $data = $parties->map(function (Party $p) use ($ordersCount, $bills) {
+            $partyBills = $bills->where('party_code', $p->code);
+            $totalBilled = $partyBills->sum(function ($b) {
+                $lines = is_array($b->lines_json) ? $b->lines_json : json_decode($b->lines_json ?? '[]', true);
+                $amt = 0;
+                foreach ($lines as $l) {
+                    $amt += ((float)($l['kg'] ?? 0)) * ((float)($l['rate'] ?? 0));
+                }
+                return $amt;
+            });
+            $totalReceived = $partyBills->sum(function ($b) {
+                $recv = is_array($b->payments_json) ? $b->payments_json : json_decode($b->payments_json ?? '[]', true);
+                $amt = 0;
+                foreach ($recv as $r) {
+                    $amt += (float)($r['amt'] ?? 0);
+                }
+                return $amt;
+            });
+
+            $due = (float)$p->opening_balance + ($totalBilled - $totalReceived);
+
+            return [
+                'id' => $p->id,
+                'code' => $p->code,
+                'name' => $p->name,
+                'type' => $p->type,
+                'addr' => $p->address ?? '—',
+                'contact' => $p->contact_person ?? '—',
+                'phone' => $p->phone ?? '—',
+                'email' => $p->email ?? '',
+                'bin' => $p->bin_tin ?? '',
+                'rate' => (float)$p->default_rate_tk,
+                'terms' => $p->payment_terms ?? 'বিলের ৩০ দিনের মধ্যে',
+                'open' => (float)$p->opening_balance,
+                'added' => $p->added_date ? $p->added_date->format('Y-m-d') : date('Y-m-d'),
+                'on' => (bool)$p->is_active,
+                'orders_count' => (int)($ordersCount[$p->code] ?? 0),
+                'due' => $due,
+            ];
+        });
+
+        return $this->success($data, 'পার্টি তালিকা লোড হয়েছে');
+    }
+
+    public function toggleParty(int|string $id): JsonResponse
+    {
+        $factory = Factory::where('code', 'f1')->firstOrFail();
+        $party = Party::where('factory_id', $factory->id)
+            ->where(function ($q) use ($id) {
+                $q->where('id', $id)->orWhere('code', $id);
+            })->firstOrFail();
+
+        $party->is_active = !$party->is_active;
+        $party->save();
+
+        $statusMsg = $party->is_active ? "{$party->name} আবার সক্রিয়" : "{$party->name} বন্ধ করা হলো — পুরোনো হিসাব থাকবে";
+        return $this->success([
+            'id' => $party->id,
+            'code' => $party->code,
+            'is_active' => (bool)$party->is_active,
+            'on' => (bool)$party->is_active,
+        ], $statusMsg);
+    }
+
+    public function deleteParty(int|string $id): JsonResponse
+    {
+        $factory = Factory::where('code', 'f1')->firstOrFail();
+        $party = Party::where('factory_id', $factory->id)
+            ->where(function ($q) use ($id) {
+                $q->where('id', $id)->orWhere('code', $id);
+            })->firstOrFail();
+
+        $partyName = $party->name;
+        $party->delete();
+
+        return $this->success(null, "\"{$partyName}\" পার্টি মুছে ফেলা হয়েছে");
+    }
+
     public function storeParty(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -504,14 +706,16 @@ class FactoryPortalController extends Controller
 
         $factory = Factory::where('code', 'f1')->firstOrFail();
 
-        if (Party::where('factory_id', $factory->id)->whereRaw('LOWER(name) = ?', [strtolower($validated['name'])])->exists()) {
+        if (Party::where('factory_id', $factory->id)->whereRaw('LOWER(name) = ?', [strtolower(trim($validated['name']))])->exists()) {
             return $this->error("\"{$validated['name']}\" নামে আগেই একটা পার্টি আছে।", 422);
         }
 
+        $code = 'p' . time() . rand(10, 99);
+
         $party = Party::create([
             'factory_id' => $factory->id,
-            'code' => 'p' . time(),
-            'name' => $validated['name'],
+            'code' => $code,
+            'name' => trim($validated['name']),
             'type' => $validated['type'],
             'address' => $validated['addr'] ?: '—',
             'contact_person' => $validated['contact'] ?: '—',
@@ -521,11 +725,30 @@ class FactoryPortalController extends Controller
             'default_rate_tk' => (float) ($validated['rate'] ?? 0),
             'payment_terms' => $validated['terms'] ?? 'বিলের ৩০ দিনের মধ্যে',
             'opening_balance' => (float) ($validated['open'] ?? 0),
-            'added_date' => '2026-10-03',
+            'added_date' => now()->toDateString(),
             'is_active' => true,
         ]);
 
-        return $this->success($party, "{$party->name} যোগ হলো · লেজার খোলা হয়েছে", 201);
+        $partyData = [
+            'id' => $party->id,
+            'code' => $party->code,
+            'name' => $party->name,
+            'type' => $party->type,
+            'addr' => $party->address ?? '—',
+            'contact' => $party->contact_person ?? '—',
+            'phone' => $party->phone ?? '—',
+            'email' => $party->email ?? '',
+            'bin' => $party->bin_tin ?? '',
+            'rate' => (float)$party->default_rate_tk,
+            'terms' => $party->payment_terms,
+            'open' => (float)$party->opening_balance,
+            'added' => $party->added_date ? $party->added_date->format('Y-m-d') : date('Y-m-d'),
+            'on' => (bool)$party->is_active,
+            'orders_count' => 0,
+            'due' => (float)$party->opening_balance,
+        ];
+
+        return $this->success($partyData, "{$party->name} যোগ হলো · লেজার খোলা হয়েছে", 201);
     }
 
     public function storeBill(Request $request): JsonResponse

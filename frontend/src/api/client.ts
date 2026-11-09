@@ -29,7 +29,9 @@ class ApiClient {
 
   public async request<T = any>(endpoint: string, options: RequestOptions = {}): Promise<T> {
     const { params, headers = {}, token, ...customConfig } = options;
-    const url = new URL(`${this.baseUrl}/${endpoint.replace(/^\/+/, '')}`);
+    const rawPath = `${this.baseUrl}/${endpoint.replace(/^\/+/, '')}`;
+    const baseOrigin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : 'http://127.0.0.1:8000';
+    const url = new URL(rawPath, baseOrigin);
 
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
@@ -47,6 +49,13 @@ class ApiClient {
 
     if (effectiveToken) {
       defaultHeaders['Authorization'] = `Bearer ${effectiveToken}`;
+    }
+
+    if (typeof document !== 'undefined') {
+      const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/);
+      if (match && match[1]) {
+        defaultHeaders['X-XSRF-TOKEN'] = decodeURIComponent(match[1]);
+      }
     }
 
     const config: RequestInit = {

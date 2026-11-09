@@ -1927,7 +1927,7 @@ export const FactoryPortal: React.FC = () => {
                         <td>{fmtTk(p.creditLimit)}</td>
                         <td>
                           <button
-                            onClick={() => openCallModal({ title: p.name, subtitle: p.contact, phone: p.phone })}
+                            onClick={() => openCallModal({ title: p.name, subtitle: p.contact, phone: p.phone || ''})}
                             className="btn btn-secondary btn-sm"
                           >
                             <Phone size={12} /> কল

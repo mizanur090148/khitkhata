@@ -5,10 +5,12 @@ namespace App\Models;
 use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Party extends Model
 {
-    use BelongsToTenant;
+    use BelongsToTenant, SoftDeletes;
     protected $fillable = [
         'factory_id',
         'code',
@@ -39,6 +41,11 @@ class Party extends Model
     public function factory(): BelongsTo
     {
         return $this->belongsTo(Factory::class);
+    }
+
+    public function orders(): HasMany
+    {
+        return $this->hasMany(SubcontractOrder::class, 'party_id');
     }
 }
 

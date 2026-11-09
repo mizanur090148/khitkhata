@@ -6,7 +6,7 @@ import { bnNum, pct } from '@/utils/formatters';
 export const FactoryOrderDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const { orders, yarns, qcLogs, prodLogs, selectedOrderId } = useApp();
+  const { orders, yarns, qcLogs, prodLogs, selectedOrderId, deleteOrder } = useApp();
 
   const activeOrder =
     orders.find((o) => o.id === id) ||
@@ -75,6 +75,18 @@ export const FactoryOrderDetailPage: React.FC = () => {
             }}
           >
             জব কার্ড
+          </button>
+          <button
+            className="btn sm"
+            style={{ color: 'var(--err)', borderColor: 'var(--err)' }}
+            onClick={() => {
+              if (window.confirm(`আপনি কি এই অর্ডারটি (${o.id}) মুছে ফেলতে চান?`)) {
+                deleteOrder(o.id);
+                navigate('/dashboard/orders');
+              }
+            }}
+          >
+            অর্ডার মুছুন
           </button>
           {isDone ? (
             <span className="pill p-ok">ডেলিভারি সম্পন্ন</span>

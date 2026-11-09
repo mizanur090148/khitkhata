@@ -84,6 +84,7 @@ return new class extends Migration
             $table->date('added_date')->nullable();
             $table->boolean('is_active')->default(true);
             $table->timestamps();
+            $table->softDeletes();
 
             $table->unique(['factory_id', 'code']);
         });
@@ -91,18 +92,19 @@ return new class extends Migration
         // Subcontract Orders & Multi-placement Order Lines
         Schema::create('subcontract_orders', function (Blueprint $table) {
             $table->id();
-            $table->string('order_no', 40)->unique(); // SC-2610-014
+            $table->string('order_no', 100)->unique(); // SC-2610-014
             $table->foreignId('factory_id')->constrained('factories')->cascadeOnDelete();
-            $table->string('party_code', 40); // abc, xyz, nobo
+            $table->foreignId('party_id')->nullable()->constrained('parties')->nullOnDelete();
+            $table->string('party_code', 100); // abc, xyz, nobo
             $table->string('buyer')->nullable();
-            $table->string('fabric_summary');
-            $table->string('gsm', 30)->nullable();
-            $table->string('finish_gsm', 30)->nullable();
-            $table->string('stitch_length', 30)->nullable();
-            $table->string('grey_dia', 30)->nullable();
-            $table->string('dia_gauge', 50)->nullable();
-            $table->string('color')->nullable();
-            $table->string('yarn_summary')->nullable();
+            $table->text('fabric_summary');
+            $table->string('gsm', 100)->nullable();
+            $table->string('finish_gsm', 100)->nullable();
+            $table->string('stitch_length', 100)->nullable();
+            $table->string('grey_dia', 100)->nullable();
+            $table->string('dia_gauge', 191)->nullable();
+            $table->string('color', 255)->nullable();
+            $table->text('yarn_summary')->nullable();
             $table->decimal('total_qty_kg', 12, 2)->default(0);
             $table->decimal('done_kg', 12, 2)->default(0);
             $table->decimal('delivered_kg', 12, 2)->default(0);
@@ -119,6 +121,7 @@ return new class extends Migration
             $table->json('challans_json')->nullable();
             $table->json('yarn_in_json')->nullable();
             $table->timestamps();
+            $table->softDeletes();
         });
 
         Schema::create('order_lines', function (Blueprint $table) {
@@ -128,20 +131,20 @@ return new class extends Migration
             $table->string('knit_type', 10)->default('c'); // c = circular, f = flat
             $table->boolean('is_yarn_dyed')->default(false);
             $table->string('unit', 10)->default('kg'); // kg, pcs
-            $table->string('placement', 60); // Body, Neck Rib, Collar, Cuff
-            $table->string('fabrication', 100);
-            $table->string('color', 80)->nullable();
+            $table->string('placement', 191); // Body, Neck Rib, Collar, Cuff
+            $table->string('fabrication', 255);
+            $table->string('color', 191)->nullable();
             $table->decimal('qty', 12, 2)->default(0);
             $table->decimal('done_qty', 12, 2)->default(0);
             $table->decimal('delivered_qty', 12, 2)->default(0);
-            $table->string('grey_gsm', 20)->nullable();
-            $table->string('finish_gsm', 20)->nullable();
-            $table->string('stitch_length', 30)->nullable();
-            $table->string('grey_dia', 20)->nullable();
-            $table->string('dia_gauge', 40)->nullable();
-            $table->string('flat_size', 40)->nullable();
-            $table->string('piece_weight_gm', 20)->nullable();
-            $table->string('flat_design')->nullable();
+            $table->string('grey_gsm', 100)->nullable();
+            $table->string('finish_gsm', 100)->nullable();
+            $table->string('stitch_length', 100)->nullable();
+            $table->string('grey_dia', 100)->nullable();
+            $table->string('dia_gauge', 191)->nullable();
+            $table->string('flat_size', 191)->nullable();
+            $table->string('piece_weight_gm', 100)->nullable();
+            $table->text('flat_design')->nullable();
             $table->json('machines_json')->nullable();
             $table->json('yarns_json')->nullable();
             $table->timestamps();

@@ -1,5 +1,5 @@
-import React, { useState, useId } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useId, useRef, useMemo } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
 import { bnNum } from '@/utils/formatters';
 import { SubcontractOrderItem, OrderLineItem } from '@/types/domain.types';
@@ -184,66 +184,104 @@ const newYarn = (role = ''): YarnItemState => ({
 
 let noSeqCounter = 100;
 
+const createBlankLine = (uid: number, place = 'Body'): OrderLineState => ({
+  uid,
+  kt: 'c',
+  yd: false,
+  fsize: '',
+  pcw: '',
+  fdes: '',
+  place,
+  fab: '',
+  color: '',
+  qty: '',
+  yarns: [newYarn('বডি সুতা')],
+  ggsm: '',
+  fgsm: '',
+  sl: '',
+  gdia: '',
+  mdia: '',
+  mg: '',
+  machines: [],
+});
+
 export const FactoryNewOrderPage: React.FC = () => {
   const navigate = useNavigate();
-  const { orders, parties, machines, createOrder, addToast, setSelectedOrderId } = useApp();
+  const location = useLocation();
+  const { orders, parties, machines, createOrder, addToast, setSelectedOrderId, fetchParties } = useApp();
 
-  // Basic Form States matching KnitKhata.html
+  // Basic Form States - initially empty for fresh new entry
   const [pubDate, setPubDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [yrecDate, setYrecDate] = useState<string>('');
   const [delDate, setDelDate] = useState<string>('');
-  const [vendorName, setVendorName] = useState<string>('ABC Knit Composite');
-  const [orderNo, setOrderNo] = useState<string>(`SC-2610-02${orders.length + 1}`);
-  const [buyerName, setBuyerName] = useState<string>('H&M');
-  const [totalQty, setTotalQty] = useState<string>('5000');
+  const [vendorId, setVendorId] = useState<number | string | null>(null);
+  const [vendorName, setVendorName] = useState<string>('');
+  const [orderNo, setOrderNo] = useState<string>('');
+  const [buyerName, setBuyerName] = useState<string>('');
+  const [totalQty, setTotalQty] = useState<string>('');
 
-  // Lines State
-  const [noLines, setNoLines] = useState<OrderLineState[]>([
-    {
-      uid: 1,
-      kt: 'c',
-      yd: false,
-      fsize: '',
-      pcw: '',
-      fdes: '',
-      place: 'Body',
-      fab: 'Single Jersey',
-      color: 'Navy Blue',
-      qty: '4500',
-      yarns: [newYarn('বডি সুতা')],
-      ggsm: '150',
-      fgsm: '160',
-      sl: '2.65 mm',
-      gdia: '68',
-      mdia: '30',
-      mg: '24',
-      machines: ['M-01', 'M-03'],
-    },
-    {
-      uid: 2,
-      kt: 'c',
-      yd: false,
-      fsize: '',
-      pcw: '',
-      fdes: '',
-      place: 'Neck Rib',
-      fab: '1×1 Rib Lycra',
-      color: 'Navy Blue Matching',
-      qty: '500',
-      yarns: [newYarn('বডি সুতা'), newYarn('লাইক্রা (Spandex)')],
-      ggsm: '',
-      fgsm: '220',
-      sl: '2.80 mm',
-      gdia: '',
-      mdia: '32',
-      mg: '18',
-      machines: ['M-08'],
-    },
-  ]);
+  // Vendor searchable dropdown state
+  const [vendorDropdownOpen, setVendorDropdownOpen] = useState(false);
+  const vendorDropdownRef = useRef<HTMLDivElement>(null);
 
+  // Filter parties from database where type is 'ven'
+  const vendorParties = useMemo(() => {
+    return parties.filter((p) => (p.type || '').toLowerCase() === 'ven');
+  }, [parties]);
+
+  // Search filtered vendors
+  const filteredVendors = useMemo(() => {
+    const q = (vendorName || '').trim().toLowerCase();
+    if (!q) return vendorParties;
+    return vendorParties.filter(
+      (p) =>
+        (p.name || '').toLowerCase().includes(q) ||
+        (p.code || '').toLowerCase().includes(q) ||
+        (p.phone || '').toLowerCase().includes(q) ||
+        (p.addr || p.address || '').toLowerCase().includes(q)
+    );
+  }, [vendorParties, vendorName]);
+
+  // Click outside listener to close vendor dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (vendorDropdownRef.current && !vendorDropdownRef.current.contains(event.target as Node)) {
+        setVendorDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Refresh parties from MySQL on mount
+  useEffect(() => {
+    fetchParties?.();
+  }, []);
+
+  // Lines State - starts with one clean empty line
+  const [noLines, setNoLines] = useState<OrderLineState[]>([createBlankLine(1, 'Body')]);
   const [noActive, setNoActive] = useState<number>(1);
   const [formMsg, setFormMsg] = useState<string>('');
   const [submitting, setSubmitting] = useState<boolean>(false);
+
+  // Reset form completely whenever visiting the new order page
+  const resetForm = () => {
+    setPubDate(new Date().toISOString().split('T')[0]);
+    setYrecDate('');
+    setDelDate('');
+    setVendorId(null);
+    setVendorName('');
+    setOrderNo('');
+    setBuyerName('');
+    setTotalQty('');
+    setNoLines([createBlankLine(1, 'Body')]);
+    setNoActive(1);
+    setFormMsg('');
+  };
+
+  useEffect(() => {
+    resetForm();
+  }, [location.key]);
 
   // Line Name helper
   const lname = (l: OrderLineState, i: number) =>
@@ -435,6 +473,7 @@ export const FactoryNewOrderPage: React.FC = () => {
         id: orderNo.trim() || undefined,
         po: orderNo.trim() || `SC-2610-02${orders.length + 1}`,
         party: vendorName.trim(),
+        party_id: vendorId || undefined,
         partyPhone: '01711-000111',
         buyer: buyerName.trim(),
         style: primaryLine.fab || 'Single Jersey',
@@ -460,14 +499,15 @@ export const FactoryNewOrderPage: React.FC = () => {
         message: `${createdId} সেভ হয়েছে · ড্যাশবোর্ডে যোগ হলো`,
       });
 
+      resetForm();
       setSelectedOrderId(createdId);
       navigate(`/dashboard/orders/${createdId}`);
       window.scrollTo(0, 0);
-    } catch (err) {
+    } catch (err: any) {
       addToast({
         type: 'error',
-        title: 'ত্রুটি ঘটেছে',
-        message: 'অর্ডার সেভ করতে সমস্যা হয়েছে। অনুগ্রহ করে পুনরায় চেষ্টা করুন।',
+        title: 'ডাটাবেজে সেভ হয়নি!',
+        message: err?.message || 'অর্ডার সেভ করতে সমস্যা হয়েছে। অনুগ্রহ করে পুনরায় চেষ্টা করুন।',
       });
     } finally {
       setSubmitting(false);
@@ -519,8 +559,8 @@ export const FactoryNewOrderPage: React.FC = () => {
         ))}
       </datalist>
       <datalist id="no-vlist">
-        {parties.map((p) => (
-          <option key={p.id} value={p.name} />
+        {vendorParties.map((p) => (
+          <option key={p.id || p.code} value={p.name} />
         ))}
       </datalist>
       <datalist id="no-blist">
@@ -573,20 +613,207 @@ export const FactoryNewOrderPage: React.FC = () => {
             <span className="stp">২</span>অর্ডারের তথ্য
           </h3>
           <div className="no-grid">
-            <label className="no-f" htmlFor="no-vendor">
-              <span>
-                Vendor Name <b className="req">*</b>
-              </span>
-              <input
-                id="no-vendor"
-                type="text"
-                placeholder="যেমন: ABC Knit Composite"
-                list="no-vlist"
-                autoComplete="off"
-                value={vendorName}
-                onChange={(e) => setVendorName(e.target.value)}
-              />
-            </label>
+            <div className="no-f" ref={vendorDropdownRef} style={{ position: 'relative' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <label htmlFor="no-vendor" style={{ margin: 0, fontWeight: 600, cursor: 'pointer' }}>
+                  Vendor Name <b className="req">*</b>
+                </label>
+                <button
+                  type="button"
+                  className="addp"
+                  onClick={() => navigate('/dashboard/party')}
+                  title="নতুন পার্টি তৈরি করুন"
+                  style={{
+                    fontSize: 11,
+                    padding: '2px 8px',
+                    borderRadius: 4,
+                    background: 'var(--brand-surface, #e0f2fe)',
+                    color: 'var(--primary, #0284c7)',
+                    border: '1px solid var(--border)',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                  }}
+                >
+                  + নতুন পার্টি
+                </button>
+              </div>
+
+              {/* Searchable input box */}
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <input
+                  id="no-vendor"
+                  type="text"
+                  placeholder="ভেন্ডরের নাম লিখুন বা সিলেক্ট করুন..."
+                  autoComplete="off"
+                  value={vendorName}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setVendorName(val);
+                    setVendorDropdownOpen(true);
+                    const matched = vendorParties.find((p) => (p.name || '').toLowerCase() === val.trim().toLowerCase());
+                    setVendorId(matched ? (matched.id ?? null) : null);
+                  }}
+                  onFocus={() => setVendorDropdownOpen(true)}
+                  style={{
+                    width: '100%',
+                    paddingRight: vendorName ? 54 : 32,
+                  }}
+                />
+
+                {/* Clear (x) and toggle chevron buttons */}
+                <div style={{ position: 'absolute', right: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {vendorName && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setVendorName('');
+                        setVendorId(null);
+                        setVendorDropdownOpen(true);
+                      }}
+                      style={{
+                        background: 'transparent',
+                        border: 0,
+                        cursor: 'pointer',
+                        color: 'var(--muted)',
+                        fontSize: 16,
+                        padding: '0 4px',
+                        lineHeight: 1,
+                      }}
+                      title="মুছে ফেলুন"
+                    >
+                      ×
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setVendorDropdownOpen((prev) => !prev)}
+                    style={{
+                      background: 'transparent',
+                      border: 0,
+                      cursor: 'pointer',
+                      color: 'var(--muted)',
+                      fontSize: 10,
+                      padding: '2px 4px',
+                      transform: vendorDropdownOpen ? 'rotate(180deg)' : 'none',
+                      transition: 'transform 0.15s ease',
+                    }}
+                    tabIndex={-1}
+                    aria-label="টগল ভেন্ডর তালিকা"
+                  >
+                    ▼
+                  </button>
+                </div>
+              </div>
+
+              {/* Searchable Dropdown Menu with type 'ven' parties */}
+              {vendorDropdownOpen && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    marginTop: 4,
+                    background: 'var(--surface, #ffffff)',
+                    border: '1px solid var(--border, #e2e8f0)',
+                    borderRadius: 6,
+                    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+                    zIndex: 150,
+                    maxHeight: 280,
+                    overflowY: 'auto',
+                  }}
+                >
+                  <div
+                    style={{
+                      padding: '6px 12px',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: 'var(--muted)',
+                      borderBottom: '1px solid var(--border)',
+                      background: 'var(--background, #f8fafc)',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <span>ভেন্ডর তালিকা (parties table · type: ven)</span>
+                    <span style={{ fontSize: 10, background: 'var(--brand-surface, #e0f2fe)', color: 'var(--primary, #0284c7)', padding: '1px 6px', borderRadius: 4 }}>
+                      {filteredVendors.length}টি ভেন্ডর
+                    </span>
+                  </div>
+
+                  {filteredVendors.length === 0 ? (
+                    <div style={{ padding: '16px 12px', textAlign: 'center', fontSize: 13, color: 'var(--muted)' }}>
+                      <div style={{ marginBottom: 8 }}>"{vendorName}" নামে কোনো ভেন্ডর পাওয়া যায়নি</div>
+                      <button
+                        type="button"
+                        onClick={() => navigate('/dashboard/party')}
+                        className="btn small pri"
+                        style={{ fontSize: 12 }}
+                      >
+                        + নতুন পার্টি তালিকায় যোগ করুন
+                      </button>
+                    </div>
+                  ) : (
+                    filteredVendors.map((p) => {
+                      const isSelected = (p.name || '').toLowerCase() === vendorName.trim().toLowerCase();
+                      const rate = p.rate || p.default_rate_tk;
+                      return (
+                        <div
+                          key={p.id || p.code}
+                          onClick={() => {
+                            setVendorName(p.name);
+                            setVendorId(p.id ?? null);
+                            setVendorDropdownOpen(false);
+                          }}
+                          style={{
+                            padding: '9px 12px',
+                            cursor: 'pointer',
+                            borderBottom: '1px solid var(--border)',
+                            background: isSelected ? 'rgba(2, 132, 199, 0.08)' : 'transparent',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            transition: 'background 0.15s ease',
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!isSelected) e.currentTarget.style.background = 'var(--hover, #f1f5f9)';
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!isSelected) e.currentTarget.style.background = 'transparent';
+                          }}
+                        >
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: 13, color: isSelected ? 'var(--primary)' : 'inherit' }}>
+                              {p.name}
+                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                              {[p.contact || p.contact_person, p.phone, p.addr || p.address].filter(Boolean).filter((x) => x !== '—').join(' · ') || 'ঠিকানা নেই'}
+                            </div>
+                          </div>
+                          {rate ? (
+                            <span
+                              style={{
+                                fontSize: 11,
+                                padding: '2px 6px',
+                                borderRadius: 4,
+                                background: 'rgba(16, 185, 129, 0.1)',
+                                color: 'var(--ok, #059669)',
+                                fontWeight: 600,
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              ৳ {rate}/kg
+                            </span>
+                          ) : null}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </div>
 
             <label className="no-f" htmlFor="no-id">
               <span>
