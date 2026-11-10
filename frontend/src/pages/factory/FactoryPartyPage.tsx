@@ -206,7 +206,7 @@ export const FactoryPartyPage: React.FC = () => {
   };
 
   return (
-    <div className="party-page-container" style={{ paddingBottom: 40 }}>
+    <div className="party-page-container" style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 40 }}>
       {/* HEADER MATCHING KnitKhata.html */}
       <div className="head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
@@ -252,38 +252,56 @@ export const FactoryPartyPage: React.FC = () => {
       </div>
 
       {/* SEARCH & FILTER BAR */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 10 }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginTop: 6,
+          marginBottom: 4,
+          flexWrap: 'wrap',
+          gap: 12,
+        }}
+      >
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button
             type="button"
-            className={`btn small ${filterType === 'all' ? 'pri' : ''}`}
+            className={`btn sm ${filterType === 'all' ? 'pri' : ''}`}
             onClick={() => setFilterType('all')}
           >
             সব ({partyStats.length})
           </button>
           <button
             type="button"
-            className={`btn small ${filterType === 'ven' ? 'pri' : ''}`}
+            className={`btn sm ${filterType === 'ven' ? 'pri' : ''}`}
             onClick={() => setFilterType('ven')}
           >
             ভেন্ডর ({vendorCount})
           </button>
           <button
             type="button"
-            className={`btn small ${filterType === 'sup' ? 'pri' : ''}`}
+            className={`btn sm ${filterType === 'sup' ? 'pri' : ''}`}
             onClick={() => setFilterType('sup')}
           >
             সাপ্লায়ার ({supplierCount})
           </button>
         </div>
 
-        <div style={{ minWidth: 260 }}>
+        <div style={{ minWidth: 260, maxWidth: 360, flex: '1 1 auto' }}>
           <input
             type="search"
             placeholder="পার্টির নাম, ফোন বা ঠিকানা দিয়ে খুঁজুন..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            style={{ width: '100%', padding: '6px 12px', fontSize: 13, borderRadius: 6, border: '1px solid var(--border)' }}
+            style={{
+              width: '100%',
+              padding: '7px 12px',
+              fontSize: 13,
+              borderRadius: 6,
+              border: '1px solid var(--border)',
+              background: 'var(--surface)',
+              color: 'var(--ink)',
+            }}
           />
         </div>
       </div>
