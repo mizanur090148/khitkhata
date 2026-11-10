@@ -296,6 +296,14 @@ interface AppContextType {
   requestPartnerPayout: (amount: number, method: string, account: string) => Promise<boolean>;
   updateFactoryProfileInfo: (info: Partial<FactoryProfileInfo>) => Promise<void>;
   fetchOrders: () => Promise<void>;
+  fetchRolls: (orderNo?: string, machine?: string) => Promise<RollTagItem[]>;
+  saveJobCardGrid: (payload: {
+    order_no: string;
+    machine_code: string;
+    placement_index?: number;
+    rolls: any[];
+    remarks?: string;
+  }) => Promise<void>;
   fetchParties: () => Promise<void>;
   createParty: (partyData: {
     name: string;
@@ -782,6 +790,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           if (Array.isArray(d.orders)) setOrders(d.orders);
           if (d.machines && d.machines.length) setMachines(d.machines);
           if (d.parties && d.parties.length) setParties(d.parties);
+          if (Array.isArray(d.rolls)) setRolls(d.rolls);
+          if (Array.isArray(d.prodLog)) setProdLogs(d.prodLog);
           if (d.jobs && d.jobs.length) setJobs(d.jobs);
           if (d.suppliers && d.suppliers.length) setSuppliers(d.suppliers);
           if (d.subcontract_posts && d.subcontract_posts.length) setMarketplacePosts(d.subcontract_posts);
@@ -1059,6 +1069,54 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch (err: any) {
       console.info('Fetch orders fallback:', err.message);
     }
+  };
+
+  const fetchRolls = async (orderNo?: string, machine?: string): Promise<RollTagItem[]> => {
+    try {
+      const params: any = {};
+      if (orderNo) params.order_no = orderNo;
+      if (machine) params.machine_code = machine;
+      const res = await apiClient.get('portal/rolls', { params });
+      if (res && res.data && Array.isArray(res.data)) {
+        setRolls((prev) => {
+          if (!orderNo && !machine) return res.data;
+          const otherRolls = prev.filter(
+            (r: any) => !(orderNo && r.o === orderNo && (!machine || r.m === machine))
+          );
+          return [...otherRolls, ...res.data];
+        });
+        return res.data;
+      }
+    } catch (err: any) {
+      console.info('Fetch rolls fallback:', err.message);
+    }
+    return rolls;
+  };
+
+  const saveJobCardGrid = async (payload: {
+    order_no: string;
+    machine_code: string;
+    placement_index?: number;
+    rolls: any[];
+    remarks?: string;
+  }) => {
+    const res = await apiClient.post('portal/jobcard/save', payload);
+    if (!res || res.success === false) {
+      throw new Error(res?.message || 'জব কার্ড সেভ করতে সমস্যা হয়েছে।');
+    }
+    if (res.data && Array.isArray(res.data)) {
+      setRolls((prev) => {
+        const otherRolls = prev.filter(
+          (r: any) => !(r.o === payload.order_no && r.m === payload.machine_code)
+        );
+        return [...otherRolls, ...res.data];
+      });
+    }
+    addToast({
+      type: 'success',
+      title: 'জব কার্ড সংরক্ষিত',
+      message: res.message || 'জব কার্ড সেভ হয়েছে · ভেন্ডরও দেখতে পাচ্ছে',
+    });
   };
 
   const fetchParties = async () => {
@@ -1547,6 +1605,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         requestPartnerPayout,
         updateFactoryProfileInfo,
         fetchOrders,
+        fetchRolls,
+        saveJobCardGrid,
         fetchParties,
         createParty,
         togglePartyStatus,

@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
 import { bnNum } from '@/utils/formatters';
 import { QrCodeSvg } from '@/components/common/QrCodeSvg';
 
+// The exact 16 faults from KnitKhata.html
 const FAULTS = [
   'Hole',
   'Needle Mark',
@@ -16,35 +17,370 @@ const FAULTS = [
   'Missing Yarn',
   'Shade Up',
   'Yarn Fault',
+  'Y/D Design',
+  'Foreign Fiber',
+  'Slab Yarn',
+  'Thick Thin',
   'Sinker Mark',
 ];
 
-interface GridState {
-  cols: number;
-  roll: string[];
-  wt: (number | string)[];
-  op: string[];
-  f: Record<string, (number | string)[]>;
-  rem: string;
+interface OrderLineNormalized {
+  place: string;
+  fab: string;
+  color: string;
+  qty: number;
+  done: number;
+  dia: string;
+  kt: 'c' | 'f';
+  yd: boolean;
+  unit: string;
+  machines: string[];
+  yarns: Array<{ count?: string; brand?: string; lot?: string; pct?: string }>;
+}
+
+function normalizeOrderLines(o: any): OrderLineNormalized[] {
+  if (!o) return [];
+  if (!o.lines || !o.lines.length) {
+    return [
+      {
+        place: 'Body',
+        fab: o.fabric || 'Single Jersey',
+        color: o.color || '—',
+        qty: Number(o.qty || o.totalKg || 0),
+        done: Number(o.done || 0),
+        dia: o.dia || '30" × 24G',
+        kt: 'c',
+        yd: false,
+        unit: 'kg',
+        machines: Array.isArray(o.machines) && o.machines.length ? o.machines : ['M-01'],
+        yarns: [],
+      },
+    ];
+  }
+
+  return o.lines.map((l: any, i: number) => {
+    let machinesList: string[] = [];
+    if (Array.isArray(l.machines)) {
+      machinesList = l.machines;
+    } else if (typeof l.machine === 'string') {
+      machinesList = l.machine.split(',').map((m: string) => m.trim()).filter(Boolean);
+    }
+    if (!machinesList.length) machinesList = ['M-01'];
+
+    return {
+      place: l.place || l.placement || (i === 0 ? 'Body' : `অংশ ${i + 1}`),
+      fab: l.fab || l.fabrication || l.fabric || 'Single Jersey',
+      color: l.color || o.color || '—',
+      qty: Number(l.qty || l.orderKg || 0),
+      done: Number(l.done || l.knitKg || 0),
+      dia: l.dia || l.dia_gauge || o.dia || '30" × 24G',
+      kt: (l.kt || l.knit_type || 'c') as 'c' | 'f',
+      yd: Boolean(l.yd || l.is_yarn_dyed),
+      unit: l.unit || 'kg',
+      machines: machinesList,
+      yarns: Array.isArray(l.yarns) ? l.yarns : [],
+    };
+  });
+}
+
+function parseNum(val: any): number {
+  if (val == null || val === '') return 0;
+  const cleaned = String(val).replace(/[০-৯]/g, (d) => String('০১২৩৪৫৬৭৮৯'.indexOf(d)));
+  const n = parseFloat(cleaned);
+  return isNaN(n) ? 0 : n;
 }
 
 export const FactoryJobCardPage: React.FC = () => {
   const navigate = useNavigate();
-  const { orders, machines: allMachines, currentUser, openPrintModal } = useApp();
+  const { id: paramOrderId } = useParams<{ id?: string }>();
+  const {
+    orders,
+    parties,
+    rolls,
+    prodLogs,
+    factoryProfile,
+    fetchRolls,
+    saveJobCardGrid,
+    fetchOrders,
+    addToast,
+  } = useApp();
 
-  // Active Orders with assigned machines
-  const activeOrders = orders.filter((o) => o.status !== 'Completed');
-  const [selectedOrderId, setSelectedOrderId] = useState<string>(
-    activeOrders[0]?.id || orders[0]?.id || ''
-  );
+  // Load fresh orders and rolls on mount
+  useEffect(() => {
+    fetchOrders?.();
+    fetchRolls?.();
+  }, []);
 
-  const activeOrder =
-    orders.find((o) => o.id === selectedOrderId) || activeOrders[0] || orders[0];
+  // Filter orders with machines assigned
+  const validOrders = useMemo(() => {
+    const list = orders.filter((o) => {
+      const isNotDone = (o.status as string) !== 'done' && o.status !== 'Completed';
+      const lines = normalizeOrderLines(o);
+      const hasMachines = lines.some((l) => (l.machines || []).length > 0);
+      return isNotDone && hasMachines;
+    });
+    return list.length > 0 ? list : orders;
+  }, [orders]);
+
+  // Selected Order State
+  const [selectedOrderId, setSelectedOrderId] = useState<string>(() => {
+    if (paramOrderId && orders.some((o) => o.id === paramOrderId)) return paramOrderId;
+    return validOrders[0]?.id || orders[0]?.id || '';
+  });
+
+  // Keep selectedOrderId in sync with route params or list
+  useEffect(() => {
+    if (paramOrderId && orders.some((o) => o.id === paramOrderId)) {
+      setSelectedOrderId(paramOrderId);
+    } else if (!validOrders.some((o) => o.id === selectedOrderId) && validOrders[0]) {
+      setSelectedOrderId(validOrders[0].id);
+    }
+  }, [paramOrderId, validOrders, orders]);
+
+  const activeOrder = useMemo(() => {
+    return orders.find((o) => o.id === selectedOrderId) || validOrders[0] || orders[0];
+  }, [orders, validOrders, selectedOrderId]);
+
+  // Normalized order lines
+  const lines = useMemo(() => normalizeOrderLines(activeOrder), [activeOrder]);
+
+  // Flattened machines with line index
+  const ms = useMemo(() => {
+    return lines.flatMap((l, i) => (l.machines || []).map((m) => ({ m, i })));
+  }, [lines]);
+
+  // Selected Machine State
+  const [selectedMachine, setSelectedMachine] = useState<string>('');
+
+  useEffect(() => {
+    if (!ms.some((x) => x.m === selectedMachine) && ms[0]) {
+      setSelectedMachine(ms[0].m);
+    }
+  }, [ms, selectedMachine]);
+
+  const curMachine = useMemo(() => {
+    return ms.find((x) => x.m === selectedMachine) || ms[0] || { m: 'M-01', i: 0 };
+  }, [ms, selectedMachine]);
+
+  const curLine = lines[curMachine.i] || lines[0] || {
+    place: 'Body',
+    fab: 'Single Jersey',
+    color: '—',
+    qty: 0,
+    done: 0,
+    dia: '30" × 24G',
+    kt: 'c',
+    yd: false,
+    unit: 'kg',
+    machines: ['M-01'],
+    yarns: [],
+  };
+
+  // UI States
+  const [stickerOn, setStickerOn] = useState<boolean>(true);
+  const [editMode, setEditMode] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+
+  // Machine Rolls from Database
+  const machineDbRolls = useMemo(() => {
+    if (!activeOrder?.id || !curMachine.m) return [];
+    return rolls.filter(
+      (r: any) =>
+        (r.o === activeOrder.id || r.order_no === activeOrder.id) &&
+        (r.m === curMachine.m || r.machine_code === curMachine.m)
+    );
+  }, [rolls, activeOrder, curMachine]);
+
+  // Grid State for Job Card
+  const [cols, setCols] = useState<number>(() => Math.max(machineDbRolls.length, 10));
+  const [rollNums, setRollNums] = useState<string[]>([]);
+  const [weights, setWeights] = useState<(string | number)[]>([]);
+  const [operators, setOperators] = useState<string[]>([]);
+  const [faultMap, setFaultMap] = useState<Record<string, (string | number)[]>>({});
+  const [remarks, setRemarks] = useState<string>('');
+
+  // Sync Grid with Database rolls when active order/machine changes
+  useEffect(() => {
+    const count = Math.max(machineDbRolls.length, 10);
+    setCols(count);
+
+    const rArr: string[] = [];
+    const wArr: (string | number)[] = [];
+    const opArr: string[] = [];
+    const fObj: Record<string, (string | number)[]> = {};
+    FAULTS.forEach((f) => (fObj[f] = []));
+
+    for (let i = 0; i < count; i++) {
+      const dbR: any = machineDbRolls[i];
+      rArr[i] = dbR?.jc || dbR?.jc_seq || String(i + 1).padStart(3, '0');
+      wArr[i] = dbR ? (dbR.kg ?? dbR.weight_kg ?? '') : '';
+      opArr[i] = dbR ? (dbR.op ?? dbR.operator_name ?? '') : '';
+
+      FAULTS.forEach((f) => {
+        const fVal = dbR?.f ? dbR.f[f] : undefined;
+        fObj[f][i] = fVal != null && fVal !== 0 ? fVal : '';
+      });
+    }
+
+    setRollNums(rArr);
+    setWeights(wArr);
+    setOperators(opArr);
+    setFaultMap(fObj);
+    setEditMode(false);
+  }, [machineDbRolls, activeOrder?.id, curMachine.m]);
+
+  // Vendor display name
+  const vendorName = useMemo(() => {
+    if (!activeOrder) return '—';
+    const found = parties.find(
+      (p) =>
+        p.code === activeOrder.party_code ||
+        p.code === (activeOrder as any).v ||
+        p.id === activeOrder.party_id ||
+        p.name === activeOrder.party
+    );
+    return found?.name || activeOrder.party || (activeOrder as any).v || 'ABC Knit Composite';
+  }, [activeOrder, parties]);
+
+  // Production Log details (operator, shift, date)
+  const lastProdLog = useMemo(() => {
+    if (!activeOrder?.id || !curMachine.m) return null;
+    return prodLogs.find(
+      (p: any) =>
+        (p.o === activeOrder.id || p.order_no === activeOrder.id) &&
+        (p.m === curMachine.m || p.machine_code === curMachine.m)
+    );
+  }, [prodLogs, activeOrder, curMachine]);
+
+  // Calculations matching KnitKhata.html
+  const usedCols = useMemo(() => {
+    return Array.from({ length: cols }, (_, i) => i).filter(
+      (i) => Boolean(rollNums[i]) || parseNum(weights[i]) > 0
+    );
+  }, [cols, rollNums, weights]);
+
+  const inQty = Math.round(curLine.qty / (curLine.machines.length || 1));
+  const outQty = usedCols.reduce((acc, i) => acc + parseNum(weights[i]), 0);
+
+  const rollTotalFaults = (i: number): number => {
+    return FAULTS.reduce((acc, f) => acc + parseNum(faultMap[f]?.[i]), 0);
+  };
+
+  const notOkCount = usedCols.filter((i) => rollTotalFaults(i) > 0).length;
+  const slIndex = ms.findIndex((x) => x.m === curMachine.m) + 1;
+
+  // Add more columns (+5)
+  const handleAddMoreCols = () => {
+    const newCount = cols + 5;
+    setCols(newCount);
+    setRollNums((prev) => {
+      const arr = [...prev];
+      for (let i = prev.length; i < newCount; i++) {
+        arr.push(String(i + 1).padStart(3, '0'));
+      }
+      return arr;
+    });
+  };
+
+  // Toggle edit and save
+  const handleToggleEdit = async () => {
+    if (editMode) {
+      // Save grid changes to MySQL Database
+      setIsSaving(true);
+      try {
+        const payloadRolls: any[] = [];
+        for (let i = 0; i < cols; i++) {
+          const wt = parseNum(weights[i]);
+          const rollNo = rollNums[i];
+          const faults: Record<string, number> = {};
+          FAULTS.forEach((f) => {
+            const cnt = parseNum(faultMap[f]?.[i]);
+            if (cnt > 0) faults[f] = cnt;
+          });
+
+          if (wt > 0 || rollNo) {
+            payloadRolls.push({
+              seq: rollNo || String(i + 1).padStart(3, '0'),
+              wt,
+              op: operators[i] || (lastProdLog as any)?.operator_name || (lastProdLog as any)?.op || (lastProdLog as any)?.operator || '—',
+              lot: (machineDbRolls[0] as any)?.lot || (machineDbRolls[0] as any)?.yarn_lot || (curLine.yarns && curLine.yarns[0]?.lot) || 'SQ-88419',
+              shift: (lastProdLog as any)?.shift || (lastProdLog as any)?.sh || 'A',
+              faults,
+            });
+          }
+        }
+
+        await saveJobCardGrid({
+          order_no: activeOrder.id,
+          machine_code: curMachine.m,
+          placement_index: curMachine.i,
+          rolls: payloadRolls,
+          remarks,
+        });
+
+        setEditMode(false);
+      } catch (err: any) {
+        addToast({
+          type: 'error',
+          title: 'সেভ ব্যর্থ',
+          message: err.message || 'জব কার্ড ডাটাবেজে সংরক্ষণ করা যায়নি।',
+        });
+      } finally {
+        setIsSaving(false);
+      }
+    } else {
+      setEditMode(true);
+    }
+  };
+
+  // Print helper for Job Card document
+  const handlePrintJobCard = () => {
+    const jcEl = document.querySelector('.jc');
+    if (!jcEl) {
+      window.print();
+      return;
+    }
+    const printArea = document.getElementById('printArea');
+    if (printArea) {
+      printArea.innerHTML = jcEl.outerHTML;
+      document.body.classList.add('printing');
+      window.print();
+      setTimeout(() => {
+        document.body.classList.remove('printing');
+        printArea.innerHTML = '';
+      }, 600);
+    } else {
+      window.print();
+    }
+  };
+
+  // Print helper for Roll Stickers
+  const handlePrintStickers = () => {
+    const stkGridEl = document.querySelector('#jcStk .stk-grid');
+    if (!stkGridEl) return;
+    const printArea = document.getElementById('printArea');
+    if (printArea) {
+      printArea.innerHTML = `
+        <div style="padding: 16px;">
+          <h3 style="margin-bottom: 12px;">রোল স্টিকার · ${activeOrder.id} (${curMachine.m})</h3>
+          ${stkGridEl.outerHTML}
+        </div>
+      `;
+      document.body.classList.add('printing');
+      window.print();
+      setTimeout(() => {
+        document.body.classList.remove('printing');
+        printArea.innerHTML = '';
+      }, 600);
+    } else {
+      window.print();
+    }
+  };
 
   if (!activeOrder) {
     return (
       <div className="card" style={{ padding: 40, textAlign: 'center' }}>
-        <p style={{ color: 'var(--muted)', marginBottom: 16 }}>কোনো সক্রিয় অর্ডার পাওয়া যায়নি।</p>
+        <p style={{ color: 'var(--muted)', marginBottom: 16 }}>কোনো অর্ডার পাওয়া যায়নি।</p>
         <button className="btn pri" onClick={() => navigate('/dashboard/neworder')}>
           + New Order Entry
         </button>
@@ -52,409 +388,336 @@ export const FactoryJobCardPage: React.FC = () => {
     );
   }
 
-  // Extract machines and assigned parts from activeOrder lines
-  const machineList: { m: string; lineIdx: number; place: string; fab: string; dia: string; lot: string; qty: number }[] = [];
-  activeOrder?.lines.forEach((l, idx) => {
-    const rawMachines = (l.machine || 'M-01').split(',').map((m) => m.trim()).filter(Boolean);
-    rawMachines.forEach((m) => {
-      machineList.push({
-        m,
-        lineIdx: idx,
-        place: (l as any).place || (idx === 0 ? 'Body' : idx === 1 ? 'Neck Rib' : 'Cuff'),
-        fab: l.fabric || 'Single Jersey',
-        dia: l.dia || '30" × 24G',
-        lot: l.lot || 'SQ-88419',
-        qty: l.orderKg || 4500,
-      });
-    });
-  });
-
-  const [activeMachineId, setActiveMachineId] = useState<string>(
-    machineList[0]?.m || 'M-01'
-  );
-
-  const activeMachineItem =
-    machineList.find((x) => x.m === activeMachineId) || machineList[0] || {
-      m: 'M-01',
-      lineIdx: 0,
-      place: 'Body',
-      fab: 'Single Jersey',
-      dia: '30" × 24G',
-      lot: 'SQ-88419',
-      qty: 4500,
-    };
-
-  // Sticker switch toggle
-  const [stickerOn, setStickerOn] = useState<boolean>(true);
-  const [editMode, setEditMode] = useState<boolean>(false);
-
-  // Grid Data Map
-  const gridKey = `${activeOrder?.id}|${activeMachineItem.m}`;
-  const [grids, setGrids] = useState<Record<string, GridState>>({
-    [`${activeOrder?.id}|${activeMachineItem.m}`]: {
-      cols: 8,
-      roll: ['001', '002', '003', '004', '005', '006', '007', '008'],
-      wt: [24.5, 25.1, 24.8, 25.4, 25.0, 24.9, 25.2, 25.0],
-      op: ['জসিম', 'জসিম', 'জসিম', 'জসিম', 'সোহেল', 'সোহেল', 'সোহেল', 'সোহেল'],
-      f: {
-        Hole: [0, 2, 0, 0, 0, 0, 0, 0],
-        'Needle Mark': [0, 0, 1, 0, 0, 0, 0, 0],
-        'Oil Spot': [0, 0, 0, 0, 1, 0, 0, 0],
-      },
-      rem: 'রোল ২-এ হোল পাওয়া গিয়েছিল, সুতা চেক করে ঠিক করা হয়েছে।',
-    },
-  });
-
-  const curGrid: GridState = grids[gridKey] || {
-    cols: 8,
-    roll: ['001', '002', '003', '004', '005', '006', '007', '008'],
-    wt: [24.5, 25.0, 24.8, 25.2, 25.1, 24.9, 25.3, 25.0],
-    op: ['জসিম', 'জসিম', 'জসিম', 'জসিম', 'সোহেল', 'সোহেল', 'সোহেল', 'সোহেল'],
-    f: {},
-    rem: '',
-  };
-
-  const updateGridField = (field: 'roll' | 'wt' | 'op', idx: number, val: string | number) => {
-    setGrids((prev) => {
-      const g = prev[gridKey] || { ...curGrid };
-      const arr = [...(g[field] || [])];
-      arr[idx] = val;
-      return { ...prev, [gridKey]: { ...g, [field]: arr } };
-    });
-  };
-
-  const updateFaultCount = (fault: string, idx: number, count: number | string) => {
-    setGrids((prev) => {
-      const g = prev[gridKey] || { ...curGrid };
-      const fObj = { ...(g.f || {}) };
-      const fArr = [...(fObj[fault] || Array(g.cols).fill(0))];
-      fArr[idx] = count;
-      fObj[fault] = fArr;
-      return { ...prev, [gridKey]: { ...g, f: fObj } };
-    });
-  };
-
-  const updateRemarks = (rem: string) => {
-    setGrids((prev) => {
-      const g = prev[gridKey] || { ...curGrid };
-      return { ...prev, [gridKey]: { ...g, rem } };
-    });
-  };
-
-  const addMoreRolls = () => {
-    setGrids((prev) => {
-      const g = prev[gridKey] || { ...curGrid };
-      const newCols = g.cols + 4;
-      const nextRoll = [...g.roll];
-      for (let i = g.cols; i < newCols; i++) {
-        nextRoll.push(String(i + 1).padStart(3, '0'));
-      }
-      return {
-        ...prev,
-        [gridKey]: { ...g, cols: newCols, roll: nextRoll },
-      };
-    });
-  };
-
-  // Calculations
-  const inQty = Math.round(activeMachineItem.qty / Math.max(1, machineList.filter((m) => m.place === activeMachineItem.place).length));
-  const outQty = curGrid.wt.reduce<number>((acc, w) => acc + (parseFloat(String(w)) || 0), 0);
-  const totalRollsCount = curGrid.roll.filter((r, i) => r || curGrid.wt[i]).length;
-  const wipQty = Math.max(0, inQty - Math.round(outQty));
-
-  const totalFaultsForRoll = (idx: number) => {
-    return FAULTS.reduce((acc, fName) => {
-      const val = parseFloat(String(curGrid.f?.[fName]?.[idx] || 0)) || 0;
-      return acc + val;
-    }, 0);
-  };
-
-  const notOkRollsCount = Array.from({ length: curGrid.cols }, (_, i) => i).filter(
-    (i) => totalFaultsForRoll(i) > 0
-  ).length;
-
-  const currentMachineIndex = machineList.findIndex((m) => m.m === activeMachineId) + 1;
-
-  // Print Job Card
-  const handlePrint = () => {
-    window.print();
-  };
-
   return (
-    <>
-      {/* 1. Head matching KnitKhata.html */}
-      <div className="head">
+    <div className="jobcard-page" style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 40 }}>
+      {/* 1. HEADER MATCHING KnitKhata.html */}
+      <div className="head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h2>জব কার্ড</h2>
           <p>
-            মেশিন অ্যাসাইন হলেই প্রতিটা মেশিনের জব কার্ড তৈরি হয়। রোল নামলে নিচের QC ঘরে উঠে যায়,
-            আর ভেন্ডরও সাথে সাথে দেখে কোন রোলে কী সমস্যা।
+            মেশিন অ্যাসাইন হলেই প্রতিটা মেশিনের জব কার্ড তৈরি হয়। রোল নামলে নিচের QC ঘরে উঠে যায়, আর ভেন্ডরও সাথে সাথে দেখে কোন রোলে কী সমস্যা।
           </p>
         </div>
-
-        <div className="st-sw">
-          QR রোল স্টিকার (ঐচ্ছিক)
+        <div className="st-sw" style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--surface)', padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border)' }}>
+          <span style={{ fontSize: 13, fontWeight: 500 }}>QR রোল স্টিকার (ঐচ্ছিক)</span>
           <button
-            type="button"
             className={`switch ${stickerOn ? 'on' : ''}`}
-            onClick={() => setStickerOn(!stickerOn)}
+            type="button"
+            id="stkSw"
+            onClick={() => {
+              setStickerOn(!stickerOn);
+              addToast({
+                type: 'info',
+                message: !stickerOn ? 'QR স্টিকার চালু হলো' : 'QR স্টিকার বন্ধ · রোল নম্বর হাতে লিখে চলবে',
+              });
+            }}
             aria-pressed={stickerOn}
             aria-label="QR রোল স্টিকার চালু বা বন্ধ"
           />
-          <span className="small muted">
+          <span className="small muted" style={{ fontSize: 12 }}>
             {stickerOn ? 'চালু' : 'বন্ধ, হাতে লিখে চলবে'}
           </span>
         </div>
       </div>
 
-      {/* 2. Order Selector */}
-      <div className="row" style={{ alignItems: 'center', gap: 12 }}>
+      {/* 2. ORDER SELECTOR MATCHING KnitKhata.html */}
+      <div className="row" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <label className="f" style={{ minWidth: 260 }}>
-          <span>অর্ডার নির্বাচন</span>
+          <span style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 13 }}>অর্ডার</span>
           <select
             id="jcO"
             value={selectedOrderId}
             onChange={(e) => {
               setSelectedOrderId(e.target.value);
+              setSelectedMachine('');
               setEditMode(false);
             }}
+            style={{ width: '100%', padding: '7px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)' }}
           >
-            {orders.map((o) => (
+            {validOrders.map((o) => (
               <option key={o.id} value={o.id}>
-                {o.id} · {o.party || o.buyer || 'ABC Knit'} ({o.lines[0]?.fabric || 'Single Jersey'})
+                {o.id} {o.party ? `· ${o.party}` : ''} {o.buyer ? `(${o.buyer})` : ''}
               </option>
             ))}
           </select>
         </label>
       </div>
 
-      {/* 3. Machine Chips */}
-      <div className="chips" id="jcM">
-        {machineList.map((m, idx) => {
-          const isSelected = m.m === activeMachineId;
-          const colorVar = `var(--l${(m.lineIdx % 5) + 1})`;
+      {/* 3. MACHINE CHIPS MATCHING KnitKhata.html */}
+      <div className="chips" id="jcM" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        {ms.map((x, idx) => {
+          const isSelected = x.m === curMachine.m;
+          const partLine = lines[x.i];
+          const colorVar = `var(--l${(x.i % 5) + 1})`;
 
           return (
             <button
-              key={`${m.m}-${idx}`}
+              key={`${x.m}-${idx}`}
               type="button"
-              className={isSelected ? 'on' : ''}
-              style={{ ['--c' as any]: colorVar }}
+              className={`chip ${isSelected ? 'on' : ''}`}
+              data-m={x.m}
               onClick={() => {
-                setActiveMachineId(m.m);
+                setSelectedMachine(x.m);
                 setEditMode(false);
               }}
+              style={{
+                background: isSelected ? 'var(--primary, #0284c7)' : 'var(--surface, #ffffff)',
+                color: isSelected ? '#ffffff' : 'var(--text, inherit)',
+                border: isSelected ? '1px solid var(--primary, #0284c7)' : '1px solid var(--border, #cbd5e1)',
+                padding: '7px 14px',
+                borderRadius: 20,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                boxShadow: isSelected ? '0 2px 6px rgba(2, 132, 199, 0.25)' : 'none',
+              }}
             >
-              {m.m} · {m.place}
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: colorVar }} />
+              {x.m} · {partLine?.place || 'Body'}
             </button>
           );
         })}
       </div>
 
-      {/* 4. Digital Job Card Paper Box matching KnitKhata.html .jc */}
+      {/* 4. THE JOB CARD PAPER SHEET (.jc) MATCHING KnitKhata.html */}
       <div className="jc">
-        {/* Job Card Header */}
+        {/* Job Card Header (.jc-h) */}
         <div className="jc-h">
           <div>
-            <b>{currentUser?.organization_name || 'রহমান নিটিং ইন্ডাস্ট্রিজ'}</b>
-            <span>কোনাবাড়ি, গাজীপুর</span>
+            <b>{factoryProfile?.name || 'রহমান নিটিং ইন্ডাস্ট্রিজ'}</b>
+            <span>{factoryProfile?.address || 'কোনাবাড়ি, গাজীপুর'}</span>
             <em>জব কার্ড</em>
           </div>
-
           <div className="jc-r">
             <div className="row no-pdf jc-tools">
-              <button
-                type="button"
-                className="btn sm"
-                onClick={handlePrint}
-              >
-                🖨️ প্রিন্ট / PDF
+              <button className="btn sm no-pdf prn-btn" type="button" onClick={handlePrintJobCard}>
+                🖨️ প্রিন্ট
               </button>
             </div>
-            <div className="qr">
-              <QrCodeSvg value={`${activeOrder?.id}-${activeMachineItem.m}`} size={78} />
-            </div>
+            <QrCodeSvg value={`${activeOrder.id}-${curMachine.m}`} size={78} />
           </div>
         </div>
 
-        {/* Technical Specification Grid .jc-g */}
+        {/* Facts Grid (.jc-g) matching KnitKhata.html */}
         <div className="jc-g">
           <div>
             <span>SL / লট নং</span>
             <b className="mono">
-              {bnNum(currentMachineIndex)} / ({bnNum(machineList.length)})
+              {slIndex} / ({ms.length})
             </b>
           </div>
           <div>
             <span>ভেন্ডর</span>
-            <b>{activeOrder?.party || activeOrder?.buyer || 'ABC Knit Composite'}</b>
+            <b>{vendorName}</b>
           </div>
-
           <div>
             <span>অর্ডার নং</span>
-            <b className="mono">{activeOrder?.id}</b>
+            <b className="mono">{activeOrder.id}</b>
           </div>
           <div>
             <span>অংশ</span>
             <b>
-              {activeMachineItem.place} · {activeMachineItem.fab}
+              {curLine.place} · {curLine.fab}{' '}
+              {curLine.kt === 'f' ? (
+                <span className="kb kb-f" style={{ marginLeft: 4 }}>ফ্ল্যাট নিট</span>
+              ) : null}
+              {curLine.yd ? (
+                <span className="kb kb-y" style={{ marginLeft: 4 }}>Y/D</span>
+              ) : (
+                <span className="kb" style={{ marginLeft: 4 }}>গ্রে</span>
+              )}
             </b>
           </div>
-
           <div>
             <span>বায়ার</span>
-            <b>{activeOrder?.buyer || '—'}</b>
+            <b>{activeOrder.buyer || '—'}</b>
           </div>
           <div>
             <span>মেশিন</span>
             <b className="mono">
-              {activeMachineItem.m} · {activeMachineItem.dia}
+              {curMachine.m} · {curLine.dia || (activeOrder as any).dia || '30" × 24G'}
             </b>
           </div>
-
           <div>
             <span>তারিখ</span>
-            <b className="mono">{activeOrder?.orderDate || '04 Oct 2026'}</b>
+            <b className="mono">
+              {lastProdLog
+                ? `${(lastProdLog as any).date_label || (lastProdLog as any).d || (lastProdLog as any).date} 2026`
+                : activeOrder.orderDate || '—'}
+            </b>
           </div>
           <div>
             <span>শিফট</span>
-            <b>A</b>
+            <b>{lastProdLog ? (lastProdLog as any).shift || (lastProdLog as any).sh : 'A'}</b>
           </div>
-
           <div>
             <span>অপারেটর</span>
-            <b>{curGrid.op[0] || 'মো. জসিম'}</b>
+            <b>
+              {(lastProdLog &&
+                ((lastProdLog as any).operator_name ||
+                  (lastProdLog as any).op ||
+                  (lastProdLog as any).operator)) ||
+                'জসিম'}
+            </b>
           </div>
           <div>
             <span>সুতা লট</span>
-            <b className="mono">{activeMachineItem.lot || 'SQ-88419'}</b>
+            <b className="mono">
+              {(machineDbRolls[0] as any)?.lot ||
+                (machineDbRolls[0] as any)?.yarn_lot ||
+                (curLine.yarns && curLine.yarns[0]?.lot) ||
+                'SQ-88419'}
+            </b>
           </div>
-
           <div>
             <span>ইন কোয়ান্টিটি</span>
-            <b className="mono">{bnNum(inQty.toLocaleString('en-IN'))} kg</b>
+            <b className="mono">
+              {bnNum(inQty)} {curLine.unit === 'pcs' || curLine.kt === 'f' ? 'পিস' : 'kg'}
+            </b>
           </div>
           <div>
             <span>আউট কোয়ান্টিটি</span>
             <b className="mono">
-              {bnNum(Math.round(outQty).toLocaleString('en-IN'))} kg · {bnNum(totalRollsCount)} রোল
+              {bnNum(Math.round(outQty))} kg · {usedCols.length} রোল
             </b>
           </div>
-
           <div>
             <span>সমস্যাযুক্ত রোল (Not OK)</span>
-            <b className="mono" style={{ color: notOkRollsCount ? 'var(--bad)' : 'inherit' }}>
-              {bnNum(notOkRollsCount)}
+            <b className="mono" style={{ color: notOkCount > 0 ? 'var(--bad, #b91c1c)' : 'inherit' }}>
+              {notOkCount}
             </b>
           </div>
           <div>
             <span>বাকি (WIP)</span>
-            <b className="mono">{bnNum(wipQty.toLocaleString('en-IN'))} kg</b>
+            <b className="mono">{bnNum(Math.max(0, inQty - Math.round(outQty)))} kg</b>
           </div>
         </div>
 
-        {/* Live QC Grid Header */}
-        <div className="jc-qh">
+        {/* QC Heading (.jc-qh) matching KnitKhata.html */}
+        <div className="jc-qh" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <b>রোল অনুযায়ী QC</b>
           <span className="row no-pdf">
             <button
-              type="button"
               className="btn sm"
               id="jcEdit"
-              onClick={() => setEditMode(!editMode)}
+              type="button"
+              onClick={handleToggleEdit}
+              disabled={isSaving}
+              style={{
+                background: editMode ? 'var(--ok, #10b981)' : 'var(--surface)',
+                color: editMode ? '#ffffff' : 'inherit',
+                border: '1px solid var(--border)',
+                fontWeight: 600,
+              }}
             >
-              {editMode ? '💾 সেভ করুন' : '✏️ ফল্ট লিখুন'}
+              {isSaving ? 'সেভ হচ্ছে...' : editMode ? 'সেভ করুন' : 'ফল্ট লিখুন'}
             </button>
           </span>
         </div>
 
-        {/* Live QC Grid Table .tw */}
-        <div className="tw">
-          <table className="jc-t">
+        {/* Table (.tw > table.jc-t) matching KnitKhata.html */}
+        <div className="tw" style={{ overflowX: 'auto' }}>
+          <table className="jc-t" style={{ width: '100%', minWidth: 640 }}>
             <tbody>
-              {/* Roll Numbers Row */}
+              {/* Roll Numbers */}
               <tr className="jc-roll">
-                <td>রোল নং</td>
-                {Array.from({ length: curGrid.cols }, (_, i) => (
-                  <td key={i} className="n mono">
+                <td style={{ fontWeight: 600 }}>রোল নং</td>
+                {Array.from({ length: cols }, (_, i) => (
+                  <td key={`r-${i}`} className="n mono">
                     {editMode ? (
                       <input
                         className="jc-in"
-                        value={curGrid.roll[i] || ''}
-                        onChange={(e) => updateGridField('roll', i, e.target.value)}
+                        value={rollNums[i] || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setRollNums((prev) => {
+                            const arr = [...prev];
+                            arr[i] = val;
+                            return arr;
+                          });
+                        }}
+                        style={{ width: '100%', minWidth: 42, textAlign: 'center', padding: '2px 4px', fontSize: 12 }}
                       />
                     ) : (
-                      curGrid.roll[i] || bnNum(String(i + 1).padStart(3, '0'))
+                      rollNums[i] || ''
                     )}
                   </td>
                 ))}
               </tr>
 
-              {/* Weights Row */}
+              {/* Weight Row */}
               <tr>
-                <td>ওজন (kg)</td>
-                {Array.from({ length: curGrid.cols }, (_, i) => (
-                  <td key={i} className="n mono">
+                <td style={{ fontWeight: 600 }}>ওজন (kg)</td>
+                {Array.from({ length: cols }, (_, i) => (
+                  <td key={`w-${i}`} className="n mono">
                     {editMode ? (
                       <input
                         className="jc-in"
-                        value={curGrid.wt[i] || ''}
-                        onChange={(e) => updateGridField('wt', i, e.target.value)}
+                        type="number"
+                        step="0.1"
+                        value={weights[i] ?? ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setWeights((prev) => {
+                            const arr = [...prev];
+                            arr[i] = val;
+                            return arr;
+                          });
+                        }}
+                        style={{ width: '100%', minWidth: 42, textAlign: 'center', padding: '2px 4px', fontSize: 12 }}
                       />
                     ) : (
-                      curGrid.wt[i] ? bnNum(curGrid.wt[i]) : ''
+                      weights[i] || ''
                     )}
                   </td>
                 ))}
               </tr>
 
-              {/* Fault Rows */}
-              {FAULTS.map((faultName) => {
-                const hasAny = Array.from({ length: curGrid.cols }, (_, i) =>
-                  parseFloat(String(curGrid.f?.[faultName]?.[i] || 0))
-                ).some((v) => v > 0);
+              {/* All 16 Fault Rows matching KnitKhata.html */}
+              {FAULTS.map((fault) => (
+                <tr key={fault}>
+                  <td>{fault}</td>
+                  {Array.from({ length: cols }, (_, i) => {
+                    const cnt = parseNum(faultMap[fault]?.[i]);
+                    return editMode ? (
+                      <td key={`${fault}-${i}`} className="n">
+                        <input
+                          className="jc-in"
+                          type="number"
+                          min="0"
+                          value={faultMap[fault]?.[i] ?? ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setFaultMap((prev) => {
+                              const fArr = [...(prev[fault] || [])];
+                              fArr[i] = val;
+                              return { ...prev, [fault]: fArr };
+                            });
+                          }}
+                          style={{ width: '100%', minWidth: 38, textAlign: 'center', padding: '2px 4px', fontSize: 12 }}
+                        />
+                      </td>
+                    ) : (
+                      <td key={`${fault}-${i}`} className={`n ${cnt > 0 ? 'jc-bad' : ''}`}>
+                        {cnt > 0 ? cnt : ''}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
 
-                if (!editMode && !hasAny) return null;
-
-                return (
-                  <tr key={faultName}>
-                    <td>{faultName}</td>
-                    {Array.from({ length: curGrid.cols }, (_, i) => {
-                      const val = parseFloat(String(curGrid.f?.[faultName]?.[i] || 0)) || 0;
-
-                      return (
-                        <td
-                          key={i}
-                          className={`n ${val > 0 ? 'jc-bad' : ''}`}
-                        >
-                          {editMode ? (
-                            <input
-                              className="jc-in"
-                              type="number"
-                              min="0"
-                              value={curGrid.f?.[faultName]?.[i] ?? ''}
-                              onChange={(e) => updateFaultCount(faultName, i, e.target.value)}
-                            />
-                          ) : (
-                            val > 0 ? bnNum(val) : ''
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-              })}
-
-              {/* Total Faults Row */}
-              <tr className="jc-tot">
+              {/* Total Faults Row (.jc-tot) */}
+              <tr className="jc-tot" style={{ fontWeight: 700, borderTop: '2px solid var(--paper-ink)' }}>
                 <td>মোট ফল্ট</td>
-                {Array.from({ length: curGrid.cols }, (_, i) => {
-                  const t = totalFaultsForRoll(i);
-                  const has = curGrid.roll[i] || curGrid.wt[i];
-
+                {Array.from({ length: cols }, (_, i) => {
+                  const tot = rollTotalFaults(i);
+                  const hasRoll = Boolean(rollNums[i]) || parseNum(weights[i]) > 0;
                   return (
-                    <td key={i} className={`n ${t > 0 ? 'jc-bad' : ''}`}>
-                      {has ? bnNum(t) : ''}
+                    <td key={`tot-${i}`} className={`n ${tot > 0 ? 'jc-bad' : ''}`}>
+                      {hasRoll ? tot : ''}
                     </td>
                   );
                 })}
@@ -463,88 +726,67 @@ export const FactoryJobCardPage: React.FC = () => {
           </table>
         </div>
 
-        {/* Remarks Section */}
-        <div className="jc-remb">
+        {/* Remarks Box (.jc-remb) */}
+        <div className="jc-remb" style={{ marginTop: 12 }}>
           <b>মন্তব্য</b>
           {editMode ? (
             <textarea
               className="jc-ta"
-              value={curGrid.rem || ''}
-              onChange={(e) => updateRemarks(e.target.value)}
-              placeholder="যেমন: রোল ৭-এ নিডল লাইন ছিল, নিডল পরিবর্তন করা হয়েছে..."
+              value={remarks}
+              onChange={(e) => setRemarks(e.target.value)}
+              placeholder="যেমন: রোল ৭-এ হোল, নিডল বদলানো হয়েছে"
+              style={{ width: '100%', minHeight: 60, padding: '8px 10px', borderRadius: 6, border: '1px solid var(--paper-line)', marginTop: 4, fontFamily: 'inherit' }}
             />
           ) : (
-            <div className="jc-remt">
-              {curGrid.rem || 'কোনো বিশেষ ত্রুটি বা নোট নেই।'}
+            <div className="jc-remt" style={{ minHeight: 24, color: remarks ? 'inherit' : 'var(--muted)', marginTop: 4 }}>
+              {remarks || 'কোনো মন্তব্য নেই'}
             </div>
           )}
         </div>
 
-        {/* Bottom Toolbar Row */}
-        <div className="row no-pdf" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-          <span className="small muted">
-            প্রোডাকশন এন্ট্রিতে রোল লিখলে এখানে নিজে থেকে উঠে যায়। চাইলে কাগজের ব্যাচ কার্ডের মতো হাতেও লেখা যায়।
-            "ফল্ট লিখুন" চাপলে ঘরগুলো এডিট করা যায়।
+        {/* Bottom helper row */}
+        <div className="row no-pdf" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginTop: 12 }}>
+          <span className="small muted" style={{ fontSize: 12 }}>
+            প্রোডাকশন এন্ট্রিতে রোল লিখলে এখানে নিজে থেকে উঠে যায়। চাইলে কাগজের ব্যাচ কার্ডের মতো হাতেও লেখা যায়। "ফল্ট লিখুন" চাপলে ঘরগুলো লেখা যায়।
           </span>
-          <button
-            type="button"
-            className="btn sm"
-            id="jcMore"
-            onClick={addMoreRolls}
-          >
-            + আরও ৪টি রোল যোগ করুন
+          <button className="btn sm" id="jcMore" type="button" onClick={handleAddMoreCols}>
+            + আরও ৫টা রোল যোগ করুন
           </button>
         </div>
       </div>
 
-      {/* 5. Roll Stickers Grid Card (shown when stickerOn is true) */}
-      {stickerOn && (
-        <div className="card" id="jcStk" style={{ marginTop: 18 }}>
-          <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <div>
-              <h3 style={{ margin: 0 }}>এই মেশিনের রোল স্টিকার (Roll Tag Stickers)</h3>
-              <p className="small muted" style={{ margin: '2px 0 0' }}>
-                স্টিকার ব্যবহার ঐচ্ছিক। ফ্লোরের রোলে লাগানোর জন্য প্রিন্ট-রেডি ফরম্যাট।
-              </p>
-            </div>
-            <button
-              type="button"
-              className="btn sm no-pdf"
-              onClick={handlePrint}
-            >
-              🏷️ স্টিকার প্রিন্ট
+      {/* 5. STICKER SECTION (#jcStk) MATCHING KnitKhata.html */}
+      {stickerOn && machineDbRolls.length > 0 && (
+        <div className="card" id="jcStk" style={{ marginTop: 8 }}>
+          <div className="row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <h3 style={{ margin: 0 }}>এই মেশিনের রোল স্টিকার</h3>
+            <button className="btn sm no-pdf" type="button" onClick={handlePrintStickers}>
+              🖨️ স্টিকার প্রিন্ট
             </button>
           </div>
-
+          <p className="small muted" style={{ margin: '-4px 0 12px', fontSize: 12 }}>
+            স্টিকার ব্যবহার ঐচ্ছিক। আসল অ্যাপে এখান থেকে প্রিন্ট হবে।
+          </p>
           <div className="stk-grid">
-            {curGrid.roll.slice(0, 4).map((rNo, i) => (
-              <div key={i} className="stk">
-                <div className="qr">
-                  <QrCodeSvg value={`${activeOrder?.id}-${activeMachineItem.m}-${rNo}`} size={64} />
+            {machineDbRolls.slice(-4).map((r: any, idx: number) => {
+              const rollCode = r.no || r.roll_no || `${curMachine.m}/${r.jc || r.jc_seq || '001'}`;
+              return (
+                <div key={r.id || idx} className="stk">
+                  <QrCodeSvg value={rollCode} size={64} />
+                  <div className="stk-t" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <b className="mono" style={{ fontSize: 14 }}>{rollCode}</b>
+                    <span style={{ fontSize: 12 }}>{activeOrder.id} · {vendorName}</span>
+                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>{curLine.place} · {curLine.fab}</span>
+                    <span className="mono" style={{ fontSize: 12, fontWeight: 600 }}>
+                      {r.kg || r.weight_kg} kg · {r.lot || r.yarn_lot || 'SQ-88419'}
+                    </span>
+                  </div>
                 </div>
-                <div className="stk-t">
-                  <b className="mono">R-{activeMachineItem.m.replace('M-', '')}-{rNo}</b>
-                  <span>
-                    {activeOrder?.id} · {activeOrder?.party || activeOrder?.buyer || 'ABC Knit'}
-                  </span>
-                  <span>
-                    {activeMachineItem.place} · {activeMachineItem.fab}
-                  </span>
-                  <span>
-                    {activeMachineItem.dia} · {activeMachineItem.m} · শিফট A
-                  </span>
-                  <span>
-                    অপারেটর {curGrid.op[i] || 'জসিম'} · লট {activeMachineItem.lot}
-                  </span>
-                  <span className="stk-kg">
-                    <b>{curGrid.wt[i] || 25.0} kg</b> · {activeOrder?.orderDate || '04 Oct'}
-                  </span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 };

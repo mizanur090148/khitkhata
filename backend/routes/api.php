@@ -41,6 +41,8 @@ Route::prefix('v1')->group(function () {
         Route::post('/production', [FactoryPortalController::class, 'storeProductionEntry']);
         Route::post('/qc', [FactoryPortalController::class, 'storeQcInspection']);
         Route::post('/qc/{qcNo}/sign', [FactoryPortalController::class, 'signQcInspection']);
+        Route::get('/rolls', [FactoryPortalController::class, 'getRolls']);
+        Route::post('/jobcard/save', [FactoryPortalController::class, 'saveJobCard']);
         Route::post('/challans', [FactoryPortalController::class, 'storeChallan']);
         Route::post('/challans/{challanNo}/sign', [FactoryPortalController::class, 'signChallanReceipt']);
         Route::post('/yarn/receive', [FactoryPortalController::class, 'receiveYarn']);
