@@ -167,3 +167,4 @@ class EmployeeSeeder extends Seeder
         }
     }
 }
+

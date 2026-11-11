@@ -50,3 +50,4 @@ class Employee extends Model
         return $query->where('employee_type', 'operator');
     }
 }
+

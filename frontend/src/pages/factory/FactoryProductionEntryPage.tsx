@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
+import { SearchableOperatorSelect } from '@/components';
 
 // 16 FAULTS matching KnitKhata.html
 export const FAULTS = [
@@ -316,23 +317,47 @@ export const FactoryProductionEntryPage: React.FC = () => {
     return Array.from(ops);
   }, [prodLogs]);
 
-  // Find last or assigned operator for machine
-  const getLastOperator = (machineCode: string): string => {
-    // 1. Operator assigned to this machine from operators table
+  // Filter operators by selected shift (Shift A -> only Shift A operators, etc.)
+  const shiftOperators = useMemo(() => {
+    const curShift = String(entryShift || '').trim().toUpperCase();
+    const filtered = operators.filter((op) => {
+      if (op.status === 'inactive') return false;
+      const opShift = String(op.shift || '').trim().toUpperCase();
+      return opShift === curShift;
+    });
+    return filtered.length > 0 ? filtered : operators.filter((op) => op.status !== 'inactive');
+  }, [operators, entryShift]);
+
+  // Find last or assigned operator for machine matching active shift
+  const getLastOperator = (machineCode: string, shift: string = entryShift): string => {
+    const curShift = String(shift || '').trim().toUpperCase();
+    // 1. Operator assigned to this machine from operators table in this shift
     const assigned = operators.find(
-      (op) => op.machine_assigned === machineCode && op.status !== 'inactive'
+      (op) =>
+        op.machine_assigned === machineCode &&
+        op.status !== 'inactive' &&
+        String(op.shift || '').trim().toUpperCase() === curShift
     );
     if (assigned) return assigned.name;
 
-    // 2. Last logged operator on this machine
+    // 2. Operators matching current shift
+    const shiftOps = operators.filter(
+      (op) =>
+        op.status !== 'inactive' &&
+        String(op.shift || '').trim().toUpperCase() === curShift
+    );
+
+    // 3. Last logged operator on this machine if in this shift
     const p = prodLogs.find(
-      (x: any) => (x.m === machineCode || x.machine_code === machineCode) && (x.op || x.operator_name)
+      (x: any) =>
+        (x.m === machineCode || x.machine_code === machineCode) &&
+        (x.sh === shift || !x.sh) &&
+        (x.op || x.operator_name)
     );
     const logOp = (p as any)?.op || (p as any)?.operator_name || '';
-    if (logOp && operators.some((o) => o.name === logOp)) return logOp;
+    if (logOp && shiftOps.some((o) => o.name === logOp)) return logOp;
 
-    // 3. Fallback to first operator in list
-    return operators[0]?.name || logOp || '';
+    return shiftOps[0]?.name || operators[0]?.name || logOp || '';
   };
 
   // Find next roll number for (order, machine)
@@ -412,6 +437,43 @@ export const FactoryProductionEntryPage: React.FC = () => {
     setNewRolls([]);
     setErrorMessage('');
   }, [activeOrder?.id, normalizedLines]);
+
+  // Synchronize machine operator selection when entryShift changes
+  useEffect(() => {
+    if (!shiftOperators.length) return;
+    setLineForms((prev) =>
+      prev.map((line) => ({
+        ...line,
+        machines: line.machines.map((mRow) => {
+          const isOpInShift = shiftOperators.some((o) => o.name === mRow.operator);
+          const nextOp = isOpInShift
+            ? mRow.operator
+            : (getLastOperator(mRow.machine, entryShift) || shiftOperators[0]?.name || '');
+
+          const isFlatOpInShift = shiftOperators.some((o) => o.name === mRow.flatOperator);
+          const nextFlatOp = isFlatOpInShift
+            ? mRow.flatOperator
+            : (getLastOperator(mRow.machine, entryShift) || shiftOperators[0]?.name || '');
+
+          return {
+            ...mRow,
+            operator: nextOp,
+            flatOperator: nextFlatOp,
+            rolls: mRow.rolls.map((r) => {
+              if (mRow.sameOperator) {
+                return { ...r, operator: nextOp };
+              }
+              const isRollOpInShift = shiftOperators.some((o) => o.name === r.operator);
+              return {
+                ...r,
+                operator: isRollOpInShift ? r.operator : nextOp,
+              };
+            }),
+          };
+        }),
+      }))
+    );
+  }, [entryShift, shiftOperators]);
 
   // Update roll count and sync roll rows
   const handleRollsCountChange = (
@@ -1094,18 +1156,13 @@ export const FactoryProductionEntryPage: React.FC = () => {
 
                         <label className="no-f">
                           <span>অপারেটর <b className="req">*</b></span>
-                          <select
+                          <SearchableOperatorSelect
                             value={mRow.flatOperator}
-                            aria-label="অপারেটর"
-                            onChange={(e) => handleFlatFieldChange(lIdx, mIdx, 'flatOperator', e.target.value)}
-                          >
-                            <option value="">-- অপারেটর নির্বাচন করুন --</option>
-                            {operators.map((op) => (
-                              <option key={op.id} value={op.name}>
-                                {op.name} {op.id_no ? `(${op.id_no})` : ''} {op.shift ? `[শিফট ${op.shift}]` : ''}
-                              </option>
-                            ))}
-                          </select>
+                            operators={shiftOperators}
+                            shiftLabel={entryShift}
+                            placeholder="-- অপারেটর বাছুন --"
+                            onChange={(name) => handleFlatFieldChange(lIdx, mIdx, 'flatOperator', name)}
+                          />
                         </label>
 
                         <label className="no-f">
@@ -1196,18 +1253,13 @@ export const FactoryProductionEntryPage: React.FC = () => {
 
                           <label className="no-f pe-op1">
                             <span>অপারেটর <b className="req">*</b></span>
-                            <select
+                            <SearchableOperatorSelect
                               value={mRow.operator}
-                              aria-label="অপারেটর"
-                              onChange={(e) => handleMachineOperatorChange(lIdx, mIdx, e.target.value)}
-                            >
-                              <option value="">-- অপারেটর নির্বাচন করুন --</option>
-                              {operators.map((op) => (
-                                <option key={op.id} value={op.name}>
-                                  {op.name} {op.id_no ? `(${op.id_no})` : ''} {op.shift ? `[শিফট ${op.shift}]` : ''}
-                                </option>
-                              ))}
-                            </select>
+                              operators={shiftOperators}
+                              shiftLabel={entryShift}
+                              placeholder="-- অপারেটর বাছুন --"
+                              onChange={(name) => handleMachineOperatorChange(lIdx, mIdx, name)}
+                            />
                           </label>
 
                           <label className="pe-chk">
@@ -1269,21 +1321,19 @@ export const FactoryProductionEntryPage: React.FC = () => {
 
                                     {/* Operator dropdown (if not same) */}
                                     {!mRow.sameOperator && (
-                                      <select
-                                        className="pe-oc"
-                                        aria-label="অপারেটর"
-                                        value={r.operator}
-                                        onChange={(e) =>
-                                          handleRollFieldChange(lIdx, mIdx, rIdx, 'operator', e.target.value)
-                                        }
-                                      >
-                                        <option value="">-- বাছুন --</option>
-                                        {operators.map((op) => (
-                                          <option key={op.id} value={op.name}>
-                                            {op.name}
-                                          </option>
-                                        ))}
-                                      </select>
+                                      <div className="pe-oc" style={{ minWidth: 120 }}>
+                                        <SearchableOperatorSelect
+                                          value={r.operator}
+                                          operators={shiftOperators}
+                                          shiftLabel={entryShift}
+                                          compact
+                                          placeholder="অপারেটর"
+                                          ariaLabel="অপারেটর"
+                                          onChange={(name) =>
+                                            handleRollFieldChange(lIdx, mIdx, rIdx, 'operator', name)
+                                          }
+                                        />
+                                      </div>
                                     )}
 
                                     {/* Faults Selector */}
