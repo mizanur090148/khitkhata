@@ -12,9 +12,11 @@ use App\Models\FactoryExpense;
 use App\Models\FactoryMachine;
 use App\Models\FreeMachineRequest;
 use App\Models\OrderLine;
+use App\Models\Employee;
+use App\Models\Operator;
 use App\Models\Partner;
 use App\Models\Party;
-use App\Models\ProductionLog;
+use App\Models\Production;
 use App\Models\QcInspection;
 use App\Models\StoreIssueLog;
 use App\Models\StoreItem;
@@ -299,6 +301,8 @@ class FactoryPortalController extends Controller
             'machine_code' => ['required', 'string'],
             'shift' => ['required', 'string'],
             'operator_name' => ['nullable', 'string'],
+            'employee_id' => ['nullable', 'integer'],
+            'user_id' => ['nullable', 'integer'],
             'qty_kg' => ['required', 'numeric', 'min:0.1'],
             'rolls_count' => ['nullable', 'integer', 'min:0'],
             'roll_weights' => ['nullable', 'array'],
@@ -308,8 +312,9 @@ class FactoryPortalController extends Controller
         ]);
 
         $order = SubcontractOrder::with('lines')->where('order_no', $validated['order_no'])->firstOrFail();
+        $userId = auth()->id() ?? auth('sanctum')->id() ?? $request->user()?->id ?? ($validated['user_id'] ?? null);
 
-        return DB::transaction(function () use ($validated, $order) {
+        return DB::transaction(function () use ($validated, $order, $userId) {
             $kg = (float) $validated['qty_kg'];
             $rollWeights = $validated['roll_weights'] ?? [];
             $rollsCount = !empty($rollWeights) ? count($rollWeights) : (int) ($validated['rolls_count'] ?? 1);
@@ -322,14 +327,22 @@ class FactoryPortalController extends Controller
                 $line->increment('done_qty', $kg);
             }
 
-            $log = ProductionLog::create([
+            $opName = $validated['operator_name'] ?: '—';
+            $employeeId = $validated['employee_id'] ?? null;
+            if (!$employeeId && $opName !== '—') {
+                $employeeId = Employee::where('name', $opName)->value('id');
+            }
+
+            $log = Production::create([
                 'subcontract_order_id' => $order->id,
+                'user_id' => $userId,
+                'employee_id' => $employeeId,
                 'order_no' => $order->order_no,
                 'placement_index' => $validated['placement_index'],
                 'date_label' => '03 Oct',
                 'shift' => $validated['shift'],
                 'machine_code' => $validated['machine_code'],
-                'operator_name' => $validated['operator_name'] ?: '—',
+                'operator_name' => $opName,
                 'qty_kg' => $kg,
                 'rolls_count' => $rollsCount,
                 'yarn_lot' => $validated['yarn_lot'] ?: '—',
@@ -398,14 +411,16 @@ class FactoryPortalController extends Controller
             'date' => ['nullable', 'string'],
             'date_label' => ['nullable', 'string'],
             'shift' => ['required', 'string'],
+            'user_id' => ['nullable', 'integer'],
             'rows' => ['required', 'array'],
         ]);
 
         $order = SubcontractOrder::with(['lines', 'party'])->where('order_no', $validated['order_no'])->firstOrFail();
         $dateLabel = $validated['date_label'] ?? (!empty($validated['date']) ? date('d M', strtotime($validated['date'])) : date('d M'));
         $shift = $validated['shift'];
+        $userId = auth()->id() ?? auth('sanctum')->id() ?? $request->user()?->id ?? ($validated['user_id'] ?? null);
 
-        return DB::transaction(function () use ($validated, $order, $dateLabel, $shift) {
+        return DB::transaction(function () use ($validated, $order, $dateLabel, $shift, $userId) {
             $createdRolls = [];
             $totalShiftKg = 0;
 
@@ -416,6 +431,10 @@ class FactoryPortalController extends Controller
                 $kg = (float) ($r['qty_kg'] ?? 0);
                 $rollsCount = (int) ($r['rolls_count'] ?? 0);
                 $op = !empty($r['operator_name']) ? $r['operator_name'] : '—';
+                $employeeId = $r['employee_id'] ?? null;
+                if (!$employeeId && $op !== '—') {
+                    $employeeId = Employee::where('name', $op)->value('id');
+                }
                 $yarnLot = !empty($r['yarn_lot']) ? $r['yarn_lot'] : '—';
                 $rollsData = $r['rolls'] ?? [];
                 $issue = $r['issue'] ?? '';
@@ -433,7 +452,7 @@ class FactoryPortalController extends Controller
                     $line->increment('done_qty', $kg);
                 }
 
-                // Create ProductionLog
+                // Create Production
                 $faultSummary = '';
                 if ($isFlat && $issue) {
                     $faultSummary = $issue . ($issueDesc ? ': ' . $issueDesc : '');
@@ -451,8 +470,10 @@ class FactoryPortalController extends Controller
                     $faultSummary = implode(' · ', $faultParts);
                 }
 
-                ProductionLog::create([
+                Production::create([
                     'subcontract_order_id' => $order->id,
+                    'user_id' => $userId,
+                    'employee_id' => $employeeId,
                     'order_no' => $order->order_no,
                     'placement_index' => $pl,
                     'date_label' => $dateLabel,
@@ -559,9 +580,11 @@ class FactoryPortalController extends Controller
                 $order->increment('today_prod_kg', $totalShiftKg);
             }
 
-            // Fresh production logs
-            $freshLogs = ProductionLog::orderByDesc('id')->take(20)->get()->map(fn (ProductionLog $p) => [
+            // Fresh productions
+            $freshLogs = Production::orderByDesc('id')->take(20)->get()->map(fn (Production $p) => [
                 'id' => $p->id,
+                'user_id' => $p->user_id,
+                'employee_id' => $p->employee_id,
                 'd' => $p->date_label,
                 'sh' => $p->shift,
                 'm' => $p->machine_code,
@@ -874,6 +897,37 @@ class FactoryPortalController extends Controller
         }
 
         return $this->success($item->fresh(), 'স্টোর স্টক আপডেট হয়েছে');
+    }
+
+    public function getOperators(Request $request): JsonResponse
+    {
+        $factory = Factory::where('code', 'f1')->first();
+        $query = Employee::where('employee_type', 'operator')->where('status', '!=', 'inactive');
+        if ($factory) {
+            $query->where(function ($q) use ($factory) {
+                $q->where('factory_id', $factory->id)->orWhereNull('factory_id');
+            });
+        }
+        $operators = $query->orderBy('name')->get();
+
+        return $this->success($operators);
+    }
+
+    public function getEmployees(Request $request): JsonResponse
+    {
+        $factory = Factory::where('code', 'f1')->first();
+        $query = Employee::query();
+        if ($factory) {
+            $query->where(function ($q) use ($factory) {
+                $q->where('factory_id', $factory->id)->orWhereNull('factory_id');
+            });
+        }
+        if ($type = $request->query('type')) {
+            $query->where('employee_type', $type);
+        }
+        $employees = $query->orderBy('id')->get();
+
+        return $this->success($employees);
     }
 
     public function getParties(): JsonResponse

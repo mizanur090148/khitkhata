@@ -12,10 +12,12 @@ use App\Models\FactoryExpense;
 use App\Models\FactoryMachine;
 use App\Models\FreeMachineRequest;
 use App\Models\JobListing;
+use App\Models\Employee;
 use App\Models\MessageThread;
+use App\Models\Operator;
 use App\Models\Partner;
 use App\Models\Party;
-use App\Models\ProductionLog;
+use App\Models\Production;
 use App\Models\QcInspection;
 use App\Models\StoreIssueLog;
 use App\Models\StoreItem;
@@ -149,8 +151,10 @@ class KnitKhataDomainService
                 ];
             })->values()->all();
 
-        $prodLog = ProductionLog::orderByDesc('id')->get()->map(fn (ProductionLog $p) => [
+        $prodLog = Production::orderByDesc('id')->get()->map(fn (Production $p) => [
             'id' => $p->id,
+            'user_id' => $p->user_id,
+            'employee_id' => $p->employee_id,
             'd' => $p->date_label,
             'sh' => $p->shift,
             'm' => $p->machine_code,
@@ -327,11 +331,45 @@ class KnitKhataDomainService
             'note' => $a->note,
         ])->values()->all();
 
+        $operators = Employee::where('employee_type', 'operator')
+            ->where('status', '!=', 'inactive')
+            ->orderBy('name')
+            ->get()
+            ->map(fn (Employee $e) => [
+                'id' => $e->id,
+                'name' => $e->name,
+                'id_no' => $e->id_no,
+                'mobile' => $e->mobile,
+                'address' => $e->address,
+                'designation' => $e->designation,
+                'shift' => $e->shift,
+                'machine_assigned' => $e->machine_assigned,
+                'daily_wage' => (float) $e->daily_wage,
+                'status' => $e->status,
+            ])->values()->all();
+
+        $employees = Employee::orderBy('id')->get()->map(fn (Employee $e) => [
+            'id' => $e->id,
+            'factory_id' => $e->factory_id,
+            'employee_type' => $e->employee_type,
+            'id_no' => $e->id_no,
+            'name' => $e->name,
+            'mobile' => $e->mobile,
+            'address' => $e->address,
+            'designation' => $e->designation,
+            'shift' => $e->shift,
+            'machine_assigned' => $e->machine_assigned,
+            'daily_wage' => (float) $e->daily_wage,
+            'status' => $e->status,
+        ])->values()->all();
+
         $partner = Partner::first();
 
         return [
             'vendors' => $parties,
             'parties' => $parties->values()->all(),
+            'operators' => $operators,
+            'employees' => $employees,
             'machineState' => $machineState,
             'freeSet' => $freeSet,
             'freeRequests' => $freeRequests,

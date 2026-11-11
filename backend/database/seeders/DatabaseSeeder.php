@@ -7,12 +7,13 @@ use App\Models\DeliveryChallan;
 use App\Models\FabricRoll;
 use App\Models\Factory;
 use App\Models\FactoryMachine;
+use App\Models\Employee;
 use App\Models\FreeMachineRequest;
 use App\Models\JobListing;
 use App\Models\MessageThread;
 use App\Models\OrderLine;
 use App\Models\Party;
-use App\Models\ProductionLog;
+use App\Models\Production;
 use App\Models\QcInspection;
 use App\Models\Quotation;
 use App\Models\StoreIssueLog;
@@ -95,6 +96,9 @@ class DatabaseSeeder extends Seeder
                 'last_login_label' => $ud['last'],
             ]);
         }
+
+        // Seed Employees (Operators, Helpers, Supervisors)
+        $this->call(EmployeeSeeder::class);
 
         // 3. Seed Parties (Vendors & Suppliers)
         $partiesData = [
@@ -390,9 +394,13 @@ class DatabaseSeeder extends Seeder
             ['order' => $o16, 'pl' => 0, 'd' => '03 Oct', 'sh' => 'A', 'm' => 'M-16', 'op' => 'মাসুদ', 'kg' => 158, 'rolls' => 7, 'lot' => 'NS-3092', 'fault' => 'Oil spot (1 রোল)'],
         ];
 
+        $defaultUser = User::first();
         foreach ($prodLogs as $pl) {
-            ProductionLog::create([
+            $emp = Employee::where('name', $pl['op'])->first();
+            Production::create([
                 'subcontract_order_id' => $pl['order']->id,
+                'user_id' => $defaultUser?->id,
+                'employee_id' => $emp?->id,
                 'order_no' => $pl['order']->order_no,
                 'placement_index' => $pl['pl'],
                 'date_label' => $pl['d'],

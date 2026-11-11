@@ -103,8 +103,27 @@ export interface MachineItem {
   note: string;
 }
 
+export interface OperatorItem {
+  id: number;
+  factory_id?: number | null;
+  employee_type?: string;
+  id_no?: string;
+  name: string;
+  mobile?: string;
+  address?: string;
+  designation?: string;
+  shift?: string;
+  machine_assigned?: string;
+  daily_wage?: number;
+  status?: string;
+}
+
+export type EmployeeItem = OperatorItem;
+
 export interface ProductionLogItem {
-  id: string;
+  id: string | number;
+  user_id?: number | null;
+  employee_id?: number | null;
   date: string;
   shift: 'A (সকাল)' | 'B (বিকাল)' | 'C (রাত)' | string;
   machine: string;
@@ -118,6 +137,8 @@ export interface ProductionLogItem {
   eff: number;
   note: string;
 }
+
+export type ProductionItem = ProductionLogItem;
 
 export interface RollTagItem {
   rollId: string;

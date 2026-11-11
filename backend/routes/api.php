@@ -49,6 +49,8 @@ Route::prefix('v1')->group(function () {
         Route::post('/yarn/receive', [FactoryPortalController::class, 'receiveYarn']);
         Route::post('/store/movement', [FactoryPortalController::class, 'storeStockMovement']);
         Route::get('/parties', [FactoryPortalController::class, 'getParties']);
+        Route::get('/operators', [FactoryPortalController::class, 'getOperators']);
+        Route::get('/employees', [FactoryPortalController::class, 'getEmployees']);
         Route::post('/parties', [FactoryPortalController::class, 'storeParty']);
         Route::post('/parties/{id}/toggle', [FactoryPortalController::class, 'toggleParty']);
         Route::delete('/parties/{id}', [FactoryPortalController::class, 'deleteParty']);

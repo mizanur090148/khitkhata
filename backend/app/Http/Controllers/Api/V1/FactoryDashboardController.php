@@ -4,12 +4,13 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Bill;
+use App\Models\Employee;
 use App\Models\FabricRoll;
 use App\Models\Factory;
 use App\Models\FactoryMachine;
 use App\Models\FreeMachineRequest;
 use App\Models\Party;
-use App\Models\ProductionLog;
+use App\Models\Production;
 use App\Models\QcInspection;
 use App\Models\Quotation;
 use App\Models\SubcontractOrder;
@@ -46,13 +47,13 @@ class FactoryDashboardController extends Controller
 
         // 1. Production Logs today
         $orderIds = SubcontractOrder::where('factory_id', $factory->id)->pluck('id');
-        $todayLogsKg = (float) ProductionLog::whereIn('subcontract_order_id', $orderIds)
+        $todayLogsKg = (float) Production::whereIn('subcontract_order_id', $orderIds)
             ->whereDate('created_at', Carbon::today())
             ->sum('qty_kg');
         
         // Fallback to recent seed logs if fresh day
         if ($todayLogsKg <= 0) {
-            $todayLogsKg = (float) (ProductionLog::whereIn('subcontract_order_id', $orderIds)->sum('qty_kg') ?: 1425.0);
+            $todayLogsKg = (float) (Production::whereIn('subcontract_order_id', $orderIds)->sum('qty_kg') ?: 1425.0);
         }
 
         // 2. Subcontract Orders & Progress
@@ -322,9 +323,14 @@ class FactoryDashboardController extends Controller
                 $orderNo = $order ? $order->order_no : 'SC-2610-014';
             }
 
-            // 1. Create Production Log
-            $log = ProductionLog::create([
+            // 1. Create Production
+            $employeeId = Employee::where('name', $validated['operator_name'])->value('id');
+            $userId = auth()->id() ?? auth('sanctum')->id() ?? $request->user()?->id ?? null;
+
+            $log = Production::create([
                 'subcontract_order_id' => $order->id,
+                'user_id' => $userId,
+                'employee_id' => $employeeId,
                 'order_no' => $orderNo,
                 'placement_index' => 0,
                 'date_label' => Carbon::today()->format('d M'),

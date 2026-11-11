@@ -10,6 +10,7 @@ import {
   MachineItem,
   MarketplaceSubcontractPost,
   MessageThreadItem,
+  OperatorItem,
   PartnerState,
   PartyItem,
   ProductionLogItem,
@@ -349,6 +350,17 @@ export const INITIAL_MACHINES: MachineItem[] = [
     rateQuote: 32,
     note: 'ফ্রেঞ্চ টেরি / ৩-থ্রেড ফ্লিস / হেভি জার্সি — দৈনিক ২৮০ কেজি ক্যাপাসিটি',
   },
+];
+
+export const INITIAL_OPERATORS: OperatorItem[] = [
+  { id: 1, name: 'জসিম', id_no: 'OP-101', mobile: '01712-345601', designation: 'সিনিয়র অপারেটর', shift: 'A', machine_assigned: 'M-01', daily_wage: 750, status: 'active' },
+  { id: 2, name: 'সোহেল', id_no: 'OP-102', mobile: '01712-345602', designation: 'অপারেটর', shift: 'A', machine_assigned: 'M-02', daily_wage: 700, status: 'active' },
+  { id: 3, name: 'আলমগীর', id_no: 'OP-103', mobile: '01712-345603', designation: 'অপারেটর', shift: 'A', machine_assigned: 'M-03', daily_wage: 700, status: 'active' },
+  { id: 4, name: 'রিপন', id_no: 'OP-104', mobile: '01712-345604', designation: 'অপারেটর', shift: 'B', machine_assigned: 'M-04', daily_wage: 700, status: 'active' },
+  { id: 5, name: 'হাবিব', id_no: 'OP-105', mobile: '01712-345605', designation: 'অপারেটর', shift: 'B', machine_assigned: 'M-05', daily_wage: 700, status: 'active' },
+  { id: 6, name: 'মাসুদ', id_no: 'OP-106', mobile: '01712-345606', designation: 'অপারেটর', shift: 'C', machine_assigned: 'M-06', daily_wage: 720, status: 'active' },
+  { id: 7, name: 'কামাল', id_no: 'OP-107', mobile: '01712-345607', designation: 'অপারেটর', shift: 'A', machine_assigned: 'M-07', daily_wage: 680, status: 'active' },
+  { id: 8, name: 'আবদুল মান্নান', id_no: 'OP-108', mobile: '01712-345608', designation: 'অপারেটর', shift: 'B', machine_assigned: 'M-08', daily_wage: 680, status: 'active' },
 ];
 
 export const INITIAL_PROD_LOGS: ProductionLogItem[] = [

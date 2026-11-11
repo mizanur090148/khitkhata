@@ -225,15 +225,18 @@ export const FactoryProductionEntryPage: React.FC = () => {
     orders,
     parties,
     prodLogs,
+    operators,
+    fetchOperators,
     machines: domainMachines,
     fetchOrders,
     saveShiftProduction,
     addToast,
   } = useApp();
 
-  // Load orders on mount
+  // Load orders and operators on mount
   useEffect(() => {
     fetchOrders?.();
+    fetchOperators?.();
   }, []);
 
   // Filter open (running / draft / pending) orders
@@ -313,12 +316,23 @@ export const FactoryProductionEntryPage: React.FC = () => {
     return Array.from(ops);
   }, [prodLogs]);
 
-  // Find last operator for machine
+  // Find last or assigned operator for machine
   const getLastOperator = (machineCode: string): string => {
+    // 1. Operator assigned to this machine from operators table
+    const assigned = operators.find(
+      (op) => op.machine_assigned === machineCode && op.status !== 'inactive'
+    );
+    if (assigned) return assigned.name;
+
+    // 2. Last logged operator on this machine
     const p = prodLogs.find(
       (x: any) => (x.m === machineCode || x.machine_code === machineCode) && (x.op || x.operator_name)
     );
-    return (p as any)?.op || (p as any)?.operator_name || '';
+    const logOp = (p as any)?.op || (p as any)?.operator_name || '';
+    if (logOp && operators.some((o) => o.name === logOp)) return logOp;
+
+    // 3. Fallback to first operator in list
+    return operators[0]?.name || logOp || '';
   };
 
   // Find next roll number for (order, machine)
@@ -568,17 +582,18 @@ export const FactoryProductionEntryPage: React.FC = () => {
       const next = [...prev];
       const line = { ...next[lineIdx] };
       const machines = [...line.machines];
+      const defaultOp = operators[0]?.name || '';
       machines.push({
         key: `${lineIdx}-${machines.length}-${Date.now()}`,
         machine: '',
         rollsCount: '',
         totalKg: '',
-        operator: '',
+        operator: defaultOp,
         sameOperator: true,
         rolls: [],
         flatPieces: '',
         flatBundles: '',
-        flatOperator: '',
+        flatOperator: defaultOp,
         flatIssue: '',
         flatIssueDesc: '',
       });
@@ -674,13 +689,17 @@ export const FactoryProductionEntryPage: React.FC = () => {
             badFields.push(`${where}-এর সমস্যার বিবরণ লিখুন`);
           }
 
+          const flatOpName = mRow.flatOperator.trim();
+          const flatOp = operators.find((o) => o.name === flatOpName);
+
           payloadRows.push({
             placement_index: lForm.placementIndex,
             machine_code: mCode || 'M-01',
             flat: true,
             qty_kg: pcs,
             rolls_count: parseBnInt(mRow.flatBundles) || 0,
-            operator_name: mRow.flatOperator.trim() || '—',
+            operator_name: flatOpName || '—',
+            employee_id: flatOp?.id ?? null,
             yarn_lot: yarnLotSummary,
             issue: mRow.flatIssue,
             issue_desc: mRow.flatIssueDesc.trim(),
@@ -740,13 +759,20 @@ export const FactoryProductionEntryPage: React.FC = () => {
               }
             });
 
+            const rollOpName = mRow.sameOperator ? mRow.operator.trim() : r.operator.trim();
+            const rollOp = operators.find((o) => o.name === rollOpName);
+
             return {
               jc: r.jc || '001',
               kg: parseBnFloat(r.weight),
-              op: mRow.sameOperator ? mRow.operator.trim() : r.operator.trim(),
+              op: rollOpName,
+              employee_id: rollOp?.id ?? null,
               faults: faultsMap,
             };
           });
+
+          const primaryOpName = mRow.sameOperator ? mRow.operator.trim() : mRow.rolls[0]?.operator || '—';
+          const primaryOp = operators.find((o) => o.name === primaryOpName);
 
           payloadRows.push({
             placement_index: lForm.placementIndex,
@@ -754,7 +780,8 @@ export const FactoryProductionEntryPage: React.FC = () => {
             flat: false,
             qty_kg: totalKg || rollSum,
             rolls_count: rollsData.length,
-            operator_name: mRow.sameOperator ? mRow.operator.trim() : mRow.rolls[0]?.operator || '—',
+            operator_name: primaryOpName,
+            employee_id: primaryOp?.id ?? null,
             yarn_lot: yarnLotSummary,
             rolls: rollsData,
           });
@@ -850,13 +877,6 @@ export const FactoryProductionEntryPage: React.FC = () => {
           <p>ভেন্ডর আর অর্ডার বাছলেই সব অংশ, মেশিন আর সুতা নিজে থেকে চলে আসবে। শুধু প্রোডাকশন লিখুন।</p>
         </div>
       </div>
-
-      {/* Operator datalist */}
-      <datalist id="dl-op">
-        {operatorSuggestions.map((op) => (
-          <option key={op} value={op} />
-        ))}
-      </datalist>
 
       {/* MAIN FORM */}
       {vendorKeys.length > 0 ? (
@@ -1073,14 +1093,19 @@ export const FactoryProductionEntryPage: React.FC = () => {
                         </label>
 
                         <label className="no-f">
-                          <span>অপারেটর</span>
-                          <input
-                            list="dl-op"
-                            autoComplete="off"
-                            placeholder="নাম লিখুন"
+                          <span>অপারেটর <b className="req">*</b></span>
+                          <select
                             value={mRow.flatOperator}
+                            aria-label="অপারেটর"
                             onChange={(e) => handleFlatFieldChange(lIdx, mIdx, 'flatOperator', e.target.value)}
-                          />
+                          >
+                            <option value="">-- অপারেটর নির্বাচন করুন --</option>
+                            {operators.map((op) => (
+                              <option key={op.id} value={op.name}>
+                                {op.name} {op.id_no ? `(${op.id_no})` : ''} {op.shift ? `[শিফট ${op.shift}]` : ''}
+                              </option>
+                            ))}
+                          </select>
                         </label>
 
                         <label className="no-f">
@@ -1170,14 +1195,19 @@ export const FactoryProductionEntryPage: React.FC = () => {
                           </label>
 
                           <label className="no-f pe-op1">
-                            <span>অপারেটর</span>
-                            <input
-                              list="dl-op"
-                              autoComplete="off"
-                              placeholder="নাম লিখুন"
+                            <span>অপারেটর <b className="req">*</b></span>
+                            <select
                               value={mRow.operator}
+                              aria-label="অপারেটর"
                               onChange={(e) => handleMachineOperatorChange(lIdx, mIdx, e.target.value)}
-                            />
+                            >
+                              <option value="">-- অপারেটর নির্বাচন করুন --</option>
+                              {operators.map((op) => (
+                                <option key={op.id} value={op.name}>
+                                  {op.name} {op.id_no ? `(${op.id_no})` : ''} {op.shift ? `[শিফট ${op.shift}]` : ''}
+                                </option>
+                              ))}
+                            </select>
                           </label>
 
                           <label className="pe-chk">
@@ -1237,19 +1267,23 @@ export const FactoryProductionEntryPage: React.FC = () => {
                                       }
                                     />
 
-                                    {/* Operator input (if not same) */}
+                                    {/* Operator dropdown (if not same) */}
                                     {!mRow.sameOperator && (
-                                      <input
+                                      <select
                                         className="pe-oc"
-                                        list="dl-op"
-                                        autoComplete="off"
-                                        placeholder="অপারেটর"
                                         aria-label="অপারেটর"
                                         value={r.operator}
                                         onChange={(e) =>
                                           handleRollFieldChange(lIdx, mIdx, rIdx, 'operator', e.target.value)
                                         }
-                                      />
+                                      >
+                                        <option value="">-- বাছুন --</option>
+                                        {operators.map((op) => (
+                                          <option key={op.id} value={op.name}>
+                                            {op.name}
+                                          </option>
+                                        ))}
+                                      </select>
                                     )}
 
                                     {/* Faults Selector */}

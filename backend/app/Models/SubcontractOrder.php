@@ -76,9 +76,14 @@ class SubcontractOrder extends Model
         return $this->hasMany(OrderLine::class)->orderBy('line_index');
     }
 
+    public function productions(): HasMany
+    {
+        return $this->hasMany(Production::class);
+    }
+
     public function productionLogs(): HasMany
     {
-        return $this->hasMany(ProductionLog::class);
+        return $this->productions();
     }
 
     public function qcInspections(): HasMany

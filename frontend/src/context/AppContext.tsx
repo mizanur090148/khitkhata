@@ -15,6 +15,7 @@ import {
   MarketingSubPage,
   MarketplaceSubcontractPost,
   MessageThreadItem,
+  OperatorItem,
   PartnerState,
   PartyItem,
   ProductionLogItem,
@@ -41,6 +42,7 @@ import {
   INITIAL_JOBS,
   INITIAL_MACHINES,
   INITIAL_MARKETPLACE_SUBCONTRACT_POSTS,
+  INITIAL_OPERATORS,
   INITIAL_ORDERS,
   INITIAL_PARTIES,
   INITIAL_PARTNER_STATE,
@@ -199,6 +201,8 @@ interface AppContextType {
   orders: SubcontractOrderItem[];
   yarns: YarnStockItem[];
   machines: MachineItem[];
+  operators: OperatorItem[];
+  setOperators: React.Dispatch<React.SetStateAction<OperatorItem[]>>;
   prodLogs: ProductionLogItem[];
   rolls: RollTagItem[];
   qcLogs: QcLogItem[];
@@ -312,6 +316,7 @@ interface AppContextType {
     rows: any[];
   }) => Promise<{ new_rolls: any[]; logs: any[]; done_kg: number }>;
   fetchParties: () => Promise<void>;
+  fetchOperators: () => Promise<void>;
   createParty: (partyData: {
     name: string;
     type: 'ven' | 'sup';
@@ -554,6 +559,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [orders, setOrders] = useState<SubcontractOrderItem[]>(INITIAL_ORDERS);
   const [yarns, setYarns] = useState<YarnStockItem[]>(INITIAL_YARNS);
   const [machines, setMachines] = useState<MachineItem[]>(INITIAL_MACHINES);
+  const [operators, setOperators] = useState<OperatorItem[]>(INITIAL_OPERATORS);
   const [prodLogs, setProdLogs] = useState<ProductionLogItem[]>(INITIAL_PROD_LOGS);
   const [rolls, setRolls] = useState<RollTagItem[]>(INITIAL_ROLLS);
   const [qcLogs, setQcLogs] = useState<QcLogItem[]>(INITIAL_QC_LOGS);
@@ -796,6 +802,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           if (d.factory) setFactoryProfile(d.factory);
           if (Array.isArray(d.orders)) setOrders(d.orders);
           if (d.machines && d.machines.length) setMachines(d.machines);
+          if (Array.isArray(d.operators) && d.operators.length) setOperators(d.operators);
           if (d.parties && d.parties.length) setParties(d.parties);
           if (Array.isArray(d.rolls)) setRolls(d.rolls);
           if (Array.isArray(d.prodLog)) setProdLogs(d.prodLog);
@@ -836,6 +843,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       });
     fetchOrders();
     fetchParties();
+    fetchOperators();
     fetchDashboardData();
   }, []);
 
@@ -1163,6 +1171,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     } catch (err: any) {
       console.info('Parties fetch fallback to local/bootstrap:', err.message);
+    }
+  };
+
+  const fetchOperators = async () => {
+    try {
+      const res = await apiClient.get('portal/operators');
+      if (res && res.data && Array.isArray(res.data)) {
+        setOperators(res.data);
+      }
+    } catch (err: any) {
+      console.info('Operators fetch fallback to bootstrap/initial:', err.message);
     }
   };
 
@@ -1578,6 +1597,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         orders,
         yarns,
         machines,
+        operators,
+        setOperators,
         prodLogs,
         rolls,
         qcLogs,
@@ -1645,6 +1666,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         saveJobCardGrid,
         saveShiftProduction,
         fetchParties,
+        fetchOperators,
         createParty,
         togglePartyStatus,
         deleteParty,
