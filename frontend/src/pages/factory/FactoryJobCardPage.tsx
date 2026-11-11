@@ -162,6 +162,13 @@ export const FactoryJobCardPage: React.FC = () => {
     return ms.find((x) => x.m === selectedMachine) || ms[0] || { m: 'M-01', i: 0 };
   }, [ms, selectedMachine]);
 
+  // Fetch rolls whenever active order or machine changes
+  useEffect(() => {
+    if (activeOrder?.id && curMachine?.m) {
+      fetchRolls?.(activeOrder.id, curMachine.m);
+    }
+  }, [activeOrder?.id, curMachine?.m]);
+
   const curLine = lines[curMachine.i] || lines[0] || {
     place: 'Body',
     fab: 'Single Jersey',
@@ -239,7 +246,7 @@ export const FactoryJobCardPage: React.FC = () => {
         p.id === activeOrder.party_id ||
         p.name === activeOrder.party
     );
-    return found?.name || activeOrder.party || (activeOrder as any).v || 'ABC Knit Composite';
+    return found?.name || activeOrder.party || (activeOrder as any).v || '—';
   }, [activeOrder, parties]);
 
   // Production Log details (operator, shift, date)
@@ -303,7 +310,7 @@ export const FactoryJobCardPage: React.FC = () => {
               seq: rollNo || String(i + 1).padStart(3, '0'),
               wt,
               op: operators[i] || (lastProdLog as any)?.operator_name || (lastProdLog as any)?.op || (lastProdLog as any)?.operator || '—',
-              lot: (machineDbRolls[0] as any)?.lot || (machineDbRolls[0] as any)?.yarn_lot || (curLine.yarns && curLine.yarns[0]?.lot) || 'SQ-88419',
+              lot: (machineDbRolls[0] as any)?.lot || (machineDbRolls[0] as any)?.yarn_lot || (curLine.yarns && curLine.yarns[0]?.lot) || '—',
               shift: (lastProdLog as any)?.shift || (lastProdLog as any)?.sh || 'A',
               faults,
             });
@@ -421,7 +428,7 @@ export const FactoryJobCardPage: React.FC = () => {
       </div>
 
       {/* 2. ORDER SELECTOR MATCHING KnitKhata.html */}
-      <div className="row" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div className="row" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
         <label className="f" style={{ minWidth: 260 }}>
           <span style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 13 }}>অর্ডার</span>
           <select
@@ -444,7 +451,7 @@ export const FactoryJobCardPage: React.FC = () => {
       </div>
 
       {/* 3. MACHINE CHIPS MATCHING KnitKhata.html */}
-      <div className="chips" id="jcM" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+      <div className="chips" id="jcM" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, margin: '8px 0 16px', position: 'static' }}>
         {ms.map((x, idx) => {
           const isSelected = x.m === curMachine.m;
           const partLine = lines[x.i];
@@ -454,28 +461,26 @@ export const FactoryJobCardPage: React.FC = () => {
             <button
               key={`${x.m}-${idx}`}
               type="button"
-              className={`chip ${isSelected ? 'on' : ''}`}
+              className={isSelected ? 'on' : ''}
               data-m={x.m}
               onClick={() => {
                 setSelectedMachine(x.m);
                 setEditMode(false);
               }}
               style={{
-                background: isSelected ? 'var(--primary, #0284c7)' : 'var(--surface, #ffffff)',
-                color: isSelected ? '#ffffff' : 'var(--text, inherit)',
-                border: isSelected ? '1px solid var(--primary, #0284c7)' : '1px solid var(--border, #cbd5e1)',
-                padding: '7px 14px',
-                borderRadius: 20,
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: 'pointer',
+                '--c': colorVar,
+                position: 'static',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 6,
-                boxShadow: isSelected ? '0 2px 6px rgba(2, 132, 199, 0.25)' : 'none',
-              }}
+                cursor: 'pointer',
+                padding: '6px 14px',
+                borderRadius: 999,
+                fontSize: '0.88rem',
+                fontWeight: isSelected ? 600 : 500,
+              } as React.CSSProperties}
             >
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: colorVar }} />
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: colorVar, display: 'inline-block' }} />
               {x.m} · {partLine?.place || 'Body'}
             </button>
           );
@@ -544,14 +549,23 @@ export const FactoryJobCardPage: React.FC = () => {
           <div>
             <span>তারিখ</span>
             <b className="mono">
-              {lastProdLog
-                ? `${(lastProdLog as any).date_label || (lastProdLog as any).d || (lastProdLog as any).date} 2026`
-                : activeOrder.orderDate || '—'}
+              {(() => {
+                const rawDate =
+                  (lastProdLog as any)?.date_label ||
+                  (lastProdLog as any)?.d ||
+                  (lastProdLog as any)?.date ||
+                  (machineDbRolls[0] as any)?.date_label ||
+                  (machineDbRolls[0] as any)?.d ||
+                  activeOrder.orderDate;
+                if (!rawDate) return '—';
+                const s = String(rawDate);
+                return s.includes('202') ? s : `${s} 2026`;
+              })()}
             </b>
           </div>
           <div>
             <span>শিফট</span>
-            <b>{lastProdLog ? (lastProdLog as any).shift || (lastProdLog as any).sh : 'A'}</b>
+            <b>{lastProdLog ? (lastProdLog as any).shift || (lastProdLog as any).sh : (machineDbRolls[0] as any)?.shift || 'A'}</b>
           </div>
           <div>
             <span>অপারেটর</span>
@@ -560,7 +574,10 @@ export const FactoryJobCardPage: React.FC = () => {
                 ((lastProdLog as any).operator_name ||
                   (lastProdLog as any).op ||
                   (lastProdLog as any).operator)) ||
-                'জসিম'}
+                (machineDbRolls[0] as any)?.operator_name ||
+                (machineDbRolls[0] as any)?.op ||
+                operators.find((op) => Boolean(op)) ||
+                '—'}
             </b>
           </div>
           <div>
@@ -569,7 +586,7 @@ export const FactoryJobCardPage: React.FC = () => {
               {(machineDbRolls[0] as any)?.lot ||
                 (machineDbRolls[0] as any)?.yarn_lot ||
                 (curLine.yarns && curLine.yarns[0]?.lot) ||
-                'SQ-88419'}
+                '—'}
             </b>
           </div>
           <div>
@@ -778,7 +795,7 @@ export const FactoryJobCardPage: React.FC = () => {
                     <span style={{ fontSize: 12 }}>{activeOrder.id} · {vendorName}</span>
                     <span style={{ fontSize: 11, color: 'var(--muted)' }}>{curLine.place} · {curLine.fab}</span>
                     <span className="mono" style={{ fontSize: 12, fontWeight: 600 }}>
-                      {r.kg || r.weight_kg} kg · {r.lot || r.yarn_lot || 'SQ-88419'}
+                      {r.kg || r.weight_kg} kg · {r.lot || r.yarn_lot || (curLine.yarns && curLine.yarns[0]?.lot) || '—'}
                     </span>
                   </div>
                 </div>

@@ -371,6 +371,21 @@ class KnitKhataDomainService
                 'ontimePct' => (float) $f->ontime_delivery_pct,
                 'qcRejectPct' => (float) $f->qc_reject_pct,
             ]),
+            'factory' => $primaryFactory ? [
+                'id' => (string) $primaryFactory->id,
+                'code' => $primaryFactory->code,
+                'name' => $primaryFactory->name,
+                'owner' => 'মালিক',
+                'phone' => $primaryFactory->phone ?? '',
+                'email' => 'info@silposetu.com',
+                'address' => $primaryFactory->address ?? $primaryFactory->area ?? 'কোনাবাড়ি, গাজীপুর',
+                'loc' => $primaryFactory->area ?? 'কোনাবাড়ি, গাজীপুর',
+                'bin' => 'BIN-9920148',
+                'plan' => $primaryFactory->plan_code ?? 'g',
+                'machinesCount' => $primaryFactory->total_machines ?? 24,
+                'verified' => true,
+                'rating' => 4.9,
+            ] : null,
         ];
     }
 }
