@@ -39,6 +39,7 @@ Route::prefix('v1')->group(function () {
         Route::delete('/orders', [FactoryPortalController::class, 'clearOrders']);
         Route::post('/orders/{orderNo}/toggle-machine', [FactoryPortalController::class, 'toggleOrderMachine']);
         Route::post('/production', [FactoryPortalController::class, 'storeProductionEntry']);
+        Route::post('/production/shift', [FactoryPortalController::class, 'storeShiftProduction']);
         Route::post('/qc', [FactoryPortalController::class, 'storeQcInspection']);
         Route::post('/qc/{qcNo}/sign', [FactoryPortalController::class, 'signQcInspection']);
         Route::get('/rolls', [FactoryPortalController::class, 'getRolls']);

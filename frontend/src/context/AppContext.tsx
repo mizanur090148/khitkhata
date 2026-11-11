@@ -304,6 +304,13 @@ interface AppContextType {
     rolls: any[];
     remarks?: string;
   }) => Promise<void>;
+  saveShiftProduction: (payload: {
+    order_no: string;
+    date?: string;
+    date_label?: string;
+    shift: string;
+    rows: any[];
+  }) => Promise<{ new_rolls: any[]; logs: any[]; done_kg: number }>;
   fetchParties: () => Promise<void>;
   createParty: (partyData: {
     name: string;
@@ -1119,6 +1126,35 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
   };
 
+  const saveShiftProduction = async (payload: {
+    order_no: string;
+    date?: string;
+    date_label?: string;
+    shift: string;
+    rows: any[];
+  }) => {
+    const res = await apiClient.post('portal/production/shift', payload);
+    if (!res || res.success === false) {
+      throw new Error(res?.message || 'প্রোডাকশন সেভ করতে সমস্যা হয়েছে।');
+    }
+    const data = res.data || {};
+    if (data.new_rolls && Array.isArray(data.new_rolls)) {
+      setRolls((prev) => [...prev, ...data.new_rolls]);
+    }
+    if (data.logs && Array.isArray(data.logs)) {
+      setProdLogs(data.logs);
+    }
+    fetchOrders();
+
+    addToast({
+      type: 'success',
+      title: 'প্রোডাকশন সংরক্ষিত',
+      message: res.message || `${payload.order_no} · শিফট প্রোডাকশন ডাটাবেজে সেভ হয়েছে`,
+    });
+
+    return data;
+  };
+
   const fetchParties = async () => {
     try {
       const res = await apiClient.get('portal/parties');
@@ -1607,6 +1643,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         fetchOrders,
         fetchRolls,
         saveJobCardGrid,
+        saveShiftProduction,
         fetchParties,
         createParty,
         togglePartyStatus,

@@ -5,4 +5,5 @@ export * from './FactoryOrderDetailPage';
 export * from './FactoryNewOrderPage';
 export * from './FactoryPartyPage';
 export * from './FactoryJobCardPage';
+export * from './FactoryProductionEntryPage';
 
