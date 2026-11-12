@@ -62,15 +62,16 @@ class FactoryPortalController extends Controller
 
                 $qc = $o->qcInspections->map(fn ($q) => [
                     'id' => $q->qc_no,
+                    'd' => $q->date_label ?? ($q->created_at ? $q->created_at->format('d M') : '03 Oct'),
                     'roll' => $q->roll_no,
-                    'date' => $q->inspection_date ? $q->inspection_date->format('Y-m-d') : '2026-10-01',
-                    'shift' => $q->shift,
-                    'op' => $q->operator_name,
-                    'res' => $q->result,
-                    'flt' => $q->fault_code,
+                    'm' => $q->machine_code ?? '—',
+                    'pl' => (int) $q->placement_index,
                     'kg' => (float) $q->weight_kg,
                     'issue' => $q->issue_description,
-                    'src' => $q->source,
+                    'src' => $q->source ?? 'fac',
+                    'fac' => $q->factory_sign_json ?? ['v' => null, 'by' => '', 'at' => '', 'note' => ''],
+                    'ven' => $q->vendor_sign_json ?? ['v' => null, 'by' => '', 'at' => '', 'note' => ''],
+                    'act' => $q->action_taken ?? '',
                 ])->values()->all();
 
                 return [
@@ -605,6 +606,33 @@ class FactoryPortalController extends Controller
         });
     }
 
+    public function getQcInspections(Request $request): JsonResponse
+    {
+        $factory = $this->resolveFactory($request);
+        $factoryOrderNos = SubcontractOrder::where('factory_id', $factory->id)->pluck('order_no');
+
+        $query = QcInspection::whereIn('order_no', $factoryOrderNos);
+        if ($request->has('order_no')) {
+            $query->where('order_no', $request->query('order_no'));
+        }
+        $qcs = $query->orderBy('id', 'desc')->get()->map(fn ($q) => [
+            'id' => $q->qc_no,
+            'o' => $q->order_no,
+            'pl' => (int) $q->placement_index,
+            'd' => $q->date_label ?? ($q->created_at ? $q->created_at->format('d M') : '03 Oct'),
+            'roll' => $q->roll_no,
+            'm' => $q->machine_code ?? '—',
+            'kg' => (float) $q->weight_kg,
+            'issue' => $q->issue_description,
+            'src' => $q->source ?? 'fac',
+            'fac' => $q->factory_sign_json ?? ['v' => null, 'by' => '', 'at' => '', 'note' => ''],
+            'ven' => $q->vendor_sign_json ?? ['v' => null, 'by' => '', 'at' => '', 'note' => ''],
+            'act' => $q->action_taken ?? '',
+        ])->values()->all();
+
+        return $this->success($qcs, 'QC তালিকা লোড হয়েছে');
+    }
+
     public function storeQcInspection(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -620,21 +648,31 @@ class FactoryPortalController extends Controller
             'signed_by' => ['required', 'string'],
         ]);
 
-        $qcCount = QcInspection::count() + 105;
-        $qcNo = 'QC-' . str_pad((string) $qcCount, 4, '0', STR_PAD_LEFT);
+        $maxId = QcInspection::max('id') ?? 100;
+        $candidateNum = $maxId + 1;
+        do {
+            $qcNo = 'QC-' . str_pad((string) $candidateNum, 4, '0', STR_PAD_LEFT);
+            $candidateNum++;
+        } while (QcInspection::where('qc_no', $qcNo)->exists());
+
         $blank = ['v' => null, 'by' => '', 'at' => '', 'note' => ''];
+        $nowStamp = now()->format('d M, H:i');
         $signed = [
             'v' => $validated['verdict'],
             'by' => $validated['signed_by'],
-            'at' => '03 Oct, ' . now()->format('H:i'),
+            'at' => $nowStamp,
             'note' => $validated['note'] ?? '',
         ];
+
+        $order = SubcontractOrder::where('order_no', $validated['order_no'])->first();
+        $line = $order?->lines()->where('line_index', $validated['placement_index'])->first();
 
         $qc = QcInspection::create([
             'qc_no' => $qcNo,
             'order_no' => $validated['order_no'],
             'placement_index' => $validated['placement_index'],
-            'date_label' => '03 Oct',
+            'placement_name' => $line?->placement ?? 'Body',
+            'date_label' => now()->format('d M'),
             'roll_no' => $validated['roll_no'],
             'machine_code' => $validated['machine_code'] ?? '—',
             'weight_kg' => (float) ($validated['weight_kg'] ?? 22),
@@ -662,7 +700,7 @@ class FactoryPortalController extends Controller
         $signData = [
             'v' => $validated['verdict'],
             'by' => $validated['signed_by'],
-            'at' => '03 Oct, ' . now()->format('H:i'),
+            'at' => now()->format('d M, H:i'),
             'note' => $validated['note'] ?? '',
         ];
 
@@ -679,6 +717,19 @@ class FactoryPortalController extends Controller
         $qc->save();
 
         return $this->success($qc, 'QC সাইন সংরক্ষিত হয়েছে');
+    }
+
+    public function updateQcAction(Request $request, string $qcNo): JsonResponse
+    {
+        $validated = $request->validate([
+            'action_taken' => ['nullable', 'string'],
+        ]);
+
+        $qc = QcInspection::where('qc_no', $qcNo)->firstOrFail();
+        $qc->action_taken = $validated['action_taken'] ?? '';
+        $qc->save();
+
+        return $this->success($qc, 'সিদ্ধান্ত সংরক্ষিত হয়েছে');
     }
 
     public function getRolls(Request $request): JsonResponse

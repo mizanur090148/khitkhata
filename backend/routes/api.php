@@ -40,8 +40,10 @@ Route::prefix('v1')->group(function () {
         Route::post('/orders/{orderNo}/toggle-machine', [FactoryPortalController::class, 'toggleOrderMachine']);
         Route::post('/production', [FactoryPortalController::class, 'storeProductionEntry']);
         Route::post('/production/shift', [FactoryPortalController::class, 'storeShiftProduction']);
+        Route::get('/qc', [FactoryPortalController::class, 'getQcInspections']);
         Route::post('/qc', [FactoryPortalController::class, 'storeQcInspection']);
         Route::post('/qc/{qcNo}/sign', [FactoryPortalController::class, 'signQcInspection']);
+        Route::post('/qc/{qcNo}/action', [FactoryPortalController::class, 'updateQcAction']);
         Route::get('/rolls', [FactoryPortalController::class, 'getRolls']);
         Route::post('/jobcard/save', [FactoryPortalController::class, 'saveJobCard']);
         Route::post('/challans', [FactoryPortalController::class, 'storeChallan']);

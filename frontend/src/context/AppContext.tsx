@@ -331,6 +331,30 @@ interface AppContextType {
   }) => Promise<PartyItem>;
   togglePartyStatus: (idOrCode: string | number) => Promise<void>;
   deleteParty: (idOrCode: string | number) => Promise<void>;
+  fetchQcInspections: () => Promise<any[]>;
+  storeQcInspection: (payload: {
+    order_no: string;
+    placement_index: number;
+    roll_no: string;
+    machine_code?: string;
+    weight_kg?: number;
+    issue: string;
+    verdict: 'ok' | 'bad';
+    note?: string;
+    side: 'fac' | 'ven';
+    signed_by: string;
+  }) => Promise<any>;
+  signQcInspection: (
+    qcNo: string,
+    payload: {
+      side: 'fac' | 'ven';
+      verdict: 'ok' | 'bad';
+      signed_by: string;
+      note?: string;
+      action_taken?: string;
+    }
+  ) => Promise<any>;
+  updateQcAction: (qcNo: string, action_taken: string) => Promise<any>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -1266,6 +1290,71 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  const fetchQcInspections = async (): Promise<any[]> => {
+    try {
+      const res = await apiClient.get('portal/qc');
+      if (res && res.data && Array.isArray(res.data)) {
+        return res.data;
+      }
+    } catch (err: any) {
+      console.warn('Fetch QC fallback:', err.message);
+    }
+    return [];
+  };
+
+  const storeQcInspection = async (payload: {
+    order_no: string;
+    placement_index: number;
+    roll_no: string;
+    machine_code?: string;
+    weight_kg?: number;
+    issue: string;
+    verdict: 'ok' | 'bad';
+    note?: string;
+    side: 'fac' | 'ven';
+    signed_by: string;
+  }): Promise<any> => {
+    const res = await apiClient.post('portal/qc', payload);
+    await fetchOrders();
+    addToast({
+      type: 'success',
+      title: 'QC এন্ট্রি সম্পন্ন',
+      message: res?.message || 'QC এন্ট্রি সফলভাবে সংরক্ষণ করা হয়েছে',
+    });
+    return res?.data;
+  };
+
+  const signQcInspection = async (
+    qcNo: string,
+    payload: {
+      side: 'fac' | 'ven';
+      verdict: 'ok' | 'bad';
+      signed_by: string;
+      note?: string;
+      action_taken?: string;
+    }
+  ): Promise<any> => {
+    const res = await apiClient.post(`portal/qc/${qcNo}/sign`, payload);
+    await fetchOrders();
+    addToast({
+      type: 'success',
+      title: 'QC সাইন সম্পন্ন',
+      message: res?.message || 'QC সাইন সংরক্ষিত হয়েছে',
+    });
+    return res?.data;
+  };
+
+  const updateQcAction = async (qcNo: string, action_taken: string): Promise<any> => {
+    const res = await apiClient.post(`portal/qc/${qcNo}/action`, { action_taken });
+    await fetchOrders();
+    addToast({
+      type: 'info',
+      title: 'সিদ্ধান্ত সংরক্ষিত',
+      message: 'ফ্যাক্টরির সিদ্ধান্ত সেভ হয়েছে · ভেন্ডরও দেখতে পাবে',
+    });
+    return res?.data;
+  };
+
   const sendChatMessage = async (threadId: string, text: string, senderRole: 'factory' | 'vendor' = 'factory') => {
     const newMsg = {
       from: senderRole,
@@ -1670,6 +1759,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         createParty,
         togglePartyStatus,
         deleteParty,
+        fetchQcInspections,
+        storeQcInspection,
+        signQcInspection,
+        updateQcAction,
       }}
     >
       {children}
