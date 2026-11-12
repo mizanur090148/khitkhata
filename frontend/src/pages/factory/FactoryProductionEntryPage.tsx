@@ -931,9 +931,9 @@ export const FactoryProductionEntryPage: React.FC = () => {
   }, [activeTotalKg, activeDoneKg]);
 
   return (
-    <div className="production-entry-page" style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 40 }}>
+    <div className="production-entry-page" style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 40, width: '100%', maxWidth: '100%' }}>
       {/* 1. HEADER MATCHING KnitKhata.html */}
-      <div className="head">
+      <div className="head" style={{ width: '100%' }}>
         <div>
           <h2>প্রোডাকশন এন্ট্রি</h2>
           <p>ভেন্ডর আর অর্ডার বাছলেই সব অংশ, মেশিন আর সুতা নিজে থেকে চলে আসবে। শুধু প্রোডাকশন লিখুন।</p>
@@ -942,7 +942,7 @@ export const FactoryProductionEntryPage: React.FC = () => {
 
       {/* MAIN FORM */}
       {vendorKeys.length > 0 ? (
-        <form id="pf" className="no-wrap" onSubmit={handleSubmit} noValidate>
+        <form id="pf" className="no-wrap" onSubmit={handleSubmit} noValidate style={{ maxWidth: '100%', width: '100%' }}>
           {/* STEP 1: কোন অর্ডার, কবে (.card) */}
           <div className="card">
             <h3>
