@@ -78,6 +78,7 @@ export interface DashboardData {
   };
   kpis: {
     today_production_kg: number;
+    today_production_machines_count?: number;
     running_orders_count: number;
     running_orders_total_kg: number;
     running_orders_knit_kg: number;
@@ -89,7 +90,9 @@ export interface DashboardData {
     down_machines_count: number;
     broadcast_free_count: number;
     receivable_bills_amount: number;
+    receivable_parties_count?: number;
     today_expense_amount: number;
+    today_expense_count?: number;
     open_qc_issues_count: number;
   };
   machines: Array<{
@@ -150,6 +153,7 @@ export interface DashboardData {
     delivery_date: string;
   }>;
   sync_time?: string;
+  date_label?: string;
 }
 
 interface AppContextType {

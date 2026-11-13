@@ -82,7 +82,7 @@ export const FactoryDashboardPage: React.FC = () => {
               <div className="head">
                 <div>
                   <h2>আজকের অবস্থা</h2>
-                  <p>শনিবার, ৩ অক্টোবর ২০২৬ · শিফট A চলছে · লাইভ সিঙ্ক: MySQL ({dashboardData?.sync_time ? new Date(dashboardData.sync_time).toLocaleTimeString('bn-BD') : 'সক্রিয়'})</p>
+                  <p>{dashboardData?.date_label || new Date().toLocaleDateString('bn-BD', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} · শিফট A চলছে · লাইভ সিঙ্ক: MySQL ({dashboardData?.sync_time ? new Date(dashboardData.sync_time).toLocaleTimeString('bn-BD') : 'সক্রিয়'})</p>
                 </div>
                 <div className="row" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <button className="btn" onClick={() => setIsQuickEntryOpen(true)}>+ প্রোডাকশন এন্ট্রি</button>
@@ -95,9 +95,9 @@ export const FactoryDashboardPage: React.FC = () => {
                 <div className="kpi" style={{ borderLeft: '4px solid var(--ok)', cursor: 'pointer' }} onClick={() => setIsQuickEntryOpen(true)}>
                   <span>আজকের মোট উৎপাদন</span>
                   <b>
-                    {dashboardData?.kpis ? bnNum(Math.round(dashboardData.kpis.today_production_kg)) : '১,৪২৫'} <span style={{ fontSize: '0.85rem' }}>kg</span>
+                    {dashboardData?.kpis ? bnNum(Math.round(dashboardData.kpis.today_production_kg)) : '০'} <span style={{ fontSize: '0.85rem' }}>kg</span>
                   </b>
-                  <i>৮টি মেশিনের শিফট এন্ট্রি</i>
+                  <i>{bnNum(dashboardData?.kpis?.today_production_machines_count || 0)}টি মেশিনের শিফট এন্ট্রি</i>
                 </div>
 
                 <div className="kpi" style={{ borderLeft: '4px solid var(--accent)', cursor: 'pointer' }} onClick={() => go('orders')}>
@@ -105,27 +105,27 @@ export const FactoryDashboardPage: React.FC = () => {
                   <b>
                     {dashboardData?.kpis ? bnNum(dashboardData.kpis.running_orders_count) : orders.filter((o) => o.status === 'Running').length} <span style={{ fontSize: '0.85rem' }}>টি PO</span>
                   </b>
-                  <i>মোট অর্ডার: {dashboardData?.kpis ? bnNum(dashboardData.kpis.running_orders_total_kg) : '২৪,৪০০'} kg</i>
+                  <i>মোট অর্ডার: {dashboardData?.kpis ? bnNum(dashboardData.kpis.running_orders_total_kg) : '০'} kg</i>
                 </div>
 
                 <div className="kpi" style={{ borderLeft: '4px solid var(--yarn)', cursor: 'pointer' }} onClick={() => setIsBroadcastModalOpen(true)}>
                   <span>ফ্রি মেশিন (বুকিং ওপেন)</span>
                   <b>
-                    {dashboardData?.kpis ? bnNum(dashboardData.kpis.free_machines_count) : '৪'} <span style={{ fontSize: '0.85rem' }}>টি</span>
+                    {dashboardData?.kpis ? bnNum(dashboardData.kpis.free_machines_count) : '০'} <span style={{ fontSize: '0.85rem' }}>টি</span>
                   </b>
                   <i style={{ color: 'var(--accent)', fontWeight: 600 }}>📡 ব্রডকাস্ট করুন</i>
                 </div>
 
                 <div className="kpi" style={{ borderLeft: '4px solid var(--warn)', cursor: 'pointer' }} onClick={() => go('bill')}>
                   <span>বকেয়া বিল আদায়যোগ্য</span>
-                  <b>৳ {dashboardData?.kpis ? (Math.round(dashboardData.kpis.receivable_bills_amount)).toLocaleString('en-IN') : '২,০৩,৪০০'}</b>
-                  <i>৩টি পার্টির চালান বিল বাকি</i>
+                  <b>৳ {dashboardData?.kpis ? (Math.round(dashboardData.kpis.receivable_bills_amount)).toLocaleString('en-IN') : '০'}</b>
+                  <i>{bnNum(dashboardData?.kpis?.receivable_parties_count || 1)}টি পার্টির চালান বিল বাকি</i>
                 </div>
 
                 <div className="kpi" style={{ borderLeft: '4px solid var(--l4)', cursor: 'pointer' }} onClick={() => go('ledger')}>
                   <span>আজকের খরচ</span>
-                  <b>৳ {dashboardData?.kpis ? (Math.round(dashboardData.kpis.today_expense_amount)).toLocaleString('en-IN') : '১৮,৪৫০'}</b>
-                  <i>৬টি ভাউচার এন্ট্রি</i>
+                  <b>৳ {dashboardData?.kpis ? (Math.round(dashboardData.kpis.today_expense_amount)).toLocaleString('en-IN') : '০'}</b>
+                  <i>{bnNum(dashboardData?.kpis?.today_expense_count || 0)}টি ভাউচার এন্ট্রি</i>
                 </div>
               </div>
 
@@ -133,26 +133,30 @@ export const FactoryDashboardPage: React.FC = () => {
               <div className="grid g2">
                 <div className="card">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                    <h3 style={{ margin: 0 }}>মেশিন বোর্ড (২৪টি মেশিন)</h3>
+                    <h3 style={{ margin: 0 }}>মেশিন বোর্ড ({bnNum(dashboardData?.machines?.length || machines.length || 24)}টি মেশিন)</h3>
                     <button className="btn sm" onClick={() => setIsBroadcastModalOpen(true)}>ফ্রি মেশিন ব্রডকাস্ট</button>
                   </div>
                   <div className="machines">
-                    {Array.from({ length: 24 }).map((_, i) => {
-                      const id = `M-${String(i + 1).padStart(2, '0')}`;
-                      const liveMc = dashboardData?.machines?.find((m) => m.code === id || m.id === id);
-                      const mc = liveMc || machines.find((m) => m.id === id);
-                      
-                      const st = mc ? (mc.status === 'Running' ? 'run' : mc.status === 'Free' ? 'wait' : mc.status === 'Maint' ? 'down' : 'idle') : (i < 16 ? 'run' : i < 18 ? 'wait' : i === 18 ? 'down' : 'idle');
-                      const orderRef = (mc as any)?.running_order || (mc as any)?.orderId || (mc as any)?.runningOrder;
-                      const label = st === 'run' ? (orderRef ? String(orderRef).slice(-3) : '014') : st === 'wait' ? 'রিজার্ভ' : st === 'down' ? 'ব্রেকডাউন' : 'খালি';
-                      
+                    {(dashboardData?.machines?.length ? dashboardData.machines : machines).map((mc: any) => {
+                      const id = mc.code || mc.id;
+                      const st = mc.status === 'Running' || mc.status === 'run' ? 'run'
+                        : mc.status === 'Free' || mc.status === 'wait' ? 'wait'
+                        : mc.status === 'Maint' || mc.status === 'down' ? 'down'
+                        : 'idle';
+                      const orderRef = mc.running_order || mc.current_order_no || mc.orderId || mc.order_no;
+                      const label = st === 'run'
+                        ? (orderRef ? String(orderRef).slice(-3) : 'চলছে')
+                        : st === 'wait' ? 'রিজার্ভ'
+                        : st === 'down' ? 'ব্রেকডাউন'
+                        : 'খালি';
+
                       return (
                         <div
                           key={id}
                           className={`mc ${st}`}
-                          title={`${id}: ${label} (ক্লিক করে স্ট্যাটাস পরিবর্তন করুন)`}
+                          title={`${id}: ${mc.status} - ${label} (ক্লিক করে স্ট্যাটাস পরিবর্তন করুন)`}
                           style={{ cursor: 'pointer', transition: 'transform 0.1s' }}
-                          onClick={() => setSelectedMachineForAction(mc || { id, code: id, brand: 'Pailung', type: 'Single Jersey', status: st === 'run' ? 'Running' : st === 'wait' ? 'Free' : st === 'down' ? 'Maint' : 'Idle', operator: 'মোঃ সোহেল রানা', fabric: 'Single Jersey 160 GSM', today_kg: 180, target_kg: 240, running_order: 'SC-2610-014' })}
+                          onClick={() => setSelectedMachineForAction(mc)}
                         >
                           <b>{id}</b>
                           {label}
@@ -169,13 +173,8 @@ export const FactoryDashboardPage: React.FC = () => {
                 </div>
 
                 <div className="card">
-                  <h3 style={{ margin: 0, marginBottom: 12 }}>নজর দেওয়া দরকার</h3>
-                  {(dashboardData?.alerts || [
-                    { id: 'alt-1', type: 'bad', title: 'SC-2610-014', message: 'M-07 এ needle mark, ১টি রোল (২২ kg) বাতিল। ABC কে জানানো হয়েছে।', action_label: 'QC সমাধান', action_view: 'qc' },
-                    { id: 'alt-2', type: 'yarn', title: 'SC-2610-018', message: 'নবোদয় টেক্সটাইলের সুতা এখনো আসেনি। ৩টি মেশিন রিজার্ভ করে রাখা।', action_label: 'সুতা ট্র্যাকার', action_view: 'yarn' },
-                    { id: 'alt-3', type: 'warn', title: 'SC-2609-011', message: 'মাত্র ১৯০ kg বাকি, কাল দুপুরে শেষ হবে। ডেলিভারি চালান রেডি করুন।', action_label: 'চালান কাটুন', action_view: 'challan' },
-                    { id: 'alt-4', type: 'accent', title: 'বিল অনুমোদন', message: 'ABC Knit Composite এর সেপ্টেম্বর মাসের বিল রেডি হয়েছে।', action_label: 'লেজার দেখুন', action_view: 'bill' },
-                  ]).map((alt: any) => (
+                  <h3 style={{ margin: 0, marginBottom: 12 }}>নজর দেওয়া দরকার ({bnNum(dashboardData?.alerts?.length || 0)}টি বার্তা)</h3>
+                  {(dashboardData?.alerts && dashboardData.alerts.length > 0 ? dashboardData.alerts : []).map((alt: any) => (
                     <div key={alt.id} className="alert" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                         <i className="dot" style={{ background: alt.type === 'bad' ? 'var(--bad)' : alt.type === 'yarn' ? 'var(--yarn)' : alt.type === 'warn' ? 'var(--warn)' : 'var(--accent)' }}></i>
@@ -195,6 +194,11 @@ export const FactoryDashboardPage: React.FC = () => {
                       )}
                     </div>
                   ))}
+                  {(!dashboardData?.alerts || dashboardData.alerts.length === 0) && (
+                    <div style={{ padding: 16, textAlign: 'center', color: 'var(--muted)', fontSize: '0.9rem' }}>
+                      সবকিছু স্বাভাবিক আছে, বর্তমানে কোনো জরুরি সতর্কতা নেই।
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -213,10 +217,7 @@ export const FactoryDashboardPage: React.FC = () => {
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
-                  {(dashboardData?.marketplace_rfqs && dashboardData.marketplace_rfqs.length > 0 ? dashboardData.marketplace_rfqs : [
-                    { id: 1, title: 'Single Jersey 160 GSM 5,000 kg জরুরি নিটিং সাবকন্ট্রাক্ট', buyer: 'ABC Fashion Ltd', fabric: 'Single Jersey', qty_kg: 5000, target_rate: '৳১৪–১৬/kg', location: 'গাজীপুর', delivery_date: '২০ অক্টোবর ২০২৬' },
-                    { id: 2, title: '1x1 Lycra Rib 220 GSM 3,500 kg সাবকন্ট্রাক্ট', buyer: 'Next Sourcing', fabric: '1x1 Rib Lycra', qty_kg: 3500, target_rate: '৳১৮–২০/kg', location: 'আশুলিয়া', delivery_date: '২৫ অক্টোবর ২০২৬' },
-                  ]).map((rfq: any) => (
+                  {(dashboardData?.marketplace_rfqs && dashboardData.marketplace_rfqs.length > 0 ? dashboardData.marketplace_rfqs : []).map((rfq: any) => (
                     <div
                       key={rfq.id}
                       style={{
@@ -238,7 +239,7 @@ export const FactoryDashboardPage: React.FC = () => {
                         <h4 style={{ margin: '0 0 6px', fontSize: '0.95rem', fontWeight: 600 }}>{rfq.title}</h4>
                         <div style={{ fontSize: '0.82rem', color: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: 2 }}>
                           <div><strong>ফেব্রিক:</strong> {rfq.fabric}</div>
-                          <div><strong>পরিমাণ:</strong> <span className="mono">{rfq.qty_kg > 0 ? bnNum(rfq.qty_kg) : '৫,০০০'} kg</span></div>
+                          <div><strong>পরিমাণ:</strong> <span className="mono">{rfq.qty_kg > 0 ? bnNum(rfq.qty_kg) : '০'} kg</span></div>
                           <div><strong>টার্গেট রেট:</strong> {rfq.target_rate}</div>
                           <div><strong>ডেলিভারি:</strong> {rfq.delivery_date}</div>
                         </div>
@@ -255,6 +256,11 @@ export const FactoryDashboardPage: React.FC = () => {
                       </button>
                     </div>
                   ))}
+                  {(!dashboardData?.marketplace_rfqs || dashboardData.marketplace_rfqs.length === 0) && (
+                    <div style={{ padding: 20, textAlign: 'center', color: 'var(--muted)', fontSize: '0.9rem', gridColumn: '1 / -1' }}>
+                      বর্তমানে কোনো নতুন মার্কেটপ্লেস RFQ পোস্ট নেই।
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -262,8 +268,8 @@ export const FactoryDashboardPage: React.FC = () => {
               <div className="card">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                   <div>
-                    <h3 style={{ margin: 0 }}>ফ্লোর মেশিন লাইভ মনিটর (৮টি মেশিন)</h3>
-                    <p style={{ margin: '2px 0 0', fontSize: '0.82rem', color: 'var(--muted)' }}>প্রতি মেশিনের আরপিএম, বর্তমান অর্ডার ও অপারেটর</p>
+                    <h3 style={{ margin: 0 }}>ফ্লোর মেশিন লাইভ মনিটর ({bnNum(Math.min(8, (dashboardData?.machines?.length || machines.length || 8)))}টি মেশিন)</h3>
+                    <p style={{ margin: '2px 0 0', fontSize: '0.82rem', color: 'var(--muted)' }}>প্রতি মেশিনের অবস্থা, বর্তমান অর্ডার, ফ্যাব্রিক ও অপারেটর</p>
                   </div>
                   <button onClick={() => setIsBroadcastModalOpen(true)} className="btn sm">
                     ফ্রি মেশিন ব্রডকাস্ট দেখুন
@@ -279,7 +285,7 @@ export const FactoryDashboardPage: React.FC = () => {
 
                     return (
                       <div
-                        key={m.id}
+                        key={m.id || m.code}
                         style={{
                           border: '1px solid var(--line)',
                           borderRadius: 10,
@@ -293,7 +299,7 @@ export const FactoryDashboardPage: React.FC = () => {
                         onClick={() => setSelectedMachineForAction(m)}
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--ink)', fontFamily: 'var(--f-mono)' }}>{m.id}</span>
+                          <span style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--ink)', fontFamily: 'var(--f-mono)' }}>{m.id || m.code}</span>
                           <span className={`pill ${isRun ? 'p-ok' : isFree ? 'p-warn' : isMaint ? 'p-bad' : 'p-acc'}`}>
                             {m.status}
                           </span>
@@ -309,8 +315,8 @@ export const FactoryDashboardPage: React.FC = () => {
                         </div>
 
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: 'var(--muted)', marginTop: 'auto', paddingTop: 4 }}>
-                          <span>আজকের: <strong className="mono" style={{ color: 'var(--ink)' }}>{m.today_kg ?? m.todayKg} kg</strong></span>
-                          <span>টার্গেট: <span className="mono">{m.target_kg ?? m.targetKg} kg</span></span>
+                          <span>আজকের: <strong className="mono" style={{ color: 'var(--ink)' }}>{bnNum(Math.round(m.today_kg ?? m.todayKg ?? 0))} kg</strong></span>
+                          <span>টার্গেট: <span className="mono">{bnNum(Math.round(m.target_kg ?? m.targetKg ?? 190))} kg</span></span>
                         </div>
                       </div>
                     );
@@ -428,9 +434,9 @@ export const FactoryDashboardPage: React.FC = () => {
                         value={qeMachine}
                         onChange={(e) => setQeMachine(e.target.value)}
                       >
-                        {Array.from({ length: 24 }).map((_, i) => {
-                          const id = `M-${String(i + 1).padStart(2, '0')}`;
-                          return <option key={id} value={id}>{id}</option>;
+                        {(dashboardData?.machines || machines).map((m: any) => {
+                          const id = m.code || m.id;
+                          return <option key={id} value={id}>{id} ({m.spec_label || m.type})</option>;
                         })}
                       </select>
                     </div>
@@ -640,8 +646,8 @@ export const FactoryDashboardPage: React.FC = () => {
                       কোন কোন মেশিন ব্রডকাস্ট করতে চান? ({selectedBroadcastMachines.length}টি নির্বাচিত)
                     </label>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 6 }}>
-                      {Array.from({ length: 24 }).map((_, i) => {
-                        const id = `M-${String(i + 1).padStart(2, '0')}`;
+                      {(dashboardData?.machines || machines).map((m: any) => {
+                        const id = m.code || m.id;
                         const selected = selectedBroadcastMachines.includes(id);
                         return (
                           <button
@@ -651,7 +657,7 @@ export const FactoryDashboardPage: React.FC = () => {
                             style={{ padding: '6px 4px', fontSize: '0.78rem', justifyContent: 'center' }}
                             onClick={() => {
                               if (selected) {
-                                setSelectedBroadcastMachines((prev) => prev.filter((m) => m !== id));
+                                setSelectedBroadcastMachines((prev) => prev.filter((mCode) => mCode !== id));
                               } else {
                                 setSelectedBroadcastMachines((prev) => [...prev, id]);
                               }

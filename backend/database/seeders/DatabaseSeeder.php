@@ -6,6 +6,8 @@ use App\Models\Bill;
 use App\Models\DeliveryChallan;
 use App\Models\FabricRoll;
 use App\Models\Factory;
+use App\Models\FactoryAttendance;
+use App\Models\FactoryExpense;
 use App\Models\FactoryMachine;
 use App\Models\Employee;
 use App\Models\FreeMachineRequest;
@@ -384,6 +386,9 @@ class DatabaseSeeder extends Seeder
         $o14 = SubcontractOrder::where('order_no', 'SC-2610-014')->first();
         $o11 = SubcontractOrder::where('order_no', 'SC-2609-011')->first();
         $o16 = SubcontractOrder::where('order_no', 'SC-2610-016')->first();
+        $o19 = SubcontractOrder::where('order_no', 'SC-2610-019')->first();
+        $o20 = SubcontractOrder::where('order_no', 'SC-2610-020')->first();
+        $o15 = SubcontractOrder::where('order_no', 'SC-2610-015')->first();
 
         $prodLogs = [
             ['order' => $o14, 'pl' => 0, 'd' => '03 Oct', 'sh' => 'A', 'm' => 'M-03', 'op' => 'জসিম', 'kg' => 192, 'rolls' => 8, 'lot' => 'SQ-88419', 'fault' => ''],
@@ -391,7 +396,18 @@ class DatabaseSeeder extends Seeder
             ['order' => $o14, 'pl' => 0, 'd' => '03 Oct', 'sh' => 'A', 'm' => 'M-07', 'op' => 'আলমগীর', 'kg' => 170, 'rolls' => 7, 'lot' => 'SQ-88419', 'fault' => 'Needle mark (1 রোল)'],
             ['order' => $o14, 'pl' => 1, 'd' => '03 Oct', 'sh' => 'A', 'm' => 'M-08', 'op' => 'রিপন', 'kg' => 88, 'rolls' => 6, 'lot' => 'SQ-88419 + HY-2207', 'fault' => ''],
             ['order' => $o11, 'pl' => 0, 'd' => '03 Oct', 'sh' => 'A', 'm' => 'M-12', 'op' => 'হাবিব', 'kg' => 126, 'rolls' => 6, 'lot' => 'AK-5521', 'fault' => ''],
+            ['order' => $o11, 'pl' => 0, 'd' => '03 Oct', 'sh' => 'A', 'm' => 'M-13', 'op' => 'কামাল', 'kg' => 118, 'rolls' => 5, 'lot' => 'AK-5521', 'fault' => ''],
+            ['order' => $o19, 'pl' => 0, 'd' => '03 Oct', 'sh' => 'A', 'm' => 'M-14', 'op' => 'মাসুদ', 'kg' => 176, 'rolls' => 7, 'lot' => 'SQ-88470', 'fault' => ''],
+            ['order' => $o19, 'pl' => 0, 'd' => '03 Oct', 'sh' => 'A', 'm' => 'M-15', 'op' => 'আবদুল মান্নান', 'kg' => 168, 'rolls' => 7, 'lot' => 'SQ-88470', 'fault' => ''],
+            ['order' => $o19, 'pl' => 1, 'd' => '03 Oct', 'sh' => 'A', 'm' => 'M-19', 'op' => 'নাজমুল হাসান', 'kg' => 155, 'rolls' => 6, 'lot' => 'SQ-88470', 'fault' => ''],
             ['order' => $o16, 'pl' => 0, 'd' => '03 Oct', 'sh' => 'A', 'm' => 'M-16', 'op' => 'মাসুদ', 'kg' => 158, 'rolls' => 7, 'lot' => 'NS-3092', 'fault' => 'Oil spot (1 রোল)'],
+            ['order' => $o16, 'pl' => 0, 'd' => '03 Oct', 'sh' => 'A', 'm' => 'M-17', 'op' => 'আনোয়ার হোসেন', 'kg' => 164, 'rolls' => 7, 'lot' => 'NS-3092', 'fault' => ''],
+            ['order' => $o16, 'pl' => 0, 'd' => '03 Oct', 'sh' => 'A', 'm' => 'M-18', 'op' => 'রুবেল মিয়া', 'kg' => 152, 'rolls' => 6, 'lot' => 'NS-3092', 'fault' => ''],
+            ['order' => $o20, 'pl' => 0, 'd' => '03 Oct', 'sh' => 'A', 'm' => 'M-20', 'op' => 'জসিম', 'kg' => 160, 'rolls' => 7, 'lot' => 'SQD-2210', 'fault' => ''],
+            ['order' => $o15, 'pl' => 0, 'd' => '03 Oct', 'sh' => 'A', 'm' => 'M-21', 'op' => 'সোহেল', 'kg' => 172, 'rolls' => 7, 'lot' => 'SQ-88390', 'fault' => ''],
+            ['order' => $o15, 'pl' => 0, 'd' => '03 Oct', 'sh' => 'A', 'm' => 'M-22', 'op' => 'আলমগীর', 'kg' => 165, 'rolls' => 7, 'lot' => 'SQ-88390', 'fault' => ''],
+            ['order' => $o15, 'pl' => 0, 'd' => '03 Oct', 'sh' => 'A', 'm' => 'M-23', 'op' => 'রিপন', 'kg' => 180, 'rolls' => 8, 'lot' => 'SQ-88390', 'fault' => ''],
+            ['order' => $o15, 'pl' => 0, 'd' => '03 Oct', 'sh' => 'A', 'm' => 'M-24', 'op' => 'হাবিব', 'kg' => 175, 'rolls' => 7, 'lot' => 'SQ-88390', 'fault' => ''],
         ];
 
         $defaultUser = User::first();
@@ -697,34 +713,143 @@ class DatabaseSeeder extends Seeder
         }
 
         // 13. Seed Subcontract Posts & Quotations (shilposetu-old domain)
-        $post = SubcontractPost::create([
-            'factory_id' => $f1->id,
-            'post_type' => 'work_offer',
-            'title' => 'Single Jersey 160 GSM 5,000 kg জরুরি নিটিং সাবকন্ট্রাক্ট',
-            'fabric_type' => 'Single Jersey',
-            'gsm' => '160 GSM',
-            'dia' => 30,
-            'gauge' => 24,
-            'quantity_kg' => 5000,
-            'target_rate_tk' => 14.0,
-            'yarn_count' => '30/1 Combed Cotton',
-            'location' => 'গাজীপুর',
-            'delivery_deadline' => '2026-10-20',
-            'description' => 'সুতা রেডি আছে, ২–৩টা ৩০×২৪জি মেশিন খালি থাকলে যোগাযোগ করুন।',
-            'status' => 'open',
-        ]);
+        $postsData = [
+            [
+                'title' => 'Single Jersey 160 GSM 5,000 kg জরুরি নিটিং সাবকন্ট্রাক্ট',
+                'buyer' => 'ABC Fashion Ltd',
+                'fabric_type' => 'Single Jersey',
+                'gsm' => '160 GSM',
+                'dia' => 30,
+                'gauge' => 24,
+                'quantity_kg' => 5000,
+                'target_rate_tk' => 14.5,
+                'yarn_count' => '30/1 Combed Cotton',
+                'location' => 'গাজীপুর',
+                'delivery_deadline' => '2026-10-20',
+                'description' => 'সুতা রেডি আছে, ২–৩টা ৩০×২৪জি মেশিন খালি থাকলে যোগাযোগ করুন।',
+            ],
+            [
+                'title' => '1x1 Lycra Rib 220 GSM 3,500 kg সাবকন্ট্রাক্ট',
+                'buyer' => 'Next Sourcing',
+                'fabric_type' => '1x1 Rib Lycra',
+                'gsm' => '220 GSM',
+                'dia' => 34,
+                'gauge' => 18,
+                'quantity_kg' => 3500,
+                'target_rate_tk' => 19.0,
+                'yarn_count' => '26/1 CVC + 20D Spandex',
+                'location' => 'আশুলিয়া',
+                'delivery_deadline' => '2026-10-25',
+                'description' => 'নেক রিব ও কাফের জরুরি নিটিং লট। ভালো ফিনিশিং আবশ্যক।',
+            ],
+            [
+                'title' => '3-Thread Fleece 280 GSM 8,000 kg উইন্টার নিটিং',
+                'buyer' => 'M&S Vendor Hub',
+                'fabric_type' => 'Fleece (3-Thread)',
+                'gsm' => '280 GSM',
+                'dia' => 32,
+                'gauge' => 20,
+                'quantity_kg' => 8000,
+                'target_rate_tk' => 17.0,
+                'yarn_count' => '30/1 + 20/1 + 150D Poly',
+                'location' => 'কোনাবাড়ি, গাজীপুর',
+                'delivery_deadline' => '2026-10-28',
+                'description' => 'হালকা উইন্টার ফ্লিচ বোনার জন্য ২টি মেশিন বরাদ্দ প্রয়োজন।',
+            ],
+            [
+                'title' => 'Pique (Lacoste) 200 GSM 4,000 kg পোলো নিটিং',
+                'buyer' => 'Zara Sourcing BD',
+                'fabric_type' => 'Pique / Lacoste',
+                'gsm' => '200 GSM',
+                'dia' => 30,
+                'gauge' => 24,
+                'quantity_kg' => 4000,
+                'target_rate_tk' => 15.5,
+                'yarn_count' => '28/1 Combed Cotton',
+                'location' => 'ফতুল্লা, নারায়ণগঞ্জ',
+                'delivery_deadline' => '2026-10-22',
+                'description' => 'হোয়াইট RFD কোয়ালিটি পোলো ফ্যাব্রিক নিটিং।',
+            ],
+        ];
 
-        Quotation::create([
-            'subcontract_post_id' => $post->id,
-            'factory_id' => $f1->id,
-            'bidder_name' => 'রহমান নিটিং ইন্ডাস্ট্রিজ',
-            'bidder_phone' => '01711000001',
-            'offered_rate_tk' => 14.0,
-            'estimated_days' => 9,
-            'allocated_machines' => 3,
-            'note' => '৩টা Pailung 30"×24G মেশিন ৫ অক্টোবর থেকে খালি আছে।',
-            'status' => 'accepted',
-        ]);
+        $firstPost = null;
+        foreach ($postsData as $idx => $pd) {
+            $post = SubcontractPost::create([
+                'factory_id' => $f1->id,
+                'post_type' => 'work_offer',
+                'title' => $pd['title'],
+                'fabric_type' => $pd['fabric_type'],
+                'gsm' => $pd['gsm'],
+                'dia' => $pd['dia'],
+                'gauge' => $pd['gauge'],
+                'quantity_kg' => $pd['quantity_kg'],
+                'target_rate_tk' => $pd['target_rate_tk'],
+                'yarn_count' => $pd['yarn_count'],
+                'location' => $pd['location'],
+                'delivery_deadline' => $pd['delivery_deadline'],
+                'description' => $pd['description'],
+                'status' => 'open',
+            ]);
+            if ($idx === 0) {
+                $firstPost = $post;
+            }
+        }
+
+        if ($firstPost) {
+            Quotation::create([
+                'subcontract_post_id' => $firstPost->id,
+                'factory_id' => $f1->id,
+                'bidder_name' => 'রহমান নিটিং ইন্ডাস্ট্রিজ',
+                'bidder_phone' => '01711000001',
+                'offered_rate_tk' => 14.5,
+                'estimated_days' => 9,
+                'allocated_machines' => 3,
+                'note' => '৩টা Pailung 30"×24G মেশিন ৫ অক্টোবর থেকে খালি আছে।',
+                'status' => 'accepted',
+            ]);
+        }
+
+        // 14. Seed Factory Expenses (6 vouchers matching KnitKhata ৳ 18,450)
+        $expenses = [
+            ['cat' => 'electricity', 'title' => 'ডেসকো বিদ্যুৎ বিল (সেপ্টেম্বর সাবস্টেশন বিল)', 'amt' => 12000.00, 'method' => 'bank', 'ref' => 'DESCO-0926-88', 'by' => 'হিসাবরক্ষক তানভীর'],
+            ['cat' => 'needle_oil', 'title' => 'Groz-Beckert নিডল ক্রয় (জরুরি ৬০ পিস)', 'amt' => 2520.00, 'method' => 'cash', 'ref' => 'VOU-1031', 'by' => 'শফিকুল ইসলাম'],
+            ['cat' => 'needle_oil', 'title' => 'নিটিং লুব্রিক্যান্ট অয়েল ১ ক্যান (২০ লিটার)', 'amt' => 1800.00, 'method' => 'cash', 'ref' => 'VOU-1032', 'by' => 'মো. হানিফ'],
+            ['cat' => 'snacks', 'title' => 'ফ্লোর টিফিন ও নাইট শিফট চা-নাশতা', 'amt' => 850.00, 'method' => 'cash', 'ref' => 'VOU-1033', 'by' => 'মাহমুদুল হাসান'],
+            ['cat' => 'transport', 'title' => 'ডেলিভারি ভ্যান ডিজেল ও টোল খরচ (DC-0872)', 'amt' => 900.00, 'method' => 'cash', 'ref' => 'VOU-1034', 'by' => 'মো. জাকির'],
+            ['cat' => 'maintenance', 'title' => 'M-10 মেকানিক মেরামত টুলস ও গ্রিজ', 'amt' => 380.00, 'method' => 'cash', 'ref' => 'VOU-1035', 'by' => 'টেকনিশিয়ান জীবন'],
+        ];
+
+        foreach ($expenses as $ex) {
+            FactoryExpense::create([
+                'factory_id' => $f1->id,
+                'category' => $ex['cat'],
+                'title' => $ex['title'],
+                'amount_tk' => $ex['amt'],
+                'payment_method' => $ex['method'],
+                'reference_no' => $ex['ref'],
+                'expense_date' => now()->toDateString(),
+                'created_by' => $ex['by'],
+                'notes' => 'ফ্যাক্টরি দৈনিক রেজিস্টার ভাউচার',
+            ]);
+        }
+
+        // 15. Seed Factory Attendance for shift A
+        $attendanceNames = ['জসিম', 'সোহেল', 'আলমগীর', 'রিপন', 'হাবিব', 'মাসুদ', 'কামাল', 'আবদুল মান্নান', 'নাজমুল হাসান', 'আনোয়ার হোসেন', 'রুবেল মিয়া'];
+        foreach ($attendanceNames as $wName) {
+            FactoryAttendance::create([
+                'factory_id' => $f1->id,
+                'worker_name' => $wName,
+                'role_type' => 'operator',
+                'shift' => 'A',
+                'status' => 'present',
+                'attendance_date' => now()->toDateString(),
+                'in_time' => '06:00',
+                'out_time' => '14:00',
+                'overtime_hours' => 0.0,
+                'daily_wage_tk' => 700.00,
+                'note' => 'শিফট A নিয়মিত উপস্থিতি',
+            ]);
+        }
     }
 }
 
