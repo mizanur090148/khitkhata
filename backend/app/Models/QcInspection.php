@@ -30,5 +30,10 @@ class QcInspection extends Model
             'vendor_sign_json' => 'array',
         ];
     }
+
+    public function order()
+    {
+        return $this->belongsTo(SubcontractOrder::class, 'order_no', 'order_no');
+    }
 }
 

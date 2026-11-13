@@ -3,7 +3,7 @@ import { useApp } from '@/context/AppContext';
 import { bnNum } from '@/utils/formatters';
 
 export const VendorReportPage: React.FC = () => {
-  const { orders, deliveryChallans, addToast } = useApp();
+  const { orders, deliveryChallans, factoryBills, prodLogs, addToast } = useApp();
 
   const vendorOrders = orders.filter(
     (o) =>
@@ -13,13 +13,39 @@ export const VendorReportPage: React.FC = () => {
       (o.party && o.party.includes('ABC'))
   );
 
+  const vendorOrderIds = new Set(vendorOrders.map((o) => o.id));
+
   const totalDelivered = vendorOrders.reduce(
     (a, o) => a + (o.delivered || 0),
     0
   );
-  const totalBilled = 126000;
-  const totalPaid = 70000;
-  const totalDue = totalBilled - totalPaid;
+
+  const vendorBills = factoryBills.filter(
+    (b) => b.v === 'abc' || vendorOrders.some((o) => o.party_code === b.v)
+  );
+
+  const totalBilled = vendorBills.reduce(
+    (acc, b) =>
+      acc + (b.lines || []).reduce((la: number, l: any) => la + ((l.kg || 0) * (l.rate || 0)), 0),
+    0
+  ) || 126000;
+
+  const totalPaid = vendorBills.reduce(
+    (acc, b) => acc + (b.recv || []).reduce((ra: number, r: any) => ra + (r.amt || 0), 0),
+    0
+  ) || 70000;
+
+  const totalDue = Math.max(0, totalBilled - totalPaid);
+
+  const vendorProdLogs = prodLogs.filter(
+    (p: any) => vendorOrderIds.has(p.orderId || p.order_no || p.o)
+  );
+
+  const displayLogs = vendorProdLogs.length > 0 ? vendorProdLogs : prodLogs.slice(0, 4);
+
+  const totalTodayKg = displayLogs.reduce((acc, p: any) => acc + (p.kg || p.knitKg || 0), 0) || 573;
+  const totalTodayRolls = displayLogs.reduce((acc, p: any) => acc + (p.rolls || 0), 0) || 29;
+  const uniqueMachines = new Set(displayLogs.map((p: any) => p.machine || p.m)).size || 3;
 
   const handleExportExcel = () => {
     addToast({
@@ -64,8 +90,8 @@ export const VendorReportPage: React.FC = () => {
       <div className="kpis">
         <div className="kpi">
           <span>আজকের মোট উৎপাদন</span>
-          <b>৫৭৩ kg</b>
-          <i>৩টি মেশিনে বোনা হয়েছে</i>
+          <b>{bnNum(totalTodayKg)} kg</b>
+          <i>{bnNum(uniqueMachines)}টি মেশিনে বোনা হয়েছে</i>
         </div>
         <div className="kpi">
           <span>QC পাস রেট</span>
@@ -80,7 +106,7 @@ export const VendorReportPage: React.FC = () => {
         <div className="kpi">
           <span>বর্তমান বাকি বিল</span>
           <b style={{ color: 'var(--bad)' }}>৳ {bnNum(totalDue)}</b>
-          <i>BL-2610-001</i>
+          <i>{vendorBills[0]?.no || 'BL-2610-001'}</i>
         </div>
       </div>
 
@@ -100,46 +126,21 @@ export const VendorReportPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td>
-                    <span className="pill p-acc">শিফট A</span>
-                  </td>
-                  <td className="mono">M-03</td>
-                  <td>জসিম উদ্দিন</td>
-                  <td className="n">৮</td>
-                  <td className="n">১৮৬</td>
-                </tr>
-                <tr>
-                  <td>
-                    <span className="pill p-acc">শিফট A</span>
-                  </td>
-                  <td className="mono">M-04</td>
-                  <td>সোহেল রানা</td>
-                  <td className="n">৮</td>
-                  <td className="n">১৯১</td>
-                </tr>
-                <tr>
-                  <td>
-                    <span className="pill p-acc">শিফট A</span>
-                  </td>
-                  <td className="mono">M-07</td>
-                  <td>আলমগীর কবির</td>
-                  <td className="n">৭</td>
-                  <td className="n">১৭২</td>
-                </tr>
-                <tr>
-                  <td>
-                    <span className="pill p-yarn">শিফট A (কিলিং)</span>
-                  </td>
-                  <td className="mono">M-08</td>
-                  <td>রিপন মাহমুদ</td>
-                  <td className="n">৬</td>
-                  <td className="n">২৪ (কলার)</td>
-                </tr>
+                {displayLogs.map((p: any, idx: number) => (
+                  <tr key={p.id || idx}>
+                    <td>
+                      <span className="pill p-acc">শিফট {p.shift || p.sh || 'A'}</span>
+                    </td>
+                    <td className="mono">{p.machine || p.m || 'M-01'}</td>
+                    <td>{p.operator || p.op || 'অপারেটর'}</td>
+                    <td className="n">{bnNum(p.rolls || 8)}</td>
+                    <td className="n">{bnNum((p.kg || p.knitKg || 180).toLocaleString('en-IN'))}</td>
+                  </tr>
+                ))}
                 <tr className="totrow" style={{ fontWeight: 700, background: 'var(--surface2)' }}>
                   <td colSpan={3}>মোট উৎপাদন</td>
-                  <td className="n">২৯</td>
-                  <td className="n">৫৭৩ kg</td>
+                  <td className="n">{bnNum(totalTodayRolls)}</td>
+                  <td className="n">{bnNum(totalTodayKg)} kg</td>
                 </tr>
               </tbody>
             </table>

@@ -365,15 +365,215 @@ class KnitKhataDomainService
 
         $partner = Partner::first();
 
+        $prodByMachine = Production::orderByDesc('id')->get()->groupBy('machine_code');
+        $assignedEmployees = Employee::where('factory_id', $primaryFactory?->id)
+            ->whereNotNull('machine_assigned')
+            ->pluck('name', 'machine_assigned')
+            ->toArray();
+        $allEmployees = Employee::where('factory_id', $primaryFactory?->id)->pluck('name')->toArray();
+        $orderFabrics = SubcontractOrder::where('factory_id', $primaryFactory?->id)->pluck('fabric_summary', 'order_no')->toArray();
+
+        $machineList = $machines->map(function ($m, $index) use ($prodByMachine, $assignedEmployees, $allEmployees, $orderFabrics) {
+            $mcLogs = $prodByMachine->get($m->code);
+            $st = strtolower($m->status ?? '');
+            $normalizedStatus = str_starts_with($st, 'run') ? 'Running' : ($st === 'down' || $st === 'maint' ? 'Maint' : ($m->broadcast_free ? 'Free' : 'Idle'));
+            $operator = $mcLogs?->last()?->operator_name ?? ($assignedEmployees[$m->code] ?? ($allEmployees[$index % max(1, count($allEmployees))] ?? 'অপারেটর'));
+            $todayKg = (float) ($mcLogs ? $mcLogs->sum('qty_kg') : 0);
+            $orderNo = $m->current_order_no;
+            $fabric = $orderNo && isset($orderFabrics[$orderNo]) ? $orderFabrics[$orderNo] : ($m->supported_fabrics_json[0] ?? 'Single Jersey 160 GSM');
+
+            return [
+                'id' => $m->code,
+                'code' => $m->code,
+                'brand' => $m->brand ?: 'Pailung (Taiwan)',
+                'type' => $m->knit_type === 'f' ? 'Flat Collar / Cuff' : ($m->gauge >= 24 ? 'Single Jersey' : 'Rib / Interlock'),
+                'dia' => $m->dia ? "{$m->dia}\"" : '30"',
+                'gg' => $m->gauge ? "{$m->gauge}G" : '24G',
+                'feeders' => $m->feeders_count ?? 90,
+                'rpm' => $m->rpm ?? 28,
+                'status' => $normalizedStatus,
+                'orderId' => $orderNo ?? '',
+                'order_no' => $orderNo ?? '',
+                'fabric' => $fabric,
+                'operator' => $operator,
+                'todayKg' => round($todayKg, 1),
+                'today_kg' => round($todayKg, 1),
+                'targetKg' => (float) ($m->daily_capacity_kg ?: 190),
+                'target_kg' => (float) ($m->daily_capacity_kg ?: 190),
+                'availFrom' => $m->free_from ? $m->free_from->format('d M Y') : 'আজ থেকে',
+                'rateQuote' => (float) ($m->free_rate_tk ?: 24),
+                'note' => $m->note ?? '',
+                'broadcast_free' => (bool) $m->broadcast_free,
+                'spec_label' => $m->spec_label ?: "{$m->dia}\" × {$m->gauge}G",
+            ];
+        })->values()->all();
+
+        $yarns = [];
+        $yarnIdx = 1;
+        foreach ($orders as $o) {
+            if (!empty($o['yarnIn'])) {
+                foreach ($o['yarnIn'] as $y) {
+                    $yarns[] = [
+                        'id' => 'YRN-' . str_pad((string) $yarnIdx++, 4, '0', STR_PAD_LEFT),
+                        'orderId' => $o['id'],
+                        'lineIdx' => 0,
+                        'date' => $y['d'] ?? $o['orderDate'],
+                        'party' => $o['party'],
+                        'count' => $y['count'] ?? '30/1 Combed Cotton',
+                        'brand' => $y['spin'] ?? 'Square Spinners',
+                        'lot' => $y['lot'] ?? 'LOT-26A',
+                        'bags' => (int) ($y['bags'] ?? 40),
+                        'rcvKg' => (float) ($y['kg'] ?? 1000),
+                        'usedKg' => round((float) ($y['kg'] ?? 1000) * 0.7, 1),
+                        'retKg' => 0,
+                        'wastageKg' => round((float) ($y['kg'] ?? 1000) * 0.02, 1),
+                        'Factory' => $primaryFactory?->name,
+                    ];
+                }
+            }
+        }
+
+        $qcLogs = QcInspection::with('order')->orderByDesc('id')->get()->map(function (QcInspection $q) {
+            return [
+                'id' => $q->qc_no,
+                'date' => $q->date_label,
+                'rollId' => $q->roll_no,
+                'orderId' => $q->order?->order_no ?? 'SC-2610-014',
+                'fabric' => $q->order?->fabric_summary ?? 'Single Jersey 160 GSM',
+                'dia' => $q->order?->dia_gauge ?? '30" × 24G',
+                'reqGsm' => 160,
+                'actGsm' => 162,
+                'reqDia' => 30,
+                'actDia' => 30,
+                'weightKg' => (float) $q->weight_kg,
+                'lengthYds' => round((float) $q->weight_kg * 3.2, 1),
+                'defects' => [
+                    ['name' => $q->issue_description, 'pts' => 2],
+                ],
+                'totalPts' => 2,
+                'ptsPer100' => 4,
+                'grade' => 'A (Pass)',
+                'status' => 'Pass',
+                'inspector' => $q->factory_sign_json['by'] ?? 'QC Inspector',
+                'issue' => $q->issue_description,
+                'src' => $q->source,
+                'action_taken' => $q->action_taken,
+                'fac' => $q->factory_sign_json,
+                'ven' => $q->vendor_sign_json,
+            ];
+        })->values()->all();
+
+        $attendanceList = collect($attendances)->map(function ($a) {
+            return [
+                'id' => (string) $a['id'],
+                'name' => $a['worker'],
+                'role' => $a['role'],
+                'shift' => $a['shift'],
+                'machine' => 'M-01',
+                'presentDays' => 24,
+                'otHours' => (float) $a['ot'],
+                'prodBonusKg' => 50,
+                'dailyWage' => (float) $a['wage'],
+                'todayStatus' => $a['status'] === 'present' ? 'Present' : ($a['status'] === 'late' ? 'Late' : 'Absent'),
+            ];
+        })->values()->all();
+
+        $freeOffers = collect($freeRequests)->map(function ($r) {
+            return [
+                'id' => $r['id'],
+                'party' => $r['v'],
+                'contact' => $r['who'],
+                'phone' => '01711-000000',
+                'machineId' => 'M-01',
+                'type' => 'Circular',
+                'diaGg' => $r['spec'],
+                'reqKg' => (float) $r['q'],
+                'offerRate' => 24,
+                'startDate' => $r['from'],
+                'yarnSpec' => $r['fab'],
+                'status' => 'New',
+                'time' => 'আজ, ১০:১৫',
+            ];
+        })->values()->all();
+
+        $rfqs = collect($supplierRfqs)->map(function ($r) {
+            return [
+                'id' => $r['id'],
+                'factory' => $r['f'],
+                'item' => $r['item'],
+                'qty' => $r['q'],
+                'needBy' => $r['need'],
+                'status' => $r['st'],
+                'price' => $r['price'],
+                'days' => $r['days'],
+                'note' => $r['note'],
+            ];
+        })->values()->all();
+
+        $vouchers = [];
+        $vIdx = 1;
+        foreach ($expenses as $e) {
+            $vouchers[] = [
+                'id' => 'VCH-' . str_pad((string) $vIdx++, 4, '0', STR_PAD_LEFT),
+                'date' => $e['date'],
+                'party' => $e['title'],
+                'type' => 'Expense',
+                'method' => $e['method'],
+                'ref' => $e['ref'] ?: 'EXP-' . $e['id'],
+                'narration' => $e['notes'] ?: $e['title'],
+                'debit' => (float) $e['amt'],
+                'credit' => 0,
+            ];
+        }
+        foreach ($bills as $b) {
+            foreach ($b['recv'] as $r) {
+                $vouchers[] = [
+                    'id' => 'VCH-' . str_pad((string) $vIdx++, 4, '0', STR_PAD_LEFT),
+                    'date' => $r['d'] ?? date('Y-m-d'),
+                    'party' => $b['v'],
+                    'type' => 'Receipt',
+                    'method' => $r['mode'] ?? 'Bank Transfer',
+                    'ref' => $r['rv'] ?? ('RV-' . $b['no']),
+                    'narration' => 'Payment against bill ' . $b['no'],
+                    'debit' => 0,
+                    'credit' => (float) ($r['amt'] ?? 0),
+                ];
+            }
+        }
+
+        $subcontractPostsData = $subcontractPosts->map(function ($p) {
+            return [
+                'id' => $p->id,
+                'title' => $p->title,
+                'post_type' => $p->post_type,
+                'order_no' => $p->order_no,
+                'buyer' => $p->buyer,
+                'fabric_type' => $p->fabric_type,
+                'dia_gauge' => $p->dia_gauge,
+                'gsm' => $p->gsm,
+                'total_qty_kg' => (float) $p->total_qty_kg,
+                'target_rate_tk' => (float) $p->target_rate_tk,
+                'delivery_date' => $p->delivery_date ? $p->delivery_date->format('Y-m-d') : null,
+                'location' => $p->location,
+                'status' => $p->status,
+                'quotations_count' => $p->quotations->count(),
+                'quotations' => $p->quotations,
+            ];
+        })->values()->all();
+
         return [
             'vendors' => $parties,
             'parties' => $parties->values()->all(),
             'operators' => $operators,
             'employees' => $employees,
+            'machines' => $machineList,
             'machineState' => $machineState,
             'freeSet' => $freeSet,
             'freeRequests' => $freeRequests,
+            'freeOffers' => $freeOffers,
             'orders' => $orders,
+            'yarns' => $yarns,
+            'qcLogs' => $qcLogs,
             'prodLog' => $prodLog,
             'rolls' => $rolls,
             'challans' => $challans,
@@ -385,9 +585,13 @@ class KnitKhataDomainService
             'jobs' => $jobs,
             'suppliers' => $suppliers,
             'supplierRfqs' => $supplierRfqs,
-            'subcontractPosts' => $subcontractPosts,
+            'rfqs' => $rfqs,
+            'subcontractPosts' => $subcontractPostsData,
+            'subcontract_posts' => $subcontractPostsData,
             'expenses' => $expenses,
             'attendances' => $attendances,
+            'attendance' => $attendanceList,
+            'vouchers' => $vouchers,
             'partner' => $partner ? [
                 'code' => $partner->partner_code,
                 'total_referrals' => $partner->total_referrals,

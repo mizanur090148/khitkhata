@@ -22,8 +22,45 @@ const INITIAL_IDLE_MACHINES: FreeMachineRow[] = [
 
 export const FactoryFreeMachinesPage: React.FC = () => {
   const navigate = useNavigate();
-  const { addToast } = useApp();
-  const [machines, setMachines] = useState<FreeMachineRow[]>(INITIAL_IDLE_MACHINES);
+  const { addToast, machines: allMachines, freeOffers } = useApp();
+  const [machines, setMachines] = useState<FreeMachineRow[]>(() => {
+    if (allMachines && allMachines.length > 0) {
+      const freeList = allMachines.filter(
+        (m: any) => m.status === 'Free' || m.status === 'Idle' || m.broadcast_free
+      );
+      if (freeList.length > 0) {
+        return freeList.map((m: any) => ({
+          code: m.code || m.id,
+          brand: m.brand || 'Pailung (Taiwan)',
+          diaGg: m.spec_label || `${m.dia || '30"' } × ${m.gg || '24G'}`,
+          broadcast: Boolean(m.broadcast_free || m.status === 'Free'),
+          freeFrom: m.availFrom || '2026-10-05',
+          capacityKg: Number(m.targetKg || m.target_kg || 450),
+        }));
+      }
+    }
+    return INITIAL_IDLE_MACHINES;
+  });
+
+  React.useEffect(() => {
+    if (allMachines && allMachines.length > 0) {
+      const freeList = allMachines.filter(
+        (m: any) => m.status === 'Free' || m.status === 'Idle' || m.broadcast_free
+      );
+      if (freeList.length > 0) {
+        setMachines(
+          freeList.map((m: any) => ({
+            code: m.code || m.id,
+            brand: m.brand || 'Pailung (Taiwan)',
+            diaGg: m.spec_label || `${m.dia || '30"' } × ${m.gg || '24G'}`,
+            broadcast: Boolean(m.broadcast_free || m.status === 'Free'),
+            freeFrom: m.availFrom || '2026-10-05',
+            capacityKg: Number(m.targetKg || m.target_kg || 450),
+          }))
+        );
+      }
+    }
+  }, [allMachines]);
 
   const toggleBroadcast = (code: string) => {
     setMachines((prev) =>
@@ -125,80 +162,58 @@ export const FactoryFreeMachinesPage: React.FC = () => {
         <div className="card">
           <h3>ভেন্ডরদের সাবকন্ট্রাক্ট রিকোয়েস্ট</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
-            <div
-              style={{
-                padding: 14,
-                borderRadius: 8,
-                border: '1px solid var(--line)',
-                background: 'var(--surface2)',
-              }}
-            >
-              <div className="row" style={{ justifyContent: 'space-between' }}>
-                <b>ABC Knit Composite</b>
-                <span className="pill p-ok">নতুন চাহিদা</span>
-              </div>
-              <div className="small muted" style={{ marginTop: 4 }}>
-                যোগাযোগ: মো. কামরুল হাসান (সিনিয়র মার্চেন্ডাইজার)
-              </div>
-              <p style={{ margin: '8px 0', fontSize: '.9rem' }}>
-                ফেব্রিক: <b>Single Jersey 160 GSM</b> · পরিমাণ: <b>৪,৫০০ kg</b>
-                <br />
-                প্রয়োজন: <b>৩টি মেশিন ৩০&quot; × ২৪G</b> · শুরুর তারিখ: <b>০৫ অক্টোবর</b>
-              </p>
-              <div className="row" style={{ gap: 8, marginTop: 10 }}>
-                <button
-                  type="button"
-                  className="btn pri sm"
-                  onClick={() => navigate('/dashboard/fmsg')}
+            {freeOffers && freeOffers.length > 0 ? (
+              freeOffers.map((req: any, idx: number) => (
+                <div
+                  key={req.id || idx}
+                  style={{
+                    padding: 14,
+                    borderRadius: 8,
+                    border: '1px solid var(--line)',
+                    background: 'var(--surface2)',
+                  }}
                 >
-                  মেসেজে কথা বলুন
-                </button>
-                <button
-                  type="button"
-                  className="btn sm"
-                  onClick={() =>
-                    addToast({
-                      type: 'success',
-                      title: 'কোটেশন জমা হয়েছে',
-                      message: 'ABC Knit Composite কে প্রতি কেজি ৩০ টাকা রেটে অফার পাঠানো হয়েছে।',
-                    })
-                  }
-                >
-                  কোটেশন পাঠান
-                </button>
-              </div>
-            </div>
-
-            <div
-              style={{
-                padding: 14,
-                borderRadius: 8,
-                border: '1px solid var(--line)',
-                background: 'var(--surface2)',
-              }}
-            >
-              <div className="row" style={{ justifyContent: 'space-between' }}>
-                <b>XYZ Fashion Ltd</b>
-                <span className="pill p-acc">বিবেচনাধীন</span>
-              </div>
-              <div className="small muted" style={{ marginTop: 4 }}>
-                যোগাযোগ: শারমিন আক্তার
-              </div>
-              <p style={{ margin: '8px 0', fontSize: '.9rem' }}>
-                ফেব্রিক: <b>1x1 Rib 220 GSM</b> · পরিমাণ: <b>৩,০০০ kg</b>
-                <br />
-                প্রয়োজন: <b>২টি মেশিন ৩২&quot; × ১৮G</b> · শুরুর তারিখ: <b>০৮ অক্টোবর</b>
-              </p>
-              <div className="row" style={{ gap: 8, marginTop: 10 }}>
-                <button
-                  type="button"
-                  className="btn pri sm"
-                  onClick={() => navigate('/dashboard/fmsg')}
-                >
-                  মেসেজে কথা বলুন
-                </button>
-              </div>
-            </div>
+                  <div className="row" style={{ justifyContent: 'space-between' }}>
+                    <b>{req.party === 'abc' ? 'ABC Knit Composite' : (req.party === 'xyz' ? 'XYZ Fashion Ltd' : req.party || 'ভেন্ডর')}</b>
+                    <span className={`pill ${req.status === 'New' ? 'p-ok' : 'p-acc'}`}>
+                      {req.status === 'New' ? 'নতুন চাহিদা' : 'বিবেচনাধীন'}
+                    </span>
+                  </div>
+                  <div className="small muted" style={{ marginTop: 4 }}>
+                    যোগাযোগ: {req.contact || 'দায়িত্বপ্রাপ্ত মার্চেন্ডাইজার'} ({req.phone || '01711000000'})
+                  </div>
+                  <p style={{ margin: '8px 0', fontSize: '.9rem' }}>
+                    ফেব্রিক: <b>{req.yarnSpec || req.fab || 'Single Jersey'}</b> · পরিমাণ: <b>{bnNum((req.reqKg || req.q || 3000).toLocaleString('en-IN'))} kg</b>
+                    <br />
+                    প্রয়োজন: <b>{bnNum(req.n || 2)}টি মেশিন ({req.diaGg || req.spec || '30" × 24G'})</b> · শুরুর তারিখ: <b>{req.startDate || req.from || 'আসন্ন'}</b>
+                  </p>
+                  <div className="row" style={{ gap: 8, marginTop: 10 }}>
+                    <button
+                      type="button"
+                      className="btn pri sm"
+                      onClick={() => navigate('/dashboard/fmsg')}
+                    >
+                      মেসেজে কথা বলুন
+                    </button>
+                    <button
+                      type="button"
+                      className="btn sm"
+                      onClick={() =>
+                        addToast({
+                          type: 'success',
+                          title: 'কোটেশন জমা হয়েছে',
+                          message: `${req.party || 'ভেন্ডর'}-কে অফার পাঠানো হয়েছে।`,
+                        })
+                      }
+                    >
+                      কোটেশন পাঠান
+                    </button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="small muted" style={{ textAlign: 'center', padding: '16px' }}>বর্তমানে কোনো ভেন্ডর রিকোয়েস্ট অপেক্ষমাণ নেই।</p>
+            )}
           </div>
         </div>
       </div>

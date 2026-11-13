@@ -41,17 +41,61 @@ export const FactoryOrderDetailPage: React.FC = () => {
   const ratePerKg = primaryLine.rate || o.rateTk || 14;
   const orderYarns = yarns.filter((y) => y.orderId === o.id);
   const orderQc = qcLogs.filter((q) => q.orderId === o.id);
-  const orderLogs = prodLogs.filter((p) => p.orderId === o.id);
+  const orderLogs = prodLogs.filter((p: any) => p.orderId === o.id || p.order_no === o.id || p.o === o.id);
   const dynamicYarnIn = (o.yarnIn || []).reduce((acc: number, y: any) => acc + (y.kg || 0), 0);
   const totalYarnRcv =
     dynamicYarnIn > 0
       ? dynamicYarnIn
       : (o.lines || []).reduce((acc, l) => acc + (l.yarnRcv || 0), 0) ||
         orderYarns.reduce((acc, y) => acc + y.rcvKg, 0) ||
-        12247;
+        knitKg;
   const lossPct = 2;
   const allowedKg = Math.round(totalYarnRcv * (1 - lossPct / 100));
   const yarnBalance = Math.max(0, totalYarnRcv - Math.round(knitKg / (1 - lossPct / 100)));
+
+  const displayYarns =
+    o.yarnIn && o.yarnIn.length > 0
+      ? o.yarnIn.map((y: any, idx: number) => ({
+          count: y.count || primaryLine.yarn || '30/1 Combed',
+          spinner: y.spin || y.spinner || primaryLine.brand || '—',
+          lot: y.lot || `LOT-${idx + 1}`,
+          bags: y.bags || 0,
+          kg: y.kg || 0,
+        }))
+      : orderYarns.length > 0
+      ? orderYarns.map((y) => ({
+          count: y.count,
+          spinner: y.brand || '—',
+          lot: y.lot,
+          bags: y.bags,
+          kg: y.rcvKg,
+        }))
+      : [];
+
+  const displayQc =
+    o.qc && o.qc.length > 0
+      ? o.qc.map((q: any) => ({
+          date: q.d || q.date,
+          roll: q.roll || '—',
+          machine: q.m || q.machine || '—',
+          defect: q.issue || q.defect || '—',
+          kg: q.kg || 0,
+          status: q.fac?.v === 'ok' ? 'ok' : q.fac?.v === 'bad' ? 'bad' : 'warn',
+          res: q.act || q.action_taken || 'QC রেকর্ড',
+        }))
+      : orderQc.length > 0
+      ? orderQc.map((q) => ({
+          date: q.date,
+          roll: q.rollId,
+          machine: q.dia || '—',
+          defect: q.defects?.[0]?.name || '—',
+          kg: q.weightKg,
+          status: q.status === 'Pass' ? 'ok' : q.status === 'Reject' ? 'bad' : 'warn',
+          res: q.inspector,
+        }))
+      : [];
+
+  const displayLogs = orderLogs;
 
   return (
     <>
@@ -273,33 +317,23 @@ export const FactoryOrderDetailPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {(orderYarns.length > 0
-                  ? orderYarns
-                  : [
-                      {
-                        count: primaryLine.yarn || '30/1 Combed',
-                        spinner: primaryLine.brand || 'Square Yarns',
-                        lot: primaryLine.lot || 'SQ-88412',
-                        bags: 120,
-                        kg: 5443,
-                      },
-                      {
-                        count: primaryLine.yarn || '30/1 Combed',
-                        spinner: primaryLine.brand || 'Square Yarns',
-                        lot: 'SQ-88419',
-                        bags: 150,
-                        kg: 6804,
-                      },
-                    ]
-                ).map((y: any, i: number) => (
-                  <tr key={i}>
-                    <td>{y.count}</td>
-                    <td>{y.spinner || y.brand || 'Square'}</td>
-                    <td className="mono">{y.lot}</td>
-                    <td className="n">{bnNum(y.bags || 120)}</td>
-                    <td className="n">{bnNum((y.kg || y.rcvKg || 5443).toLocaleString('en-IN'))}</td>
+                {displayYarns.length > 0 ? (
+                  displayYarns.map((y: any, i: number) => (
+                    <tr key={i}>
+                      <td>{y.count}</td>
+                      <td>{y.spinner || 'Square'}</td>
+                      <td className="mono">{y.lot}</td>
+                      <td className="n">{bnNum(y.bags || 0)}</td>
+                      <td className="n">{bnNum((y.kg || 0).toLocaleString('en-IN'))}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} style={{ textAlign: 'center', padding: '16px', color: 'var(--muted)' }}>
+                      এই অর্ডারে এখনো কোনো সুতা ইনওয়ার্ড এন্ট্রি করা হয়নি।
+                    </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
@@ -334,63 +368,40 @@ export const FactoryOrderDetailPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {(orderQc.length > 0
-                  ? orderQc
-                  : [
-                      {
-                        date: '০২ অক্টো',
-                        roll: 'M-07/003',
-                        machine: 'M-07',
-                        defect: 'Lycra/hole — needle mark',
-                        kg: 22,
-                        status: 'bad',
-                        res: 'বাতিল, রিনিট হবে',
-                      },
-                      {
-                        date: '০১ অক্টো',
-                        roll: 'M-04/005',
-                        machine: 'M-04',
-                        defect: 'Barre (লট মিক্স সন্দেহ)',
-                        kg: 24,
-                        status: 'warn',
-                        res: 'ভেন্ডরকে জানানো হয়েছে',
-                      },
-                      {
-                        date: '৩০ সেপ্টে',
-                        roll: 'M-01/001 – 031',
-                        machine: 'M-01',
-                        defect: '—',
-                        kg: 640,
-                        status: 'ok',
-                        res: 'QC পাস',
-                      },
-                    ]
-                ).map((q: any, i: number) => (
-                  <tr key={i}>
-                    <td>{q.date || q.d}</td>
-                    <td className="mono">{q.roll}</td>
-                    <td className="mono">{q.machine || q.m}</td>
-                    <td>{q.defect || q.issue || q.res}</td>
-                    <td className="n">{bnNum(q.kg)}</td>
-                    <td>
-                      <span
-                        className={`pill ${
-                          q.status === 'bad' || q.s === 'bad'
-                            ? 'p-warn'
-                            : q.status === 'ok' || q.s === 'ok'
-                            ? 'p-ok'
-                            : 'p-yarn'
-                        }`}
-                      >
-                        {q.status === 'ok' || q.s === 'ok'
-                          ? 'পাস'
-                          : q.status === 'bad' || q.s === 'bad'
-                          ? 'বাতিল'
-                          : 'তদন্তাধীন'}
-                      </span>
+                {displayQc.length > 0 ? (
+                  displayQc.map((q: any, i: number) => (
+                    <tr key={i}>
+                      <td>{q.date}</td>
+                      <td className="mono">{q.roll}</td>
+                      <td className="mono">{q.machine}</td>
+                      <td>{q.defect}</td>
+                      <td className="n">{bnNum(q.kg)}</td>
+                      <td>
+                        <span
+                          className={`pill ${
+                            q.status === 'bad'
+                              ? 'p-warn'
+                              : q.status === 'ok'
+                              ? 'p-ok'
+                              : 'p-yarn'
+                          }`}
+                        >
+                          {q.status === 'ok'
+                            ? 'পাস'
+                            : q.status === 'bad'
+                            ? 'বাতিল'
+                            : 'তদন্তাধীন'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={6} style={{ textAlign: 'center', padding: '16px', color: 'var(--muted)' }}>
+                      কোনো ত্রুটি বা QC রিজেকশন পাওয়া যায়নি। সব রোল নিখুঁত।
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
@@ -413,23 +424,24 @@ export const FactoryOrderDetailPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {(orderLogs.length > 0
-                ? orderLogs
-                : [
-                    { date: '০৩ অক্টো', shift: 'A', machine: 'M-03', kg: 380, rolls: 16, operator: 'মোঃ রফিক' },
-                    { date: '০৩ অক্টো', shift: 'A', machine: 'M-07', kg: 410, rolls: 18, operator: 'মোঃ করিম' },
-                    { date: '০২ অক্টো', shift: 'B', machine: 'M-03', kg: 360, rolls: 15, operator: 'মোঃ আলম' },
-                  ]
-              ).map((p: any, i: number) => (
-                <tr key={i}>
-                  <td>{p.date || p.d}</td>
-                  <td>{p.shift || p.sh}</td>
-                  <td className="mono">{p.machine || p.m}</td>
-                  <td className="n">{bnNum((p.kg || p.knitKg || 380).toLocaleString('en-IN'))}</td>
-                  <td className="n">{bnNum(p.rolls || 16)}</td>
-                  <td>{p.operator || p.op || 'মোঃ সোহেল'}</td>
+              {displayLogs.length > 0 ? (
+                displayLogs.map((p: any, i: number) => (
+                  <tr key={i}>
+                    <td>{p.date || p.d}</td>
+                    <td>{p.shift || p.sh}</td>
+                    <td className="mono">{p.machine || p.m}</td>
+                    <td className="n">{bnNum((p.kg || p.knitKg || 0).toLocaleString('en-IN'))}</td>
+                    <td className="n">{bnNum(p.rolls || 0)}</td>
+                    <td>{p.operator || p.op || '—'}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={6} style={{ textAlign: 'center', padding: '16px', color: 'var(--muted)' }}>
+                    এই অর্ডারে কোনো প্রোডাকশন লগ এন্ট্রি পাওয়া যায়নি।
+                  </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>

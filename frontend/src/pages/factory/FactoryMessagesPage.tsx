@@ -94,12 +94,52 @@ const INITIAL_THREADS: ThreadItem[] = [
 
 export const FactoryMessagesPage: React.FC = () => {
   const navigate = useNavigate();
-  const { role, openCallModal, users } = useApp();
+  const { role, openCallModal, users, threads: appThreads, parties } = useApp();
 
   const isVendor = role === 'vendor' || (role as string) === 'ven';
   const meSide = isVendor ? 'ven' : 'fac';
 
-  const [threads, setThreads] = useState<ThreadItem[]>(INITIAL_THREADS);
+  const [threads, setThreads] = useState<ThreadItem[]>(() => {
+    if (appThreads && appThreads.length > 0) {
+      return appThreads.map((t: any) => ({
+        id: t.id,
+        v: t.v,
+        vName: parties.find((p) => p.code === t.v)?.name || (t.v === 'abc' ? 'ABC Knit Composite' : t.v === 'xyz' ? 'XYZ Fashion Ltd' : t.v),
+        o: t.o || t.orderId || 'ORD-26-0891',
+        title: t.title,
+        unread: t.unread || 0,
+        msgs: (t.msgs || []).map((m: any) => ({
+          s: m.s || (m.from === 'factory' ? 'fac' : m.from === 'vendor' ? 'ven' : 'sys'),
+          n: m.n || m.sender,
+          txt: m.txt || m.text,
+          t: m.t || m.time || 'আজ',
+        })),
+      }));
+    }
+    return INITIAL_THREADS;
+  });
+
+  React.useEffect(() => {
+    if (appThreads && appThreads.length > 0) {
+      setThreads(
+        appThreads.map((t: any) => ({
+          id: t.id,
+          v: t.v,
+          vName: parties.find((p) => p.code === t.v)?.name || (t.v === 'abc' ? 'ABC Knit Composite' : t.v === 'xyz' ? 'XYZ Fashion Ltd' : t.v),
+          o: t.o || t.orderId || 'ORD-26-0891',
+          title: t.title,
+          unread: t.unread || 0,
+          msgs: (t.msgs || []).map((m: any) => ({
+            s: m.s || (m.from === 'factory' ? 'fac' : m.from === 'vendor' ? 'ven' : 'sys'),
+            n: m.n || m.sender,
+            txt: m.txt || m.text,
+            t: m.t || m.time || 'আজ',
+          })),
+        }))
+      );
+    }
+  }, [appThreads, parties]);
+
   const [activeThreadId, setActiveThreadId] = useState<string>('th-1');
   const [inputText, setInputText] = useState<string>('');
   const [currentUserIdx, setCurrentUserIdx] = useState<number>(0);

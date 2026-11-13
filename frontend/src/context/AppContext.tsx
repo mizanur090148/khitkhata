@@ -922,7 +922,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           const d = res.data;
           if (d.factory) setFactoryProfile(d.factory);
           if (Array.isArray(d.orders)) setOrders(d.orders);
-          if (d.machines && d.machines.length) setMachines(d.machines);
+          if (Array.isArray(d.machines) && d.machines.length) setMachines(d.machines);
+          if (Array.isArray(d.yarns) && d.yarns.length) setYarns(d.yarns);
+          if (Array.isArray(d.qcLogs) && d.qcLogs.length) setQcLogs(d.qcLogs);
           if (Array.isArray(d.operators) && d.operators.length) setOperators(d.operators);
           if (d.parties && d.parties.length) setParties(d.parties);
           if (Array.isArray(d.rolls)) setRolls(d.rolls);
@@ -931,9 +933,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           if (Array.isArray(d.bills)) setFactoryBills(d.bills);
           if (Array.isArray(d.store)) setStoreInventory(d.store);
           if (Array.isArray(d.issueLog)) setStoreLogs(d.issueLog);
-          if (d.jobs && d.jobs.length) setJobs(d.jobs);
-          if (d.suppliers && d.suppliers.length) setSuppliers(d.suppliers);
-          if (d.subcontract_posts && d.subcontract_posts.length) setMarketplacePosts(d.subcontract_posts);
+          if (Array.isArray(d.jobs) && d.jobs.length) setJobs(d.jobs);
+          if (Array.isArray(d.suppliers) && d.suppliers.length) setSuppliers(d.suppliers);
+          if (Array.isArray(d.rfqs) && d.rfqs.length) setRfqs(d.rfqs);
+          if (Array.isArray(d.supplierRfqs) && (!d.rfqs || !d.rfqs.length)) setRfqs(d.supplierRfqs);
+          if (Array.isArray(d.subcontract_posts) && d.subcontract_posts.length) setMarketplacePosts(d.subcontract_posts);
+          else if (Array.isArray(d.subcontractPosts) && d.subcontractPosts.length) setMarketplacePosts(d.subcontractPosts);
+          if (Array.isArray(d.freeOffers) && d.freeOffers.length) setFreeOffers(d.freeOffers);
+          if (Array.isArray(d.attendance) && d.attendance.length) setAttendance(d.attendance);
+          if (Array.isArray(d.users) && d.users.length) setUsers(d.users);
+          if (Array.isArray(d.threads) && d.threads.length) setThreads(d.threads);
+          if (Array.isArray(d.vouchers) && d.vouchers.length) setVouchers(d.vouchers);
           if (d.expenses && d.expenses.length) {
             setExpenses(d.expenses.map((e: any) => ({
               id: e.id,

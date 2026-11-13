@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import { bnNum } from '@/utils/formatters';
 
@@ -25,8 +25,55 @@ const INITIAL_PEOPLE: WorkerAttendanceRow[] = [
 const DAYS = ['২৭', '২৮', '২৯', '৩০', '০১', '০২', '০৩'];
 
 export const FactoryAttendancePage: React.FC = () => {
-  const { punchAttendance } = useApp();
-  const [people, setPeople] = useState<WorkerAttendanceRow[]>(INITIAL_PEOPLE);
+  const { punchAttendance, attendance, operators } = useApp();
+  const [people, setPeople] = useState<WorkerAttendanceRow[]>(() => {
+    if (attendance && attendance.length > 0) {
+      return attendance.map((a) => {
+        const todayVal = a.todayStatus === 'Present' ? 1 : a.todayStatus === 'Leave' || a.todayStatus === 'Late' ? 2 : 0;
+        return {
+          name: a.name,
+          role: a.role,
+          shift: a.shift || 'A',
+          history: [1, 1, 1, 1, 1, 1, todayVal],
+        };
+      });
+    }
+    if (operators && operators.length > 0) {
+      return operators.map((op) => ({
+        name: op.name,
+        role: op.designation || 'অপারেটর',
+        shift: op.shift || 'A',
+        history: [1, 1, 1, 1, 1, 1, 1],
+      }));
+    }
+    return INITIAL_PEOPLE;
+  });
+
+  useEffect(() => {
+    if (attendance && attendance.length > 0) {
+      setPeople(
+        attendance.map((a) => {
+          const todayVal = a.todayStatus === 'Present' ? 1 : a.todayStatus === 'Leave' || a.todayStatus === 'Late' ? 2 : 0;
+          return {
+            name: a.name,
+            role: a.role,
+            shift: a.shift || 'A',
+            history: [1, 1, 1, 1, 1, 1, todayVal],
+          };
+        })
+      );
+    } else if (operators && operators.length > 0) {
+      setPeople(
+        operators.map((op) => ({
+          name: op.name,
+          role: op.designation || 'অপারেটর',
+          shift: op.shift || 'A',
+          history: [1, 1, 1, 1, 1, 1, 1],
+        }))
+      );
+    }
+  }, [attendance, operators]);
+
   const [shiftFilter, setShiftFilter] = useState<string>('all');
 
   const toggleTodayStatus = async (workerName: string) => {

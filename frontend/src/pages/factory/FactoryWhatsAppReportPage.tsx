@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useApp } from '@/context/AppContext';
+import { bnNum } from '@/utils/formatters';
 
 export const FactoryWhatsAppReportPage: React.FC = () => {
-  const { addToast } = useApp();
-  const [waPhone, setWaPhone] = useState<string>('01711234567');
+  const { prodLogs, addToast, factoryProfile, currentUser } = useApp();
+  const [waPhone, setWaPhone] = useState<string>(currentUser?.phone || factoryProfile.phone || '01711234567');
   const [sendTime, setSendTime] = useState<string>('21:00');
   const [includeProd, setIncludeProd] = useState<boolean>(true);
   const [includeQc, setIncludeQc] = useState<boolean>(true);
@@ -132,42 +133,25 @@ export const FactoryWhatsAppReportPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td className="mono small">03 Oct</td>
-                  <td>A</td>
-                  <td className="mono">M-03</td>
-                  <td className="mono">SC-2610-014</td>
-                  <td>জসিম</td>
-                  <td className="n">৮</td>
-                  <td className="n">১৮৬</td>
-                </tr>
-                <tr>
-                  <td className="mono small">03 Oct</td>
-                  <td>A</td>
-                  <td className="mono">M-04</td>
-                  <td className="mono">SC-2610-014</td>
-                  <td>সোহেল</td>
-                  <td className="n">৮</td>
-                  <td className="n">১৯১</td>
-                </tr>
-                <tr>
-                  <td className="mono small">03 Oct</td>
-                  <td>A</td>
-                  <td className="mono">M-07</td>
-                  <td className="mono">SC-2610-014</td>
-                  <td>আলমগীর</td>
-                  <td className="n">৭</td>
-                  <td className="n">১৭২</td>
-                </tr>
-                <tr>
-                  <td className="mono small">03 Oct</td>
-                  <td>A</td>
-                  <td className="mono">M-12</td>
-                  <td className="mono">SC-2609-011</td>
-                  <td>নাজমুল</td>
-                  <td className="n">৫</td>
-                  <td className="n">১২৬</td>
-                </tr>
+                {prodLogs && prodLogs.length > 0 ? (
+                  prodLogs.slice(0, 6).map((p: any, idx: number) => (
+                    <tr key={p.id || idx}>
+                      <td className="mono small">{p.date || p.d || 'আজ'}</td>
+                      <td>{p.shift || p.sh || 'A'}</td>
+                      <td className="mono">{p.machine || p.m || 'M-01'}</td>
+                      <td className="mono">{p.orderId || p.order_no || p.o || 'SC-2610-014'}</td>
+                      <td>{p.operator || p.op || 'অপারেটর'}</td>
+                      <td className="n">{bnNum(p.rolls || 0)}</td>
+                      <td className="n">{bnNum((p.kg || p.knitKg || 0).toLocaleString('en-IN'))}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={7} style={{ textAlign: 'center', padding: '16px', color: 'var(--muted)' }}>
+                      আজকে এখনো কোনো প্রোডাকশন ডাটা এন্ট্রি হয়নি।
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
