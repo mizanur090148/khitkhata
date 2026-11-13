@@ -13,7 +13,19 @@ use Illuminate\Support\Facades\DB;
 
 class QcController extends Controller
 {
-        public function getQcInspections(Request $request): JsonResponse
+    protected function resolveFactory(Request $request): Factory
+    {
+        return Factory::where('code', 'f1')->first()
+            ?? Factory::first()
+            ?? Factory::create([
+                'code' => 'f1',
+                'name' => 'রহমান নিটিং ইন্ডাস্ট্রিজ',
+                'area' => 'কোনাবাড়ী, গাজীপুর',
+                'total_machines' => 24,
+            ]);
+    }
+
+    public function getQcInspections(Request $request): JsonResponse
     {
         $factory = $this->resolveFactory($request);
         $factoryOrderNos = SubcontractOrder::where('factory_id', $factory->id)->pluck('order_no');

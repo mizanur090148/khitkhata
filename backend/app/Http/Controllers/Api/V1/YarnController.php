@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Factory;
 use App\Models\Party;
 use App\Models\StoreIssueLog;
+use App\Models\SubcontractOrder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;

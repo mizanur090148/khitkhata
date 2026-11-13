@@ -10,6 +10,7 @@ use App\Models\FactoryMachine;
 use App\Models\Operator;
 use App\Models\OrderLine;
 use App\Models\Production;
+use App\Models\QcInspection;
 use App\Models\SubcontractOrder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\DeliveryChallan;
+use App\Models\FabricRoll;
 use App\Models\Factory;
 use App\Models\Party;
 use App\Models\SubcontractOrder;

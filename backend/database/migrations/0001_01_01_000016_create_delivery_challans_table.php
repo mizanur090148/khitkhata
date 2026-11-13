@@ -19,7 +19,7 @@ return new class extends Migration
             $table->string('vehicle_no', 80);
             $table->string('driver_name', 80)->nullable();
             $table->string('driver_phone', 40)->nullable();
-            $table->json('factory_sign_json'); // {by, at}
+            $table->json('factory_sign_json')->nullable(); // {by, at}
             $table->json('vendor_sign_json')->nullable(); // {by, at, got}
             $table->timestamps();
         });
