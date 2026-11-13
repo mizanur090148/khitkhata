@@ -58,3 +58,21 @@ export function buildDeterministicQrMatrix(seedStr: string): number[][] {
   return grid;
 }
 
+export function inWords(n: number): string {
+  const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+  const two = (x: number) => x < 20 ? a[x] : b[Math.floor(x / 10)] + (x % 10 ? ' ' + a[x % 10] : '');
+  const three = (x: number) => (x >= 100 ? a[Math.floor(x / 100)] + ' Hundred' + (x % 100 ? ' ' : '') : '') + (x % 100 ? two(x % 100) : '');
+  let val = Math.round(n);
+  let s = '';
+  const cr = Math.floor(val / 1e7); val %= 1e7;
+  const l = Math.floor(val / 1e5); val %= 1e5;
+  const t = Math.floor(val / 1000); val %= 1000;
+  if (cr) s += three(cr) + ' Crore ';
+  if (l) s += two(l) + ' Lakh ';
+  if (t) s += two(t) + ' Thousand ';
+  if (val) s += three(val);
+  return 'Taka ' + (s.trim() || 'Zero') + ' Only';
+}
+
+

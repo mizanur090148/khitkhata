@@ -13,10 +13,12 @@ import {
   Phone,
 } from 'lucide-react';
 import { bnNum, fmtKg, fmtTk, pct } from '@/utils/formatters';
+import { VendorOrdersPage } from '../vendor/VendorOrdersPage';
 
 export const FactoryDashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const {
+    role,
     orders,
     machines,
     dashboardData,
@@ -30,6 +32,11 @@ export const FactoryDashboardPage: React.FC = () => {
     addToast,
     toggleMachineStatus,
   } = useApp();
+
+  const isVendor = role === 'vendor' || (role as string) === 'ven';
+  if (isVendor) {
+    return <VendorOrdersPage />;
+  }
 
   // 6. Dashboard Interactive Tasks & Modals
   const [isQuickEntryOpen, setIsQuickEntryOpen] = useState(false);

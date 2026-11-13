@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class FactoryExpense extends Model
 {
+    use BelongsToTenant;
+
     protected $fillable = [
         'factory_id',
         'category',
@@ -26,10 +29,4 @@ class FactoryExpense extends Model
             'expense_date' => 'date',
         ];
     }
-
-    public function factory(): BelongsTo
-    {
-        return $this->belongsTo(Factory::class);
-    }
 }
-

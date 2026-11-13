@@ -55,7 +55,7 @@ export interface SubcontractOrderItem {
   color: string;
   orderDate: string;
   delivDate: string;
-  status: 'Running' | 'Completed' | 'Pending' | 'Draft' | 'Hold';
+  status: 'Running' | 'Completed' | 'Pending' | 'Draft' | 'Hold' | 'run' | 'done' | 'wait' | string;
   payStatus: 'Paid' | 'Part' | 'Due';
   paidAmt: number;
   advanceAmt: number;
@@ -65,6 +65,28 @@ export interface SubcontractOrderItem {
   factoryId?: string;
   factoryName?: string;
   lines: OrderLineItem[];
+
+  // Dynamic API & Prototype fields
+  v?: string;
+  fabric?: string;
+  gsm?: string | number;
+  finishGsm?: string | number;
+  stitch?: string;
+  greyDia?: string;
+  dia?: string;
+  yarn?: string;
+  qty?: number;
+  done?: number;
+  machines?: string[];
+  rate?: number;
+  rateTk?: number;
+  start?: string;
+  deliveryDue?: string;
+  completeDate?: string;
+  delivered?: number;
+  challans?: string[];
+  yarnIn?: any[];
+  qc?: any[];
 }
 
 export interface YarnStockItem {
@@ -320,10 +342,17 @@ export interface AppUserItem {
   id: string;
   name: string;
   phone: string;
-  role: UserRoleKey;
+  email?: string;
+  role: UserRoleKey | string;
   shift: string;
   status: 'Active' | 'Pending' | 'Disabled';
   lastSeen: string;
+  designation?: string;
+  organization_name?: string;
+  is_active?: boolean;
+  can_message?: boolean;
+  is_vendor_rep?: boolean;
+  last_login_label?: string;
 }
 
 export interface ChatMessageItem {
@@ -521,6 +550,8 @@ export interface FactoryProfileInfo {
   machinesCount: number;
   verified: boolean;
   rating: number;
+  area?: string;
+  totalMachines?: number;
 }
 
 export interface VendorFactoryDirectoryItem {

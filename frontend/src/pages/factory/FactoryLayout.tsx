@@ -56,14 +56,38 @@ export const NAV_FAC: ([ 'grp', string ] | [ string, string, string, string ])[]
   ['pdash', 'পার্টনার প্রোগ্রাম', 'pty2', '/dashboard/pdash'],
 ];
 
+export const NAV_VEN: ([ 'grp', string ] | [ string, string, string, string ])[] = [
+  ['grp', 'ABC Knit Composite'],
+  ['vorders', 'আমার অর্ডার', 'ord', '/dashboard/vorders'],
+  ['vreport', 'দৈনিক রিপোর্ট', 'wa', '/dashboard/vreport'],
+  ['jobcard', 'জব কার্ড', 'job', '/dashboard/jobcard'],
+  ['qc', 'QC ও কাপড়ের সমস্যা', 'qc', '/dashboard/qc'],
+  ['fmsg', 'মেসেজ', 'chat', '/dashboard/fmsg'],
+
+  ['grp', 'কাপড় ও সুতা'],
+  ['fready', 'রেডি কাপড়', 'box', '/dashboard/fready'],
+  ['challan', 'ডেলিভারি চালান', 'truck', '/dashboard/challan'],
+  ['yarn', 'সুতা ব্যালেন্স', 'yarn', '/dashboard/yarn'],
+
+  ['grp', 'বিল ও হিসাব'],
+  ['bill', 'বিল ও পেমেন্ট', 'bill', '/dashboard/bill'],
+  ['ledger', 'আমার হিসাব (লেজার)', 'led', '/dashboard/ledger'],
+
+  ['grp', 'সেটিংস'],
+  ['profile', 'প্রোফাইল ও সেটিংস', 'usr', '/dashboard/profile'],
+];
+
 export const FactoryLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { role, setRole, currentUser, users, logout } = useApp();
 
+  const isVendor = role === 'vendor' || (role as string) === 'ven';
+  const currentNav = isVendor ? NAV_VEN : NAV_FAC;
+
   // Extract active path segment (e.g. /dashboard/orders -> 'orders')
   const pathParts = location.pathname.split('/').filter(Boolean);
-  const currentSegment = pathParts[1] || 'dash';
+  const currentSegment = pathParts[1] || (isVendor ? 'vorders' : 'dash');
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
@@ -88,7 +112,7 @@ export const FactoryLayout: React.FC = () => {
         <div className="roleswitch" role="group" aria-label="কার চোখে দেখবেন">
           <button
             id="r-fac"
-            className={role !== 'vendor' ? 'on' : ''}
+            className={!isVendor ? 'on' : ''}
             onClick={() => {
               setRole('owner');
               navigate('/dashboard');
@@ -98,10 +122,10 @@ export const FactoryLayout: React.FC = () => {
           </button>
           <button
             id="r-ven"
-            className={role === 'vendor' ? 'on' : ''}
+            className={isVendor ? 'on' : ''}
             onClick={() => {
               setRole('vendor');
-              navigate('/vendor');
+              navigate('/dashboard/vorders');
             }}
           >
             ভেন্ডর ভিউ (ABC)
@@ -138,7 +162,7 @@ export const FactoryLayout: React.FC = () => {
       {/* App Shell with Left Rail & Working Canvas */}
       <div className="shell">
         <nav className="rail" id="rail">
-          {NAV_FAC.map((item, idx) => {
+          {currentNav.map((item, idx) => {
             if (item[0] === 'grp') {
               return (
                 <div key={`grp-${idx}`} className="grp">

@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Quotation extends Model
 {
+    use BelongsToTenant;
+
     protected $fillable = [
         'subcontract_post_id',
         'factory_id',
@@ -30,10 +33,4 @@ class Quotation extends Model
     {
         return $this->belongsTo(SubcontractPost::class, 'subcontract_post_id');
     }
-
-    public function factory(): BelongsTo
-    {
-        return $this->belongsTo(Factory::class);
-    }
 }
-

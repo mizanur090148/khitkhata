@@ -10,4 +10,16 @@ export { FactoryQcPage, qcState } from './FactoryQcPage';
 export type { QcItem, QcSignInfo } from './FactoryQcPage';
 export { FactoryReadyFabricPage } from './FactoryReadyFabricPage';
 export type { ReadyFabricRow } from './FactoryReadyFabricPage';
-
+export { FactoryChallanPage } from './FactoryChallanPage';
+export { FactoryYarnPage } from './FactoryYarnPage';
+export { FactoryStorePage } from './FactoryStorePage';
+export { FactoryBillPage } from './FactoryBillPage';
+export { FactoryLedgerPage } from './FactoryLedgerPage';
+export { FactoryAccountsPage } from './FactoryAccountsPage';
+export { FactoryAttendancePage } from './FactoryAttendancePage';
+export { FactoryMessagesPage } from './FactoryMessagesPage';
+export { FactoryFreeMachinesPage } from './FactoryFreeMachinesPage';
+export { FactoryUsersPage } from './FactoryUsersPage';
+export { FactoryWhatsAppReportPage } from './FactoryWhatsAppReportPage';
+export { FactoryPartnerPage } from './FactoryPartnerPage';
+export { FactoryProfilePage } from './FactoryProfilePage';

@@ -70,7 +70,19 @@ export const FactoryReadyFabricPage: React.FC = () => {
   // Compute all ready rows from open orders
   const allRows: ReadyFabricRow[] = useMemo(() => {
     return orders
-      .filter((o: any) => o.status !== 'done' && o.status !== 'Completed')
+      .filter((o: any) => {
+        const isNotDone = o.status !== 'done' && o.status !== 'Completed';
+        if (!isNotDone) return false;
+        if (isVendorRole) {
+          return (
+            o.party_code === 'abc' ||
+            o.v === 'abc' ||
+            o.party === 'abc' ||
+            (o.party && o.party.includes('ABC'))
+          );
+        }
+        return true;
+      })
       .flatMap((o: any) => {
         const lines: any[] = o.lines && o.lines.length > 0
           ? o.lines

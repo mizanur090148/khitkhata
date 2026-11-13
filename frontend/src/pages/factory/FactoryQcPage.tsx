@@ -99,10 +99,20 @@ export const FactoryQcPage: React.FC = () => {
   const [formError, setFormError] = useState('');
   const [isSubmittingForm, setIsSubmittingForm] = useState(false);
 
-  // Collect all QC records from orders
+  // Collect all QC records from orders (filtered to vendor orders if in vendor role)
   const allQcItems = useMemo(() => {
     const list: Array<{ q: QcItem; o: any }> = [];
-    orders.forEach((o: any) => {
+    const relevantOrders = isVendorRole
+      ? orders.filter(
+          (o: any) =>
+            o.party_code === 'abc' ||
+            o.v === 'abc' ||
+            o.party === 'abc' ||
+            (o.party && o.party.includes('ABC'))
+        )
+      : orders;
+
+    relevantOrders.forEach((o: any) => {
       const qcs: any[] = o.qc || [];
       qcs.forEach((rawQ) => {
         const item: QcItem = {
@@ -124,7 +134,7 @@ export const FactoryQcPage: React.FC = () => {
       });
     });
     return list;
-  }, [orders]);
+  }, [orders, isVendorRole]);
 
   // KPIs
   const myPend = useMemo(() => allQcItems.filter(({ q }) => !q[mySide]?.v), [allQcItems, mySide]);

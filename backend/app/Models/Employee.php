@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -9,7 +10,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Employee extends Model
 {
-    use SoftDeletes;
+    use BelongsToTenant, SoftDeletes;
 
     protected $fillable = [
         'factory_id',
@@ -35,11 +36,6 @@ class Employee extends Model
         ];
     }
 
-    public function factory(): BelongsTo
-    {
-        return $this->belongsTo(Factory::class);
-    }
-
     public function productions(): HasMany
     {
         return $this->hasMany(Production::class, 'employee_id');
@@ -49,5 +45,9 @@ class Employee extends Model
     {
         return $query->where('employee_type', 'operator');
     }
-}
 
+    public function scopeHelpers($query)
+    {
+        return $query->where('employee_type', 'helper');
+    }
+}

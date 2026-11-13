@@ -18,8 +18,8 @@ trait BelongsToTenant
         static::addGlobalScope(new TenantScope());
 
         static::creating(function ($model) {
-            if (empty($model->factory_id) && Auth::hasUser()) {
-                $user = Auth::user();
+            if (empty($model->factory_id)) {
+                $user = Auth::user() ?? (Auth::guard('sanctum')->check() ? Auth::guard('sanctum')->user() : null);
                 if ($user && !empty($user->factory_id)) {
                     $model->factory_id = $user->factory_id;
                 }
@@ -48,7 +48,7 @@ trait BelongsToTenant
      */
     public function scopeForTenant(Builder $query, int $factoryId): Builder
     {
-        return $query->withoutGlobalScope(TenantScope::class)->where($this->getTable() . '.factory_id', $factoryId);
+        return $query->withoutGlobalScope(TenantScope::class)
+            ->where($this->getTable() . '.factory_id', $factoryId);
     }
 }
-

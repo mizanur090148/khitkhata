@@ -94,6 +94,7 @@ export const FactoryJobCardPage: React.FC = () => {
   const navigate = useNavigate();
   const { id: paramOrderId } = useParams<{ id?: string }>();
   const {
+    role,
     orders,
     parties,
     rolls,
@@ -105,22 +106,32 @@ export const FactoryJobCardPage: React.FC = () => {
     addToast,
   } = useApp();
 
+  const isVendor = role === 'vendor' || (role as string) === 'ven';
+
   // Load fresh orders and rolls on mount
   useEffect(() => {
     fetchOrders?.();
     fetchRolls?.();
   }, []);
 
-  // Filter orders with machines assigned
+  // Filter orders with machines assigned (isolated to vendor when in vendor view)
   const validOrders = useMemo(() => {
     const list = orders.filter((o) => {
+      if (isVendor) {
+        const isBelongsToVendor =
+          o.party_code === 'abc' ||
+          o.party === 'abc' ||
+          o.v === 'abc' ||
+          (o.party && o.party.includes('ABC'));
+        if (!isBelongsToVendor) return false;
+      }
       const isNotDone = (o.status as string) !== 'done' && o.status !== 'Completed';
       const lines = normalizeOrderLines(o);
       const hasMachines = lines.some((l) => (l.machines || []).length > 0);
       return isNotDone && hasMachines;
     });
     return list.length > 0 ? list : orders;
-  }, [orders]);
+  }, [orders, isVendor]);
 
   // Selected Order State
   const [selectedOrderId, setSelectedOrderId] = useState<string>(() => {
@@ -402,29 +413,31 @@ export const FactoryJobCardPage: React.FC = () => {
         <div>
           <h2>জব কার্ড</h2>
           <p>
-            মেশিন অ্যাসাইন হলেই প্রতিটা মেশিনের জব কার্ড তৈরি হয়। রোল নামলে নিচের QC ঘরে উঠে যায়, আর ভেন্ডরও সাথে সাথে দেখে কোন রোলে কী সমস্যা।
+            মেশিন অ্যাসাইন হলেই প্রতিটা মেশিনের জব কার্ড তৈরি হয়। রোল নামলে নিচের QC ঘরে উঠে যায়, {isVendor ? 'আর আপনি এখানেই দেখেন কোন রোলে কী সমস্যা।' : 'আর ভেন্ডরও সাথে সাথে দেখে কোন রোলে কী সমস্যা।'}
           </p>
         </div>
-        <div className="st-sw" style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--surface)', padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border)' }}>
-          <span style={{ fontSize: 13, fontWeight: 500 }}>QR রোল স্টিকার (ঐচ্ছিক)</span>
-          <button
-            className={`switch ${stickerOn ? 'on' : ''}`}
-            type="button"
-            id="stkSw"
-            onClick={() => {
-              setStickerOn(!stickerOn);
-              addToast({
-                type: 'info',
-                message: !stickerOn ? 'QR স্টিকার চালু হলো' : 'QR স্টিকার বন্ধ · রোল নম্বর হাতে লিখে চলবে',
-              });
-            }}
-            aria-pressed={stickerOn}
-            aria-label="QR রোল স্টিকার চালু বা বন্ধ"
-          />
-          <span className="small muted" style={{ fontSize: 12 }}>
-            {stickerOn ? 'চালু' : 'বন্ধ, হাতে লিখে চলবে'}
-          </span>
-        </div>
+        {!isVendor && (
+          <div className="st-sw" style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--surface)', padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border)' }}>
+            <span style={{ fontSize: 13, fontWeight: 500 }}>QR রোল স্টিকার (ঐচ্ছিক)</span>
+            <button
+              className={`switch ${stickerOn ? 'on' : ''}`}
+              type="button"
+              id="stkSw"
+              onClick={() => {
+                setStickerOn(!stickerOn);
+                addToast({
+                  type: 'info',
+                  message: !stickerOn ? 'QR স্টিকার চালু হলো' : 'QR স্টিকার বন্ধ · রোল নম্বর হাতে লিখে চলবে',
+                });
+              }}
+              aria-pressed={stickerOn}
+              aria-label="QR রোল স্টিকার চালু বা বন্ধ"
+            />
+            <span className="small muted" style={{ fontSize: 12 }}>
+              {stickerOn ? 'চালু' : 'বন্ধ, হাতে লিখে চলবে'}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* 2. ORDER SELECTOR MATCHING KnitKhata.html */}

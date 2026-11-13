@@ -1,10 +1,24 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AttendanceController;
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\BillController;
 use App\Http\Controllers\Api\V1\BootstrapController;
+use App\Http\Controllers\Api\V1\ChallanController;
+use App\Http\Controllers\Api\V1\ExpenseController;
+use App\Http\Controllers\Api\V1\FabricRollController;
 use App\Http\Controllers\Api\V1\FactoryDashboardController;
-use App\Http\Controllers\Api\V1\FactoryPortalController;
+use App\Http\Controllers\Api\V1\FactoryProfileController;
+use App\Http\Controllers\Api\V1\JobCardController;
+use App\Http\Controllers\Api\V1\OrderController;
+use App\Http\Controllers\Api\V1\PartnerController;
+use App\Http\Controllers\Api\V1\PartyController;
+use App\Http\Controllers\Api\V1\ProductionController;
 use App\Http\Controllers\Api\V1\PublicAndMarketplaceController;
+use App\Http\Controllers\Api\V1\QcController;
+use App\Http\Controllers\Api\V1\StoreController;
+use App\Http\Controllers\Api\V1\UserController;
+use App\Http\Controllers\Api\V1\YarnController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -24,7 +38,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
     });
 
-    // Factory & Vendor Portal Operations
+    // Factory & Vendor Portal Operations (Separated Domain Controllers)
     Route::prefix('portal')->group(function () {
         // Factory Dashboard Core & Actions
         Route::get('/dashboard', [FactoryDashboardController::class, 'index']);
@@ -33,41 +47,75 @@ Route::prefix('v1')->group(function () {
         Route::post('/dashboard/broadcast-free', [FactoryDashboardController::class, 'broadcastFreeMachines']);
         Route::post('/dashboard/submit-quotation', [FactoryDashboardController::class, 'submitQuotation']);
 
-        Route::get('/orders', [FactoryPortalController::class, 'getOrders']);
-        Route::post('/orders', [FactoryPortalController::class, 'storeOrder']);
-        Route::delete('/orders/{orderNo}', [FactoryPortalController::class, 'deleteOrder']);
-        Route::delete('/orders', [FactoryPortalController::class, 'clearOrders']);
-        Route::post('/orders/{orderNo}/toggle-machine', [FactoryPortalController::class, 'toggleOrderMachine']);
-        Route::post('/production', [FactoryPortalController::class, 'storeProductionEntry']);
-        Route::post('/production/shift', [FactoryPortalController::class, 'storeShiftProduction']);
-        Route::get('/qc', [FactoryPortalController::class, 'getQcInspections']);
-        Route::post('/qc', [FactoryPortalController::class, 'storeQcInspection']);
-        Route::post('/qc/{qcNo}/sign', [FactoryPortalController::class, 'signQcInspection']);
-        Route::post('/qc/{qcNo}/action', [FactoryPortalController::class, 'updateQcAction']);
-        Route::get('/rolls', [FactoryPortalController::class, 'getRolls']);
-        Route::post('/jobcard/save', [FactoryPortalController::class, 'saveJobCard']);
-        Route::post('/challans', [FactoryPortalController::class, 'storeChallan']);
-        Route::post('/challans/{challanNo}/sign', [FactoryPortalController::class, 'signChallanReceipt']);
-        Route::post('/yarn/receive', [FactoryPortalController::class, 'receiveYarn']);
-        Route::post('/store/movement', [FactoryPortalController::class, 'storeStockMovement']);
-        Route::get('/parties', [FactoryPortalController::class, 'getParties']);
-        Route::get('/operators', [FactoryPortalController::class, 'getOperators']);
-        Route::get('/employees', [FactoryPortalController::class, 'getEmployees']);
-        Route::post('/parties', [FactoryPortalController::class, 'storeParty']);
-        Route::post('/parties/{id}/toggle', [FactoryPortalController::class, 'toggleParty']);
-        Route::delete('/parties/{id}', [FactoryPortalController::class, 'deleteParty']);
-        Route::post('/bills', [FactoryPortalController::class, 'storeBill']);
-        Route::post('/bills/{billNo}/pay', [FactoryPortalController::class, 'recordBillPayment']);
-        Route::post('/accounts/expenses', [FactoryPortalController::class, 'storeExpense']);
-        Route::post('/attendance/punch', [FactoryPortalController::class, 'storeAttendance']);
-        Route::post('/users', [FactoryPortalController::class, 'storeUser']);
-        Route::post('/users/{id}/toggle', [FactoryPortalController::class, 'toggleUser']);
-        Route::post('/partner/payout', [FactoryPortalController::class, 'requestPayout']);
-        Route::post('/profile', [FactoryPortalController::class, 'updateFactoryProfile']);
+        // Orders Management
+        Route::get('/orders', [OrderController::class, 'getOrders']);
+        Route::post('/orders', [OrderController::class, 'storeOrder']);
+        Route::delete('/orders/{orderNo}', [OrderController::class, 'deleteOrder']);
+        Route::delete('/orders', [OrderController::class, 'clearOrders']);
+        Route::post('/orders/{orderNo}/toggle-machine', [OrderController::class, 'toggleOrderMachine']);
+
+        // Production & Shift Tracking
+        Route::post('/production', [ProductionController::class, 'storeProductionEntry']);
+        Route::post('/production/shift', [ProductionController::class, 'storeShiftProduction']);
+
+        // Quality Control (QC) & Defects
+        Route::get('/qc', [QcController::class, 'getQcInspections']);
+        Route::post('/qc', [QcController::class, 'storeQcInspection']);
+        Route::post('/qc/{qcNo}/sign', [QcController::class, 'signQcInspection']);
+        Route::post('/qc/{qcNo}/action', [QcController::class, 'updateQcAction']);
+
+        // Fabric Rolls & Job Cards
+        Route::get('/rolls', [FabricRollController::class, 'getRolls']);
+        Route::post('/jobcard/save', [JobCardController::class, 'saveJobCard']);
+
+        // Delivery Challans
+        Route::get('/challans', [ChallanController::class, 'getChallans']);
+        Route::post('/challans', [ChallanController::class, 'storeChallan']);
+        Route::post('/challans/{challanNo}/sign', [ChallanController::class, 'signChallanReceipt']);
+
+        // Yarn Inventory & Inward
+        Route::post('/yarn/receive', [YarnController::class, 'receiveYarn']);
+
+        // Store & Spare Parts
+        Route::get('/store', [StoreController::class, 'getStoreData']);
+        Route::post('/store/movement', [StoreController::class, 'storeStockMovement']);
+
+        // Parties (Vendors / Buyers / Mills)
+        Route::get('/parties', [PartyController::class, 'getParties']);
+        Route::post('/parties', [PartyController::class, 'storeParty']);
+        Route::post('/parties/{id}/toggle', [PartyController::class, 'toggleParty']);
+        Route::delete('/parties/{id}', [PartyController::class, 'deleteParty']);
+
+        // Billing & Payments
+        Route::get('/bills', [BillController::class, 'getBills']);
+        Route::post('/bills', [BillController::class, 'storeBill']);
+        Route::post('/bills/{billNo}/pay', [BillController::class, 'recordBillPayment']);
+
+        // Accounts & Expenses
+        Route::get('/accounts/expenses', [ExpenseController::class, 'getExpenses']);
+        Route::post('/accounts/expenses', [ExpenseController::class, 'storeExpense']);
+
+        // HR, Attendance & Operators
+        Route::get('/operators', [AttendanceController::class, 'getOperators']);
+        Route::get('/employees', [AttendanceController::class, 'getEmployees']);
+        Route::get('/attendance', [AttendanceController::class, 'getAttendance']);
+        Route::post('/attendance/punch', [AttendanceController::class, 'storeAttendance']);
+
+        // Users & Permissions
+        Route::post('/users', [UserController::class, 'storeUser']);
+        Route::post('/users/{id}/toggle', [UserController::class, 'toggleUser']);
+
+        // Partner Referral & Payout
+        Route::post('/partner/payout', [PartnerController::class, 'requestPayout']);
+
+        // Factory Profile
+        Route::post('/profile', [FactoryProfileController::class, 'updateFactoryProfile']);
+
+        // Communication
         Route::post('/threads/{threadCode}/messages', [PublicAndMarketplaceController::class, 'sendMessage']);
     });
 
-    // Public Jobs, Suppliers, RFQs, Ads & Subcontract Marketplace (shilposetu-old)
+    // Public Jobs, Suppliers, RFQs, Ads & Subcontract Marketplace
     Route::prefix('public')->group(function () {
         Route::get('/jobs', [PublicAndMarketplaceController::class, 'jobs']);
         Route::post('/jobs', [PublicAndMarketplaceController::class, 'storeJob']);
@@ -80,4 +128,3 @@ Route::prefix('v1')->group(function () {
         Route::post('/subcontract/posts/{postId}/quotations', [PublicAndMarketplaceController::class, 'storeQuotation']);
     });
 });
-

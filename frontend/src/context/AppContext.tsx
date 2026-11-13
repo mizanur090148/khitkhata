@@ -355,7 +355,96 @@ interface AppContextType {
     }
   ) => Promise<any>;
   updateQcAction: (qcNo: string, action_taken: string) => Promise<any>;
+  deliveryChallans: any[];
+  fetchChallans: () => Promise<any[]>;
+  createDeliveryChallan: (payload: {
+    party_code: string;
+    order_no: string;
+    rolls: string[];
+    vehicle_no: string;
+    driver_name?: string;
+    signed_by?: string;
+  }) => Promise<any>;
+  signChallan: (challanNo: string, receivedRolls: number, signedBy?: string) => Promise<any>;
+  storeInventory: any[];
+  storeLogs: any[];
+  fetchStoreData: () => Promise<void>;
+  recordStoreMovement: (payload: {
+    item_code: string;
+    type: 'in' | 'out' | 'rfq';
+    qty?: number;
+    price?: number;
+    machine_code?: string;
+    issued_by?: string;
+  }) => Promise<any>;
+  addYarnInward: (payload: {
+    order_no: string;
+    count: string;
+    spinner?: string;
+    lot?: string;
+    bags?: number;
+    kg: number;
+  }) => Promise<any>;
+  factoryBills: KKBill[];
+  fetchBills: () => Promise<KKBill[]>;
+  createKkBill: (partyCode: string, orderIds: string[]) => Promise<any>;
+  recordKkBillPayment: (billNo: string, amount: number, mode?: string, ref?: string) => Promise<any>;
 }
+
+export interface KKBillLine {
+  o: string;
+  fab?: string;
+  kg: number;
+  rate: number;
+}
+
+export interface KKBillPayment {
+  d: string;
+  amt: number;
+  rv: string;
+  mode: string;
+  pend?: boolean;
+}
+
+export interface KKBill {
+  no: string;
+  f: string;
+  date: string;
+  v: string;
+  lines: KKBillLine[];
+  jv: string;
+  recv: KKBillPayment[];
+}
+
+export const INITIAL_KK_BILLS: KKBill[] = [
+  {
+    no: 'BL-2610-001',
+    f: 'f1',
+    date: '2026-10-01',
+    v: 'abc',
+    lines: [{ o: 'ORD-26-0891', kg: 4200, rate: 30 }],
+    jv: 'JV-0928',
+    recv: [{ d: '2026-10-02', amt: 70000, rv: 'RV-0931', mode: 'ব্যাংক ট্রান্সফার — ব্যাংক A' }],
+  },
+  {
+    no: 'BL-2609-018',
+    f: 'f1',
+    date: '2026-09-28',
+    v: 'xyz',
+    lines: [{ o: 'ORD-26-0885', kg: 6000, rate: 32 }],
+    jv: 'JV-0915',
+    recv: [{ d: '2026-09-30', amt: 192000, rv: 'RV-0918', mode: 'চেক — ব্যাংক B' }],
+  },
+  {
+    no: 'BL-2609-012',
+    f: 'f1',
+    date: '2026-09-18',
+    v: 'abc',
+    lines: [{ o: 'ORD-26-0870', kg: 3800, rate: 29 }],
+    jv: 'JV-0902',
+    recv: [{ d: '2026-09-22', amt: 110200, rv: 'RV-0906', mode: 'ব্যাংক ট্রান্সফার — ব্যাংক A' }],
+  },
+];
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
@@ -588,6 +677,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [rolls, setRolls] = useState<RollTagItem[]>(INITIAL_ROLLS);
   const [qcLogs, setQcLogs] = useState<QcLogItem[]>(INITIAL_QC_LOGS);
   const [challans, setChallans] = useState<ChallanItem[]>(INITIAL_CHALLANS);
+  const [deliveryChallans, setDeliveryChallans] = useState<any[]>([]);
+  const [storeInventory, setStoreInventory] = useState<any[]>([]);
+  const [storeLogs, setStoreLogs] = useState<any[]>([]);
+  const [factoryBills, setFactoryBills] = useState<KKBill[]>(INITIAL_KK_BILLS);
   const [bills, setBills] = useState<BillItem[]>(INITIAL_BILLS);
   const [parties, setParties] = useState<PartyItem[]>(INITIAL_PARTIES);
   const [storeItems, setStoreItems] = useState<StoreStockItem[]>(INITIAL_STORE_ITEMS);
@@ -830,6 +923,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           if (d.parties && d.parties.length) setParties(d.parties);
           if (Array.isArray(d.rolls)) setRolls(d.rolls);
           if (Array.isArray(d.prodLog)) setProdLogs(d.prodLog);
+          if (Array.isArray(d.challans)) setDeliveryChallans(d.challans);
+          if (Array.isArray(d.bills)) setFactoryBills(d.bills);
+          if (Array.isArray(d.store)) setStoreInventory(d.store);
+          if (Array.isArray(d.issueLog)) setStoreLogs(d.issueLog);
           if (d.jobs && d.jobs.length) setJobs(d.jobs);
           if (d.suppliers && d.suppliers.length) setSuppliers(d.suppliers);
           if (d.subcontract_posts && d.subcontract_posts.length) setMarketplacePosts(d.subcontract_posts);
@@ -868,6 +965,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     fetchOrders();
     fetchParties();
     fetchOperators();
+    fetchChallans();
+    fetchStoreData();
     fetchDashboardData();
   }, []);
 
@@ -1355,6 +1454,137 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return res?.data;
   };
 
+  const fetchChallans = async (): Promise<any[]> => {
+    try {
+      const res = await apiClient.get('portal/challans');
+      if (res && res.data) {
+        setDeliveryChallans(res.data);
+        return res.data;
+      }
+    } catch (err: any) {
+      console.warn('Challans fetch fallback:', err.message);
+    }
+    return deliveryChallans;
+  };
+
+  const createDeliveryChallan = async (payload: {
+    party_code: string;
+    order_no: string;
+    rolls: string[];
+    vehicle_no: string;
+    driver_name?: string;
+    signed_by?: string;
+  }): Promise<any> => {
+    try {
+      const res = await apiClient.post('portal/challans', payload);
+      await fetchChallans();
+      await fetchRolls();
+      await fetchOrders();
+      addToast({
+        type: 'success',
+        title: 'চালান প্রস্তুত',
+        message: res?.message || 'ডেলিভারি চালান সফলভাবে তৈরি হয়েছে',
+      });
+      return res?.data;
+    } catch (err: any) {
+      addToast({
+        type: 'error',
+        title: 'চালান তৈরিতে ত্রুটি',
+        message: err.message || 'চালান তৈরি করা সম্ভব হয়নি',
+      });
+      throw err;
+    }
+  };
+
+  const signChallan = async (challanNo: string, receivedRolls: number, signedBy?: string): Promise<any> => {
+    try {
+      const res = await apiClient.post(`portal/challans/${challanNo}/sign`, {
+        received_rolls: receivedRolls,
+        signed_by: signedBy || 'মো. কামরুল হাসান',
+      });
+      await fetchChallans();
+      addToast({
+        type: 'success',
+        title: 'চালান রিসিভ সাইন সম্পন্ন',
+        message: res?.message || 'চালান সাইন সংরক্ষিত হয়েছে',
+      });
+      return res?.data;
+    } catch (err: any) {
+      addToast({
+        type: 'error',
+        title: 'সাইন ব্যর্থ',
+        message: err.message || 'চালান সাইন সংরক্ষণ করা যায়নি',
+      });
+      throw err;
+    }
+  };
+
+  const fetchStoreData = async (): Promise<void> => {
+    try {
+      const res = await apiClient.get('portal/store');
+      if (res && res.data) {
+        if (Array.isArray(res.data.items)) setStoreInventory(res.data.items);
+        if (Array.isArray(res.data.logs)) setStoreLogs(res.data.logs);
+      }
+    } catch (err: any) {
+      console.warn('Store data fetch error:', err.message);
+    }
+  };
+
+  const recordStoreMovement = async (payload: {
+    item_code: string;
+    type: 'in' | 'out' | 'rfq';
+    qty?: number;
+    price?: number;
+    machine_code?: string;
+    issued_by?: string;
+  }): Promise<any> => {
+    try {
+      const res = await apiClient.post('portal/store/movement', payload);
+      await fetchStoreData();
+      addToast({
+        type: 'success',
+        title: 'স্টোর আপডেট',
+        message: res?.message || 'স্টোর স্টক ও মুভমেন্ট সংরক্ষিত হয়েছে',
+      });
+      return res?.data;
+    } catch (err: any) {
+      addToast({
+        type: 'error',
+        title: 'স্টোর মুভমেন্ট ত্রুটি',
+        message: err.message || 'স্টোর আপডেট করা সম্ভব হয়নি',
+      });
+      throw err;
+    }
+  };
+
+  const addYarnInward = async (payload: {
+    order_no: string;
+    count: string;
+    spinner?: string;
+    lot?: string;
+    bags?: number;
+    kg: number;
+  }): Promise<any> => {
+    try {
+      const res = await apiClient.post('portal/yarn/receive', payload);
+      await fetchOrders();
+      addToast({
+        type: 'success',
+        title: 'সুতা গ্রহণ সম্পন্ন',
+        message: res?.message || `${payload.order_no}-এ ${payload.kg} kg সুতা যোগ হয়েছে`,
+      });
+      return res?.data;
+    } catch (err: any) {
+      addToast({
+        type: 'error',
+        title: 'সুতা গ্রহণ ব্যর্থ',
+        message: err.message || 'সুতা রিসিভ এন্ট্রি সংরক্ষণ করা সম্ভব হয়নি',
+      });
+      throw err;
+    }
+  };
+
   const sendChatMessage = async (threadId: string, text: string, senderRole: 'factory' | 'vendor' = 'factory') => {
     const newMsg = {
       from: senderRole,
@@ -1435,6 +1665,109 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       await fetchDashboardData();
     } catch {
       // Local state preserved
+    }
+  };
+
+  const fetchBills = async (): Promise<KKBill[]> => {
+    try {
+      const res = await apiClient.get('portal/bills');
+      if (res && res.data && Array.isArray(res.data)) {
+        setFactoryBills(res.data);
+        return res.data;
+      }
+    } catch (err: any) {
+      console.info('Bills fetch fallback to local:', err?.message);
+    }
+    return factoryBills;
+  };
+
+  const createKkBill = async (partyCode: string, orderIds: string[]) => {
+    try {
+      const res = await apiClient.post('portal/bills', {
+        party_code: partyCode,
+        order_ids: orderIds,
+      });
+      if (res && res.data) {
+        const newBill: KKBill = {
+          no: res.data.bill_no,
+          f: res.data.factory_code || 'f1',
+          date: res.data.bill_date || '2026-10-03',
+          v: res.data.party_code || partyCode,
+          lines: res.data.lines_json || [],
+          jv: res.data.jv_no || 'JV-0935',
+          recv: res.data.payments_json || [],
+        };
+        setFactoryBills((prev) => [newBill, ...prev]);
+        addToast({
+          type: 'success',
+          title: 'বিল ও ভাউচার তৈরি হয়েছে',
+          message: `${newBill.no} তৈরি হলো · জার্নাল ভাউচার ${newBill.jv}`,
+        });
+        return newBill;
+      }
+    } catch {
+      // Local fallback
+      const billSeq = factoryBills.length + 1;
+      const jvSeq = factoryBills.length + 928;
+      const billNo = `BL-2610-${String(billSeq).padStart(3, '0')}`;
+      const jvNo = `JV-${String(jvSeq).padStart(4, '0')}`;
+      const candidateOrders = orders.filter((o) => orderIds.includes(o.id));
+      const lines: KKBillLine[] = candidateOrders.map((o) => ({
+        o: o.id,
+        fab: `${o.fabric} ${o.gsm}`,
+        kg: o.delivered || o.done || 0,
+        rate: o.rateTk || 30,
+      }));
+      const newBill: KKBill = {
+        no: billNo,
+        f: 'f1',
+        date: '2026-10-03',
+        v: partyCode,
+        lines,
+        jv: jvNo,
+        recv: [],
+      };
+      setFactoryBills((prev) => [newBill, ...prev]);
+      addToast({
+        type: 'success',
+        title: 'বিল তৈরি হয়েছে',
+        message: `${billNo} তৈরি হলো · ভাউচার ${jvNo}`,
+      });
+      return newBill;
+    }
+  };
+
+  const recordKkBillPayment = async (
+    billNo: string,
+    amount: number,
+    mode: string = 'ব্যাংক ট্রান্সফার — ব্যাংক A',
+    ref?: string
+  ) => {
+    const rvNo = ref || `RV-${String(931 + Math.floor(Math.random() * 50)).padStart(4, '0')}`;
+    setFactoryBills((prev) =>
+      prev.map((b) => {
+        if (b.no !== billNo) return b;
+        const recv = b.recv || [];
+        return {
+          ...b,
+          recv: [...recv, { d: '2026-10-03', amt: amount, rv: rvNo, mode }],
+        };
+      })
+    );
+    addToast({
+      type: 'success',
+      title: 'টাকা জমা হয়েছে',
+      message: `${rvNo} তৈরি হলো · লেজার আপডেট`,
+    });
+
+    try {
+      await apiClient.post(`portal/bills/${billNo}/pay`, {
+        amount,
+        mode,
+        ref: rvNo,
+      });
+    } catch {
+      // Handled
     }
   };
 
@@ -1763,6 +2096,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         storeQcInspection,
         signQcInspection,
         updateQcAction,
+        deliveryChallans,
+        fetchChallans,
+        createDeliveryChallan,
+        signChallan,
+        storeInventory,
+        storeLogs,
+        fetchStoreData,
+        recordStoreMovement,
+        addYarnInward,
+        factoryBills,
+        fetchBills,
+        createKkBill,
+        recordKkBillPayment,
       }}
     >
       {children}

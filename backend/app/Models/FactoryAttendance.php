@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class FactoryAttendance extends Model
 {
+    use BelongsToTenant;
+
     protected $fillable = [
         'factory_id',
         'worker_name',
@@ -29,10 +32,4 @@ class FactoryAttendance extends Model
             'daily_wage_tk' => 'float',
         ];
     }
-
-    public function factory(): BelongsTo
-    {
-        return $this->belongsTo(Factory::class);
-    }
 }
-

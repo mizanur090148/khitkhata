@@ -47,8 +47,10 @@ export const FactoryOrdersPage: React.FC = () => {
           const vendorMap = new Map<string, { count: number; qty: number; done: number }>();
           orders.forEach((o) => {
             const vName = o.party || o.buyer || 'ABC Knit Composite';
-            const q = o.lines.reduce((acc, l) => acc + (l.orderKg || 0), 0) || 12000;
-            const d = o.lines.reduce((acc, l) => acc + (l.knitKg || 0), 0) || 7420;
+            const lineQ = (o.lines || []).reduce((acc, l) => acc + (l.orderKg || (l as any).qty || 0), 0);
+            const q = lineQ > 0 ? lineQ : Number(o.qty || 0);
+            const lineD = (o.lines || []).reduce((acc, l) => acc + (l.knitKg || (l as any).done || 0), 0);
+            const d = lineD > 0 ? lineD : Number(o.done || 0);
             const cur = vendorMap.get(vName) || { count: 0, qty: 0, done: 0 };
             vendorMap.set(vName, { count: cur.count + 1, qty: cur.qty + q, done: cur.done + d });
           });
@@ -91,10 +93,14 @@ export const FactoryOrdersPage: React.FC = () => {
               </tr>
             ) : (
               orders.map((o) => {
-                const totalKg = o.lines.reduce((acc, l) => acc + (l.orderKg || 0), 0) || 12000;
-                const knitKg = o.lines.reduce((acc, l) => acc + (l.knitKg || 0), 0) || 7420;
+                const lineTotalKg = (o.lines || []).reduce((acc, l) => acc + (l.orderKg || (l as any).qty || 0), 0);
+                const totalKg = lineTotalKg > 0 ? lineTotalKg : Number(o.qty || 0);
+                const lineKnitKg = (o.lines || []).reduce((acc, l) => acc + (l.knitKg || (l as any).done || 0), 0);
+                const knitKg = lineKnitKg > 0 ? lineKnitKg : Number(o.done || 0);
                 const progressPct = pct(knitKg, totalKg);
-                const machineList = Array.from(new Set(o.lines.map((l) => l.machine).filter(Boolean)));
+                const machineList = Array.isArray(o.machines) && o.machines.length > 0
+                  ? o.machines
+                  : Array.from(new Set((o.lines || []).map((l) => l.machine).filter(Boolean)));
                 const isDone = o.status === 'Completed' || (o.status as string) === 'done';
                 const isWait = o.status === 'Pending' || (o.status as string) === 'wait';
 
@@ -111,8 +117,8 @@ export const FactoryOrdersPage: React.FC = () => {
                     <td className="mono">{o.id}</td>
                     <td>{o.party || o.buyer || 'ABC Knit Composite'}</td>
                     <td>
-                      {o.lines[0]?.fabric || o.style || 'Single Jersey'}
-                      {o.lines[0]?.gsm ? ` ${o.lines[0].gsm} GSM` : ''}
+                      {o.fabric || o.lines[0]?.fabric || o.style || 'Single Jersey'}
+                      {o.gsm || o.lines[0]?.gsm ? ` ${o.gsm || o.lines[0]?.gsm} GSM` : ''}
                     </td>
                     <td className="n">{bnNum(totalKg.toLocaleString('en-IN'))}</td>
                     <td className="n">{bnNum(knitKg.toLocaleString('en-IN'))}</td>

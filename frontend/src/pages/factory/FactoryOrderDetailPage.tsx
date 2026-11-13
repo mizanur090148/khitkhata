@@ -6,7 +6,8 @@ import { bnNum, pct } from '@/utils/formatters';
 export const FactoryOrderDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const { orders, yarns, qcLogs, prodLogs, selectedOrderId, deleteOrder } = useApp();
+  const { orders, yarns, qcLogs, prodLogs, selectedOrderId, deleteOrder, role } = useApp();
+  const isVendor = role === 'vendor' || (role as string) === 'ven';
 
   const activeOrder =
     orders.find((o) => o.id === id) ||
@@ -25,22 +26,29 @@ export const FactoryOrderDetailPage: React.FC = () => {
   }
 
   const o = activeOrder;
-  const totalKg = o.lines.reduce((acc, l) => acc + (l.orderKg || 0), 0) || 12000;
-  const knitKg = o.lines.reduce((acc, l) => acc + (l.knitKg || 0), 0) || 7420;
+  const lineSumKg = (o.lines || []).reduce((acc, l) => acc + (l.orderKg || (l as any).qty || 0), 0);
+  const totalKg = lineSumKg > 0 ? lineSumKg : Number(o.qty || 12000);
+  const lineKnitKg = (o.lines || []).reduce((acc, l) => acc + (l.knitKg || (l as any).done || 0), 0);
+  const knitKg = lineKnitKg > 0 ? lineKnitKg : Number(o.done || 7420);
   const progressPct = pct(knitKg, totalKg);
   const isDone = o.status === 'Completed' || (o.status as string) === 'done';
   const isWait = o.status === 'Pending' || (o.status as string) === 'wait';
   const isRun = !isDone && !isWait;
   const primaryLine = o.lines[0] || ({} as any);
-  const assignedMachines = Array.from(new Set(o.lines.map((l) => l.machine).filter(Boolean)));
-  const ratePerKg = primaryLine.rate || 14;
+  const assignedMachines = Array.isArray(o.machines) && o.machines.length > 0
+    ? o.machines
+    : Array.from(new Set((o.lines || []).map((l) => l.machine).filter(Boolean)));
+  const ratePerKg = primaryLine.rate || o.rateTk || 14;
   const orderYarns = yarns.filter((y) => y.orderId === o.id);
   const orderQc = qcLogs.filter((q) => q.orderId === o.id);
   const orderLogs = prodLogs.filter((p) => p.orderId === o.id);
+  const dynamicYarnIn = (o.yarnIn || []).reduce((acc: number, y: any) => acc + (y.kg || 0), 0);
   const totalYarnRcv =
-    o.lines.reduce((acc, l) => acc + (l.yarnRcv || 0), 0) ||
-    orderYarns.reduce((acc, y) => acc + y.rcvKg, 0) ||
-    12247;
+    dynamicYarnIn > 0
+      ? dynamicYarnIn
+      : (o.lines || []).reduce((acc, l) => acc + (l.yarnRcv || 0), 0) ||
+        orderYarns.reduce((acc, y) => acc + y.rcvKg, 0) ||
+        12247;
   const lossPct = 2;
   const allowedKg = Math.round(totalYarnRcv * (1 - lossPct / 100));
   const yarnBalance = Math.max(0, totalYarnRcv - Math.round(knitKg / (1 - lossPct / 100)));
@@ -52,7 +60,7 @@ export const FactoryOrderDetailPage: React.FC = () => {
           <button
             className="btn sm"
             onClick={() => {
-              navigate('/dashboard/orders');
+              navigate(isVendor ? '/dashboard/vorders' : '/dashboard/orders');
               window.scrollTo(0, 0);
             }}
           >

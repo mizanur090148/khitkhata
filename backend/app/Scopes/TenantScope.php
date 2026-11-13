@@ -14,12 +14,10 @@ class TenantScope implements Scope
      */
     public function apply(Builder $builder, Model $model): void
     {
-        if (Auth::hasUser()) {
-            $user = Auth::user();
-            if ($user && !empty($user->factory_id)) {
-                $builder->where($model->getTable() . '.factory_id', $user->factory_id);
-            }
+        $user = Auth::user() ?? (Auth::guard('sanctum')->check() ? Auth::guard('sanctum')->user() : null);
+
+        if ($user && !empty($user->factory_id)) {
+            $builder->where($model->getTable() . '.factory_id', $user->factory_id);
         }
     }
 }
-
