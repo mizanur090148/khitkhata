@@ -67,6 +67,7 @@ export const FactoryReadyFabricPage: React.FC = () => {
     orders,
     role,
     rolls,
+    factoryProfile,
     qcInspections,
     fetchOrders,
     fetchRolls,
@@ -151,7 +152,7 @@ export const FactoryReadyFabricPage: React.FC = () => {
             roll: rawQ.roll || rawQ.roll_no || '—',
             m: rawQ.m || rawQ.machine_code || '—',
             pl: Number(rawQ.pl ?? rawQ.placement_index ?? 0),
-            kg: Number(rawQ.kg ?? rawQ.weight_kg ?? 20),
+            kg: Number(rawQ.kg ?? rawQ.weight_kg ?? 0),
             issue: rawQ.issue || rawQ.issue_description || 'কোনো ফল্ট নেই',
             src: rawQ.src || rawQ.source || 'fac',
             fac: rawQ.fac || { v: null, by: '', at: '', note: '' },
@@ -173,7 +174,7 @@ export const FactoryReadyFabricPage: React.FC = () => {
               roll: rawQ.roll || rawQ.roll_no || '—',
               m: rawQ.m || rawQ.machine_code || '—',
               pl: Number(rawQ.pl ?? rawQ.placement_index ?? 0),
-              kg: Number(rawQ.kg ?? rawQ.weight_kg ?? 20),
+              kg: Number(rawQ.kg ?? rawQ.weight_kg ?? 0),
               issue: rawQ.issue || rawQ.issue_description || 'কোনো ফল্ট নেই',
               src: rawQ.src || rawQ.source || 'fac',
               fac: rawQ.fac || { v: null, by: '', at: '', note: '' },
@@ -296,7 +297,7 @@ export const FactoryReadyFabricPage: React.FC = () => {
       {/* Top Banner if Vendor */}
       {isVendorRole && (
         <div className="vbanner" style={{ marginBottom: 16 }}>
-          রহমান নিটিং-এ আপনার প্রতিটা অর্ডারের মোট পরিমাণ, কত তৈরি হয়েছে, কত পেয়েছেন, কত রেডি পড়ে আছে আর কত এখনো মেশিনে চলছে।
+          <b>{factoryProfile?.name || 'ফ্যাক্টরি'}</b>-এ আপনার প্রতিটা অর্ডারের মোট পরিমাণ, কত তৈরি হয়েছে, কত পেয়েছেন, কত রেডি পড়ে আছে আর কত এখনো মেশিনে চলছে।
         </div>
       )}
 
