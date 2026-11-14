@@ -34,33 +34,8 @@ import {
   YarnStockItem,
 } from '@/types/domain.types';
 import {
-  INITIAL_ATTENDANCE,
-  INITIAL_BILLS,
-  INITIAL_CHALLANS,
   INITIAL_FACTORY_PROFILE,
-  INITIAL_FREE_OFFERS,
-  INITIAL_JOBS,
-  INITIAL_MACHINES,
-  INITIAL_MARKETPLACE_SUBCONTRACT_POSTS,
-  INITIAL_OPERATORS,
-  INITIAL_ORDERS,
-  INITIAL_PARTIES,
   INITIAL_PARTNER_STATE,
-  INITIAL_PROD_LOGS,
-  INITIAL_QC_LOGS,
-  INITIAL_ROLLS,
-  INITIAL_SERVICES,
-  INITIAL_STORE_ISSUES,
-  INITIAL_STORE_ITEMS,
-  INITIAL_SUPPLIER_ADS,
-  INITIAL_SUPPLIER_CATALOG,
-  INITIAL_SUPPLIER_RFQS,
-  INITIAL_SUPPLIERS,
-  INITIAL_THREADS,
-  INITIAL_USERS,
-  INITIAL_VENDOR_FACTORIES,
-  INITIAL_VOUCHERS,
-  INITIAL_YARNS,
 } from '@/data/initialSeedState';
 import { apiClient } from '@/api/client';
 import { ToastMessage } from '@/components/common/Toast';
@@ -692,45 +667,39 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [selectedThreadId, setSelectedThreadId] = useState<string>('TH-01');
   const [selectedVendorFactoryId, setSelectedVendorFactoryId] = useState<string>('FAC-1');
 
-  // Core Domain State
+  // Core Domain State (100% Dynamic - Zero Mock Seed Defaults)
   const [factoryProfile, setFactoryProfile] = useState<FactoryProfileInfo>(INITIAL_FACTORY_PROFILE);
-  const [vendorFactories, setVendorFactories] = useState<VendorFactoryDirectoryItem[]>(INITIAL_VENDOR_FACTORIES);
-  const [orders, setOrders] = useState<SubcontractOrderItem[]>(INITIAL_ORDERS);
-  const [yarns, setYarns] = useState<YarnStockItem[]>(INITIAL_YARNS);
-  const [machines, setMachines] = useState<MachineItem[]>(INITIAL_MACHINES);
-  const [operators, setOperators] = useState<OperatorItem[]>(INITIAL_OPERATORS);
-  const [prodLogs, setProdLogs] = useState<ProductionLogItem[]>(INITIAL_PROD_LOGS);
-  const [rolls, setRolls] = useState<RollTagItem[]>(INITIAL_ROLLS);
-  const [qcLogs, setQcLogs] = useState<QcLogItem[]>(INITIAL_QC_LOGS);
-  const [challans, setChallans] = useState<ChallanItem[]>(INITIAL_CHALLANS);
+  const [vendorFactories, setVendorFactories] = useState<VendorFactoryDirectoryItem[]>([]);
+  const [orders, setOrders] = useState<SubcontractOrderItem[]>([]);
+  const [yarns, setYarns] = useState<YarnStockItem[]>([]);
+  const [machines, setMachines] = useState<MachineItem[]>([]);
+  const [operators, setOperators] = useState<OperatorItem[]>([]);
+  const [prodLogs, setProdLogs] = useState<ProductionLogItem[]>([]);
+  const [rolls, setRolls] = useState<RollTagItem[]>([]);
+  const [qcLogs, setQcLogs] = useState<QcLogItem[]>([]);
+  const [challans, setChallans] = useState<ChallanItem[]>([]);
   const [deliveryChallans, setDeliveryChallans] = useState<any[]>([]);
   const [qcInspections, setQcInspections] = useState<any[]>([]);
   const [storeInventory, setStoreInventory] = useState<any[]>([]);
   const [storeLogs, setStoreLogs] = useState<any[]>([]);
-  const [factoryBills, setFactoryBills] = useState<KKBill[]>(INITIAL_KK_BILLS);
-  const [bills, setBills] = useState<BillItem[]>(INITIAL_BILLS);
-  const [parties, setParties] = useState<PartyItem[]>(INITIAL_PARTIES);
-  const [storeItems, setStoreItems] = useState<StoreStockItem[]>(INITIAL_STORE_ITEMS);
-  const [storeIssues, setStoreIssues] = useState<StoreIssueItem[]>(INITIAL_STORE_ISSUES);
-  const [vouchers, setVouchers] = useState<LedgerVoucherItem[]>(INITIAL_VOUCHERS);
-  const [expenses, setExpenses] = useState<ExpenseItem[]>([
-    { id: 1, category: 'electricity', title: 'পল্লী বিদ্যুৎ বিল — সেপ্টেম্বর ২০২৬', amount: 64500, method: 'bank', ref: 'BILL-REB-891', date: '2026-10-01', createdBy: 'হিসাবরক্ষক তানভীর' },
-    { id: 2, category: 'maintenance', title: 'M-03 ও M-07 সিলিন্ডার বিয়ারিং ও ক্যাম অয়েলিং', amount: 8500, method: 'cash', ref: 'VOU-MC-104', date: '2026-10-02', createdBy: 'ম্যানেজার শফিকুল' },
-    { id: 3, category: 'needle_oil', title: 'Groz-Beckert ভোটা নিডেল ৫০০ পিস ও লুব অয়েল ১ ব্যারেল', amount: 22000, method: 'cash', ref: 'INV-SP-09', date: '2026-10-02', createdBy: 'স্টোরকিপার হাবিব' },
-    { id: 4, category: 'snacks', title: 'ফ্লোর নাইট শিফট অপারেটরদের নাস্তা ও চা', amount: 1850, method: 'cash', ref: 'SNK-04', date: '2026-10-03', createdBy: 'সুপারভাইজার মাহমুদুল' },
-    { id: 5, category: 'transport', title: 'ডেলিভারি চালান পিকআপ ভ্যান ভাড়া (গাজীপুর টু জামগড়া)', amount: 3500, method: 'cash', ref: 'TRP-88', date: '2026-10-03', createdBy: 'ম্যানেজার শফিকুল' },
-  ]);
-  const [attendance, setAttendance] = useState<AttendanceItem[]>(INITIAL_ATTENDANCE);
-  const [users, setUsers] = useState<AppUserItem[]>(INITIAL_USERS);
-  const [threads, setThreads] = useState<MessageThreadItem[]>(INITIAL_THREADS);
-  const [freeOffers, setFreeOffers] = useState<FreeMachineOfferItem[]>(INITIAL_FREE_OFFERS);
-  const [jobs, setJobs] = useState<JobPostItem[]>(INITIAL_JOBS);
-  const [services] = useState<ServiceDetailItem[]>(INITIAL_SERVICES);
-  const [suppliers, setSuppliers] = useState<SupplierItem[]>(INITIAL_SUPPLIERS);
-  const [rfqs, setRfqs] = useState<SupplierRfqItem[]>(INITIAL_SUPPLIER_RFQS);
-  const [catalog, setCatalog] = useState<SupplierCatalogItem[]>(INITIAL_SUPPLIER_CATALOG);
-  const [ads, setAds] = useState<SupplierAdItem[]>(INITIAL_SUPPLIER_ADS);
-  const [marketplacePosts, setMarketplacePosts] = useState<MarketplaceSubcontractPost[]>(INITIAL_MARKETPLACE_SUBCONTRACT_POSTS);
+  const [factoryBills, setFactoryBills] = useState<KKBill[]>([]);
+  const [bills, setBills] = useState<BillItem[]>([]);
+  const [parties, setParties] = useState<PartyItem[]>([]);
+  const [storeItems, setStoreItems] = useState<StoreStockItem[]>([]);
+  const [storeIssues, setStoreIssues] = useState<StoreIssueItem[]>([]);
+  const [vouchers, setVouchers] = useState<LedgerVoucherItem[]>([]);
+  const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
+  const [attendance, setAttendance] = useState<AttendanceItem[]>([]);
+  const [users, setUsers] = useState<AppUserItem[]>([]);
+  const [threads, setThreads] = useState<MessageThreadItem[]>([]);
+  const [freeOffers, setFreeOffers] = useState<FreeMachineOfferItem[]>([]);
+  const [jobs, setJobs] = useState<JobPostItem[]>([]);
+  const [services] = useState<ServiceDetailItem[]>([]);
+  const [suppliers, setSuppliers] = useState<SupplierItem[]>([]);
+  const [rfqs, setRfqs] = useState<SupplierRfqItem[]>([]);
+  const [catalog, setCatalog] = useState<SupplierCatalogItem[]>([]);
+  const [ads, setAds] = useState<SupplierAdItem[]>([]);
+  const [marketplacePosts, setMarketplacePosts] = useState<MarketplaceSubcontractPost[]>([]);
   const [partner, setPartner] = useState<PartnerState>(INITIAL_PARTNER_STATE);
 
   // Dialog States
@@ -772,6 +741,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const res = await apiClient.get('portal/dashboard');
       if (res && res.success && res.data) {
         setDashboardData(res.data);
+        if (Array.isArray(res.data.machines)) {
+          setMachines(res.data.machines);
+        }
       }
     } catch (err: any) {
       console.warn('Dashboard sync fallback to offline state:', err.message);
@@ -945,11 +917,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           const d = res.data;
           if (d.factory) setFactoryProfile(d.factory);
           if (Array.isArray(d.orders)) setOrders(d.orders);
-          if (Array.isArray(d.machines) && d.machines.length) setMachines(d.machines);
-          if (Array.isArray(d.yarns) && d.yarns.length) setYarns(d.yarns);
-          if (Array.isArray(d.qcLogs) && d.qcLogs.length) setQcLogs(d.qcLogs);
-          if (Array.isArray(d.operators) && d.operators.length) setOperators(d.operators);
-          if (d.parties && d.parties.length) setParties(d.parties);
+          if (Array.isArray(d.machines)) setMachines(d.machines);
+          if (Array.isArray(d.yarns)) setYarns(d.yarns);
+          if (Array.isArray(d.qcLogs)) setQcLogs(d.qcLogs);
+          if (Array.isArray(d.operators)) setOperators(d.operators);
+          if (Array.isArray(d.parties)) setParties(d.parties);
           if (Array.isArray(d.rolls)) setRolls(d.rolls);
           if (Array.isArray(d.prodLog)) setProdLogs(d.prodLog);
           if (Array.isArray(d.challans)) setDeliveryChallans(d.challans);

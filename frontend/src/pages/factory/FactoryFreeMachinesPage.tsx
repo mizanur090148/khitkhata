@@ -17,23 +17,34 @@ export const FactoryFreeMachinesPage: React.FC = () => {
   const navigate = useNavigate();
   const {
     addToast,
-    machines: allMachines,
     dashboardData,
     fetchDashboardData,
     broadcastFreeMachines,
     submitQuotation,
-    freeOffers,
   } = useApp();
+
+  const [isLoading, setIsLoading] = useState(!dashboardData);
 
   // Load fresh dashboard and machine data on mount
   useEffect(() => {
-    fetchDashboardData?.();
+    let isMounted = true;
+    const loadData = async () => {
+      try {
+        await fetchDashboardData?.();
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+    loadData();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  // Compute machine breakdown dynamically from database
+  // Compute machine breakdown dynamically from database ONLY (zero demo fallbacks)
   const effectiveMachinesList = useMemo(() => {
-    return dashboardData?.machines || allMachines || [];
-  }, [dashboardData?.machines, allMachines]);
+    return dashboardData?.machines || [];
+  }, [dashboardData?.machines]);
 
   const circularCount = useMemo(() => {
     return effectiveMachinesList.filter((m: any) => {
@@ -130,13 +141,10 @@ export const FactoryFreeMachinesPage: React.FC = () => {
 
   const broadcastCount = machines.filter((m) => m.broadcast).length;
 
-  // Real Database Subcontract RFQs from marketplace
+  // Real Database Subcontract RFQs from marketplace (zero demo fallbacks)
   const liveRfqs = useMemo(() => {
-    if (dashboardData?.marketplace_rfqs && dashboardData.marketplace_rfqs.length > 0) {
-      return dashboardData.marketplace_rfqs;
-    }
-    return freeOffers || [];
-  }, [dashboardData?.marketplace_rfqs, freeOffers]);
+    return dashboardData?.marketplace_rfqs || [];
+  }, [dashboardData?.marketplace_rfqs]);
 
   // Quotation Submission Modal State
   const [quoteModalRfq, setQuoteModalRfq] = useState<any | null>(null);
@@ -265,7 +273,15 @@ export const FactoryFreeMachinesPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {machines.length === 0 ? (
+                {isLoading && !dashboardData ? (
+                  <tr>
+                    <td colSpan={5} style={{ textAlign: 'center', padding: '28px', color: 'var(--muted)' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                        <Loader2 size={16} className="animate-spin" /> ডাটাবেজ থেকে খালি মেশিনের তালিকা লোড হচ্ছে...
+                      </span>
+                    </td>
+                  </tr>
+                ) : machines.length === 0 ? (
                   <tr>
                     <td colSpan={5} style={{ textAlign: 'center', padding: '24px', color: 'var(--muted)' }}>
                       বর্তমানে কোনো খালি মেশিন নেই। সব মেশিনে প্রোডাকশন চলছে।
@@ -335,7 +351,13 @@ export const FactoryFreeMachinesPage: React.FC = () => {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
-            {liveRfqs && liveRfqs.length > 0 ? (
+            {isLoading && !dashboardData ? (
+              <p className="small muted" style={{ textAlign: 'center', padding: '24px' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  <Loader2 size={16} className="animate-spin" /> মার্কেটপ্লেস রিকোয়েস্ট লোড হচ্ছে...
+                </span>
+              </p>
+            ) : liveRfqs && liveRfqs.length > 0 ? (
               liveRfqs.map((req: any, idx: number) => {
                 const buyerTitle =
                   req.buyer ||
