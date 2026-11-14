@@ -482,9 +482,21 @@ export const FactoryOrdersPage: React.FC = () => {
               borderRadius: 8,
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--primary, #0284c7)', fontWeight: 600 }}>
-              <Loader2 size={20} className="animate-spin" />
-              <span>সার্ভার থেকে লোড হচ্ছে...</span>
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: '50%',
+                background: 'var(--surface, #ffffff)',
+                boxShadow: '0 4px 14px rgba(0, 0, 0, 0.1)',
+                border: '1px solid var(--border)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--primary, #0284c7)',
+              }}
+            >
+              <Loader2 size={24} className="animate-spin" />
             </div>
           </div>
         )}
