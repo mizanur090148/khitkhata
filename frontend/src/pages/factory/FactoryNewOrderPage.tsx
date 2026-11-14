@@ -3,6 +3,17 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
 import { bnNum } from '@/utils/formatters';
 import { SubcontractOrderItem, OrderLineItem } from '@/types/domain.types';
+import {
+  UserPlus,
+  Building2,
+  Phone,
+  User,
+  MapPin,
+  Calendar,
+  X,
+  Sparkles,
+  AlertCircle,
+} from 'lucide-react';
 
 // Exact constants from KnitKhata.html
 const PLACES = [
@@ -714,19 +725,24 @@ export const FactoryNewOrderPage: React.FC = () => {
                   type="button"
                   className="addp"
                   onClick={handleOpenAddPartyModal}
-                  title="নতুন পার্টি তৈরি করুন"
+                  title="নতুন বায়ার / পার্টি তৈরি করুন"
                   style={{
-                    fontSize: 11,
-                    padding: '2px 8px',
-                    borderRadius: 4,
+                    fontSize: 12,
+                    padding: '3px 10px',
+                    borderRadius: 6,
                     background: 'var(--brand-surface, #e0f2fe)',
                     color: 'var(--primary, #0284c7)',
-                    border: '1px solid var(--border)',
+                    border: '1px solid rgba(2, 132, 199, 0.25)',
                     cursor: 'pointer',
                     fontWeight: 600,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    transition: 'all 0.15s ease',
                   }}
                 >
-                  + নতুন পার্টি
+                  <UserPlus size={13} />
+                  + নতুন বায়ার
                 </button>
               </div>
 
@@ -842,9 +858,17 @@ export const FactoryNewOrderPage: React.FC = () => {
                         type="button"
                         onClick={handleOpenAddPartyModal}
                         className="btn small pri"
-                        style={{ fontSize: 12 }}
+                        style={{
+                          fontSize: 12,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '6px 14px',
+                          borderRadius: 8,
+                          fontWeight: 600,
+                        }}
                       >
-                        + নতুন পার্টি তালিকায় যোগ করুন
+                        <UserPlus size={14} /> + নতুন বায়ার হিসেবে যোগ করুন
                       </button>
                     </div>
                   ) : (
@@ -1734,281 +1758,525 @@ export const FactoryNewOrderPage: React.FC = () => {
         </button>
       </form>
 
-      {/* Modal: নতুন পার্টি / বায়ার তৈরি করুন */}
+      {/* ========================================================
+          BEAUTIFIED BUYER / PARTY REGISTRATION MODAL
+      ======================================================== */}
       {showAddPartyModal && (
         <div
           className="modal-overlay"
           onClick={() => setShowAddPartyModal(false)}
-          style={{ zIndex: 1100 }}
+          style={{
+            zIndex: 1200,
+            background: 'rgba(15, 23, 42, 0.7)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+          }}
         >
           <div
-            className="modal-content"
-            style={{ maxWidth: 540 }}
+            style={{
+              width: '100%',
+              maxWidth: 580,
+              background: 'var(--surface, #ffffff)',
+              borderRadius: 20,
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35), 0 0 0 1px var(--border, #e2e8f0)',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              maxHeight: '92vh',
+            }}
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Header with gradient & branding */}
             <div
               style={{
+                padding: '20px 24px 18px',
+                borderBottom: '1px solid var(--border, #e2e8f0)',
+                background: 'linear-gradient(135deg, rgba(2, 132, 199, 0.08) 0%, rgba(99, 102, 241, 0.04) 100%)',
                 display: 'flex',
+                alignItems: 'flex-start',
                 justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: 16,
-                borderBottom: '1px solid var(--border)',
-                paddingBottom: 12,
+                gap: 16,
               }}
             >
-              <div>
-                <h3 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text)' }}>
-                  নতুন পার্টি / বায়ার তৈরি করুন
-                </h3>
-                <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: 'var(--muted)' }}>
-                  তথ্য পূরণ করে সেভ করলে সাথে সাথে ভেন্ডর হিসেবে সিলেক্ট হবে।
-                </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <div
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 12,
+                    background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 4px 12px rgba(2, 132, 199, 0.35)',
+                    flexShrink: 0,
+                  }}
+                >
+                  <UserPlus size={22} />
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                    <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700, color: 'var(--text, #0f172a)', letterSpacing: '-0.01em' }}>
+                      নতুন বায়ার / পার্টি নিবন্ধন
+                    </h3>
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: 'var(--primary, #0284c7)',
+                        background: 'var(--brand-surface, #e0f2fe)',
+                        padding: '2px 8px',
+                        borderRadius: 9999,
+                        letterSpacing: '0.02em',
+                      }}
+                    >
+                      ইনস্ট্যান্ট লিংক
+                    </span>
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--muted, #64748b)', lineHeight: 1.4 }}>
+                    নতুন বায়ারের তথ্য দিন — সেভ হওয়ামাত্রই বর্তমান অর্ডারে ভেন্ডর হিসেবে অটো-সিলেক্ট হবে
+                  </p>
+                </div>
               </div>
+
               <button
                 type="button"
                 onClick={() => setShowAddPartyModal(false)}
                 style={{
-                  background: 'transparent',
+                  width: 32,
+                  height: 32,
+                  borderRadius: '50%',
                   border: 'none',
-                  fontSize: 20,
+                  background: 'rgba(0, 0, 0, 0.05)',
+                  color: 'var(--muted, #64748b)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   cursor: 'pointer',
-                  color: 'var(--muted)',
-                  padding: 4,
-                  lineHeight: 1,
+                  transition: 'all 0.15s ease',
+                  flexShrink: 0,
+                  padding: 0,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
+                  e.currentTarget.style.color = '#ef4444';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(0, 0, 0, 0.05)';
+                  e.currentTarget.style.color = 'var(--muted, #64748b)';
                 }}
                 aria-label="বন্ধ করুন"
               >
-                ✕
+                <X size={18} />
               </button>
             </div>
 
-            {modalPartyError && (
-              <div
-                style={{
-                  background: 'rgba(239, 68, 68, 0.1)',
-                  color: '#ef4444',
-                  border: '1px solid rgba(239, 68, 68, 0.25)',
-                  padding: '8px 12px',
-                  borderRadius: 6,
-                  fontSize: '0.85rem',
-                  marginBottom: 14,
-                }}
-              >
-                {modalPartyError}
-              </div>
-            )}
-
-            <form onSubmit={handleCreatePartySubmit}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 4, color: 'var(--text)' }}>
-                    পার্টি / বায়ারের নাম <span style={{ color: '#ef4444' }}>*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="যেমন: ফ্যাশন নিটওয়্যার লিমিটেড বা এবিসি টেক্সটাইল"
-                    value={modalPartyName}
-                    onChange={(e) => setModalPartyName(e.target.value)}
-                    autoFocus
+            {/* Scrollable Form Body */}
+            <form onSubmit={handleCreatePartySubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflowY: 'auto' }}>
+              <div style={{ padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {modalPartyError && (
+                  <div
                     style={{
-                      width: '100%',
-                      padding: '8px 10px',
-                      borderRadius: 6,
-                      border: '1px solid var(--border)',
-                      background: 'var(--surface)',
-                      color: 'var(--text)',
-                      boxSizing: 'border-box',
+                      background: 'rgba(239, 68, 68, 0.08)',
+                      border: '1px solid rgba(239, 68, 68, 0.25)',
+                      borderRadius: 10,
+                      padding: '10px 14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      color: '#b91c1c',
+                      fontSize: '0.85rem',
+                      fontWeight: 500,
                     }}
-                  />
-                </div>
+                  >
+                    <AlertCircle size={18} style={{ flexShrink: 0, color: '#ef4444' }} />
+                    <span>{modalPartyError}</span>
+                  </div>
+                )}
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 4, color: 'var(--text)' }}>
-                      মোবাইল / ফোন নম্বর
-                    </label>
+                {/* Field: Party Name */}
+                <div>
+                  <label
+                    style={{
+                      display: 'block',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      color: 'var(--text, #1e293b)',
+                      marginBottom: 6,
+                    }}
+                  >
+                    বায়ার / প্রতিষ্ঠানের নাম <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <div style={{ position: 'absolute', left: 12, color: 'var(--muted, #94a3b8)', display: 'flex', alignItems: 'center', pointerEvents: 'none' }}>
+                      <Building2 size={16} />
+                    </div>
                     <input
                       type="text"
-                      placeholder="যেমন: 01711-000111"
-                      value={modalPartyPhone}
-                      onChange={(e) => setModalPartyPhone(e.target.value)}
+                      required
+                      autoFocus
+                      placeholder="যেমন: ABC Knit Composite Ltd বা মেসার্স রহিম টেক্সটাইল"
+                      value={modalPartyName}
+                      onChange={(e) => setModalPartyName(e.target.value)}
                       style={{
                         width: '100%',
-                        padding: '8px 10px',
-                        borderRadius: 6,
-                        border: '1px solid var(--border)',
-                        background: 'var(--surface)',
-                        color: 'var(--text)',
+                        padding: '10px 12px 10px 38px',
+                        borderRadius: 10,
+                        border: '1.5px solid var(--border, #cbd5e1)',
+                        background: 'var(--surface, #ffffff)',
+                        color: 'var(--text, #0f172a)',
+                        fontSize: '0.92rem',
+                        outline: 'none',
+                        transition: 'all 0.15s ease',
                         boxSizing: 'border-box',
                       }}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 4, color: 'var(--text)' }}>
-                      যোগাযোগকারী ব্যক্তি
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="যেমন: মো. কামরুল হাসান (মার্চেন্ডাইজার)"
-                      value={modalPartyContact}
-                      onChange={(e) => setModalPartyContact(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '8px 10px',
-                        borderRadius: 6,
-                        border: '1px solid var(--border)',
-                        background: 'var(--surface)',
-                        color: 'var(--text)',
-                        boxSizing: 'border-box',
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--primary, #0284c7)';
+                        e.currentTarget.style.boxShadow = '0 0 0 3px rgba(2, 132, 199, 0.15)';
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--border, #cbd5e1)';
+                        e.currentTarget.style.boxShadow = 'none';
                       }}
                     />
                   </div>
                 </div>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 4, color: 'var(--text)' }}>
-                    কারখানা বা অফিসের ঠিকানা
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="যেমন: জামগড়া, আশুলিয়া, সাভার, ঢাকা"
-                    value={modalPartyAddress}
-                    onChange={(e) => setModalPartyAddress(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '8px 10px',
-                      borderRadius: 6,
-                      border: '1px solid var(--border)',
-                      background: 'var(--surface)',
-                      color: 'var(--text)',
-                      boxSizing: 'border-box',
-                    }}
-                  />
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                {/* 2-Column: Phone & Contact Person */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 4, color: 'var(--text)' }}>
-                      ডিফল্ট নিটিং রেট (৳ / কেজি)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.5"
-                      placeholder="যেমন: 24.5"
-                      value={modalPartyRate}
-                      onChange={(e) => setModalPartyRate(e.target.value)}
+                    <label
                       style={{
-                        width: '100%',
-                        padding: '8px 10px',
-                        borderRadius: 6,
-                        border: '1px solid var(--border)',
-                        background: 'var(--surface)',
-                        color: 'var(--text)',
-                        boxSizing: 'border-box',
-                      }}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 4, color: 'var(--text)' }}>
-                      প্রারম্ভিক জের / বকেয়া (৳)
-                    </label>
-                    <input
-                      type="number"
-                      step="1"
-                      placeholder="০"
-                      value={modalPartyOpening}
-                      onChange={(e) => setModalPartyOpening(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '8px 10px',
-                        borderRadius: 6,
-                        border: '1px solid var(--border)',
-                        background: 'var(--surface)',
-                        color: 'var(--text)',
-                        boxSizing: 'border-box',
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 4, color: 'var(--text)' }}>
-                      পেমেন্ট শর্ত
-                    </label>
-                    <select
-                      value={modalPartyTerms}
-                      onChange={(e) => setModalPartyTerms(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '8px 10px',
-                        borderRadius: 6,
-                        border: '1px solid var(--border)',
-                        background: 'var(--surface)',
-                        color: 'var(--text)',
-                        boxSizing: 'border-box',
+                        display: 'block',
+                        fontSize: '0.85rem',
+                        fontWeight: 600,
+                        color: 'var(--text, #1e293b)',
+                        marginBottom: 6,
                       }}
                     >
-                      <option value="বিলের ৩০ দিনের মধ্যে">বিলের ৩০ দিনের মধ্যে</option>
-                      <option value="বিলের ১৫ দিনের মধ্যে">বিলের ১৫ দিনের মধ্যে</option>
-                      <option value="বিলের ৪৫ দিনের মধ্যে">বিলের ৪৫ দিনের মধ্যে</option>
-                      <option value="নগদ / ক্যাশ">নগদ / ক্যাশ</option>
-                      <option value="সাপ্তাহিক">সাপ্তাহিক</option>
-                    </select>
+                      মোবাইল নম্বর
+                    </label>
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                      <div style={{ position: 'absolute', left: 12, color: 'var(--muted, #94a3b8)', display: 'flex', alignItems: 'center', pointerEvents: 'none' }}>
+                        <Phone size={16} />
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="যেমন: 01711-000111"
+                        value={modalPartyPhone}
+                        onChange={(e) => setModalPartyPhone(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px 10px 38px',
+                          borderRadius: 10,
+                          border: '1.5px solid var(--border, #cbd5e1)',
+                          background: 'var(--surface, #ffffff)',
+                          color: 'var(--text, #0f172a)',
+                          fontSize: '0.92rem',
+                          outline: 'none',
+                          transition: 'all 0.15s ease',
+                          boxSizing: 'border-box',
+                        }}
+                        onFocus={(e) => {
+                          e.currentTarget.style.borderColor = 'var(--primary, #0284c7)';
+                          e.currentTarget.style.boxShadow = '0 0 0 3px rgba(2, 132, 199, 0.15)';
+                        }}
+                        onBlur={(e) => {
+                          e.currentTarget.style.borderColor = 'var(--border, #cbd5e1)';
+                          e.currentTarget.style.boxShadow = 'none';
+                        }}
+                      />
+                    </div>
                   </div>
 
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 4, color: 'var(--text)' }}>
-                      ইমেইল (ঐচ্ছিক)
+                    <label
+                      style={{
+                        display: 'block',
+                        fontSize: '0.85rem',
+                        fontWeight: 600,
+                        color: 'var(--text, #1e293b)',
+                        marginBottom: 6,
+                      }}
+                    >
+                      যোগাযোগকারী কর্মকর্তা
                     </label>
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                      <div style={{ position: 'absolute', left: 12, color: 'var(--muted, #94a3b8)', display: 'flex', alignItems: 'center', pointerEvents: 'none' }}>
+                        <User size={16} />
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="যেমন: মো. কামরুল হাসান (মার্চেন্ডাইজার)"
+                        value={modalPartyContact}
+                        onChange={(e) => setModalPartyContact(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px 10px 38px',
+                          borderRadius: 10,
+                          border: '1.5px solid var(--border, #cbd5e1)',
+                          background: 'var(--surface, #ffffff)',
+                          color: 'var(--text, #0f172a)',
+                          fontSize: '0.92rem',
+                          outline: 'none',
+                          transition: 'all 0.15s ease',
+                          boxSizing: 'border-box',
+                        }}
+                        onFocus={(e) => {
+                          e.currentTarget.style.borderColor = 'var(--primary, #0284c7)';
+                          e.currentTarget.style.boxShadow = '0 0 0 3px rgba(2, 132, 199, 0.15)';
+                        }}
+                        onBlur={(e) => {
+                          e.currentTarget.style.borderColor = 'var(--border, #cbd5e1)';
+                          e.currentTarget.style.boxShadow = 'none';
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Field: Office / Factory Address */}
+                <div>
+                  <label
+                    style={{
+                      display: 'block',
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      color: 'var(--text, #1e293b)',
+                      marginBottom: 6,
+                    }}
+                  >
+                    কারখানা বা অফিসের ঠিকানা
+                  </label>
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <div style={{ position: 'absolute', left: 12, color: 'var(--muted, #94a3b8)', display: 'flex', alignItems: 'center', pointerEvents: 'none' }}>
+                      <MapPin size={16} />
+                    </div>
                     <input
-                      type="email"
-                      placeholder="buyer@example.com"
-                      value={modalPartyEmail}
-                      onChange={(e) => setModalPartyEmail(e.target.value)}
+                      type="text"
+                      placeholder="যেমন: জামগড়া, আশুলিয়া, সাভার, ঢাকা"
+                      value={modalPartyAddress}
+                      onChange={(e) => setModalPartyAddress(e.target.value)}
                       style={{
                         width: '100%',
-                        padding: '8px 10px',
-                        borderRadius: 6,
-                        border: '1px solid var(--border)',
-                        background: 'var(--surface)',
-                        color: 'var(--text)',
+                        padding: '10px 12px 10px 38px',
+                        borderRadius: 10,
+                        border: '1.5px solid var(--border, #cbd5e1)',
+                        background: 'var(--surface, #ffffff)',
+                        color: 'var(--text, #0f172a)',
+                        fontSize: '0.92rem',
+                        outline: 'none',
+                        transition: 'all 0.15s ease',
                         boxSizing: 'border-box',
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--primary, #0284c7)';
+                        e.currentTarget.style.boxShadow = '0 0 0 3px rgba(2, 132, 199, 0.15)';
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--border, #cbd5e1)';
+                        e.currentTarget.style.boxShadow = 'none';
                       }}
                     />
                   </div>
                 </div>
+
+                {/* Section 2: Commercial Terms Container */}
+                <div
+                  style={{
+                    background: 'var(--background, #f8fafc)',
+                    border: '1px solid var(--border, #e2e8f0)',
+                    borderRadius: 14,
+                    padding: '14px 16px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 12,
+                  }}
+                >
+                  <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--muted, #64748b)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    বাণিজ্যিক শর্ত ও রেট
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.4fr 1.1fr', gap: 12 }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text, #1e293b)', marginBottom: 5 }}>
+                        ডিফল্ট রেট (৳/কেজি)
+                      </label>
+                      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                        <span style={{ position: 'absolute', left: 10, color: 'var(--muted, #94a3b8)', fontWeight: 600, fontSize: 14, pointerEvents: 'none' }}>
+                          ৳
+                        </span>
+                        <input
+                          type="number"
+                          step="0.5"
+                          placeholder="২৪.৫০"
+                          value={modalPartyRate}
+                          onChange={(e) => setModalPartyRate(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px 8px 26px',
+                            borderRadius: 8,
+                            border: '1px solid var(--border, #cbd5e1)',
+                            background: 'var(--surface, #ffffff)',
+                            color: 'var(--text, #0f172a)',
+                            fontSize: '0.88rem',
+                            outline: 'none',
+                            boxSizing: 'border-box',
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text, #1e293b)', marginBottom: 5 }}>
+                        পেমেন্ট শর্ত
+                      </label>
+                      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                        <div style={{ position: 'absolute', left: 10, color: 'var(--muted, #94a3b8)', pointerEvents: 'none' }}>
+                          <Calendar size={14} />
+                        </div>
+                        <select
+                          value={modalPartyTerms}
+                          onChange={(e) => setModalPartyTerms(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '8px 10px 8px 30px',
+                            borderRadius: 8,
+                            border: '1px solid var(--border, #cbd5e1)',
+                            background: 'var(--surface, #ffffff)',
+                            color: 'var(--text, #0f172a)',
+                            fontSize: '0.88rem',
+                            outline: 'none',
+                            boxSizing: 'border-box',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <option value="বিলের ৩০ দিনের মধ্যে">বিলের ৩০ দিনের মধ্যে</option>
+                          <option value="বিলের ১৫ দিনের মধ্যে">বিলের ১৫ দিনের মধ্যে</option>
+                          <option value="বিলের ৪৫ দিনের মধ্যে">বিলের ৪৫ দিনের মধ্যে</option>
+                          <option value="নগদ / ক্যাশ">নগদ / ক্যাশ</option>
+                          <option value="সাপ্তাহিক">সাপ্তাহিক</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text, #1e293b)', marginBottom: 5 }}>
+                        পূর্বের বকেয়া (৳)
+                      </label>
+                      <input
+                        type="number"
+                        step="1"
+                        placeholder="০"
+                        value={modalPartyOpening}
+                        onChange={(e) => setModalPartyOpening(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '8px 10px',
+                          borderRadius: 8,
+                          border: '1px solid var(--border, #cbd5e1)',
+                          background: 'var(--surface, #ffffff)',
+                          color: 'var(--text, #0f172a)',
+                          fontSize: '0.88rem',
+                          outline: 'none',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
 
+              {/* Modal Footer Actions */}
               <div
                 style={{
+                  padding: '14px 24px',
+                  background: 'var(--background, #f8fafc)',
+                  borderTop: '1px solid var(--border, #e2e8f0)',
                   display: 'flex',
-                  justifyContent: 'flex-end',
-                  gap: 8,
-                  marginTop: 20,
-                  paddingTop: 14,
-                  borderTop: '1px solid var(--border)',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 12,
                 }}
               >
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => setShowAddPartyModal(false)}
-                  disabled={modalPartySubmitting}
-                >
-                  বাতিল
-                </button>
-                <button
-                  type="submit"
-                  className="btn pri"
-                  disabled={modalPartySubmitting}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-                >
-                  {modalPartySubmitting ? 'সেভ হচ্ছে...' : 'পার্টি সেভ করুন'}
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', color: 'var(--muted, #64748b)' }}>
+                  <Sparkles size={14} style={{ color: 'var(--primary, #0284c7)' }} />
+                  <span>কোনো পেজ রিলোড ছাড়াই সেভ হবে</span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddPartyModal(false)}
+                    disabled={modalPartySubmitting}
+                    style={{
+                      padding: '9px 18px',
+                      borderRadius: 10,
+                      border: '1px solid var(--border, #cbd5e1)',
+                      background: 'transparent',
+                      color: 'var(--text, #334155)',
+                      fontSize: '0.88rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'rgba(0,0,0,0.04)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'transparent';
+                    }}
+                  >
+                    বাতিল
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={modalPartySubmitting}
+                    style={{
+                      padding: '9px 22px',
+                      borderRadius: 10,
+                      border: 'none',
+                      background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                      color: '#ffffff',
+                      fontSize: '0.9rem',
+                      fontWeight: 600,
+                      cursor: modalPartySubmitting ? 'not-allowed' : 'pointer',
+                      opacity: modalPartySubmitting ? 0.7 : 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      boxShadow: '0 4px 14px rgba(2, 132, 199, 0.35)',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    {modalPartySubmitting ? (
+                      <>
+                        <span
+                          style={{
+                            width: 14,
+                            height: 14,
+                            border: '2px solid rgba(255,255,255,0.4)',
+                            borderTopColor: '#ffffff',
+                            borderRadius: '50%',
+                            display: 'inline-block',
+                            animation: 'spin 0.6s linear infinite',
+                          }}
+                        />
+                        <span>সংরক্ষণ হচ্ছে...</span>
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus size={16} />
+                        <span>বায়ার সংরক্ষণ করুন</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
