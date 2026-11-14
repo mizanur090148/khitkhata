@@ -13,14 +13,6 @@ interface FreeMachineRow {
   capacityKg: number;
 }
 
-const INITIAL_IDLE_MACHINES: FreeMachineRow[] = [
-  { code: 'M-10', brand: 'Mayer & Cie (জার্মানি)', diaGg: '30" × 24G', broadcast: true, freeFrom: '2026-10-05', capacityKg: 450 },
-  { code: 'M-18', brand: 'Terrot (জার্মানি)', diaGg: '32" × 24G', broadcast: true, freeFrom: '2026-10-04', capacityKg: 480 },
-  { code: 'M-19', brand: 'Terrot (জার্মানি)', diaGg: '34" × 28G', broadcast: false, freeFrom: '2026-10-06', capacityKg: 420 },
-  { code: 'M-20', brand: 'Fukuhara (জাপান)', diaGg: '30" × 20G', broadcast: false, freeFrom: '2026-10-08', capacityKg: 400 },
-  { code: 'M-21', brand: 'Pailung (তাইওয়ান)', diaGg: '36" × 24G', broadcast: true, freeFrom: '2026-10-05', capacityKg: 520 },
-];
-
 export const FactoryFreeMachinesPage: React.FC = () => {
   const navigate = useNavigate();
   const {
@@ -44,24 +36,34 @@ export const FactoryFreeMachinesPage: React.FC = () => {
   }, [dashboardData?.machines, allMachines]);
 
   const circularCount = useMemo(() => {
-    return effectiveMachinesList.filter(
-      (m: any) =>
-        (m.type || '').toLowerCase().includes('circ') ||
-        !(m.type || '').toLowerCase().includes('flat')
-    ).length;
+    return effectiveMachinesList.filter((m: any) => {
+      const knitType = String(m.knit_type || '').toLowerCase();
+      const typeStr = String(m.type || '').toLowerCase();
+      return (
+        knitType === 'c' ||
+        knitType === 'circular' ||
+        typeStr.includes('circ') ||
+        (!typeStr.includes('flat') && knitType !== 'f')
+      );
+    }).length;
   }, [effectiveMachinesList]);
 
   const flatCount = useMemo(() => {
-    return effectiveMachinesList.filter((m: any) =>
-      (m.type || '').toLowerCase().includes('flat')
-    ).length;
+    return effectiveMachinesList.filter((m: any) => {
+      const knitType = String(m.knit_type || '').toLowerCase();
+      const typeStr = String(m.type || '').toLowerCase();
+      return knitType === 'f' || knitType === 'flat' || typeStr.includes('flat');
+    }).length;
   }, [effectiveMachinesList]);
 
-  // Transform and filter idle/free machines from database
-  const [machines, setMachines] = useState<FreeMachineRow[]>(() => {
+  // Real database-backed idle / broadcast free machines
+  const [machines, setMachines] = useState<FreeMachineRow[]>([]);
+
+  // Sync state whenever database machines are fetched
+  useEffect(() => {
     if (effectiveMachinesList && effectiveMachinesList.length > 0) {
       const freeList = effectiveMachinesList.filter((m: any) => {
-        const st = String(m.status || '').toLowerCase();
+        const st = String(m.raw_status || m.status || '').toLowerCase();
         return (
           st === 'free' ||
           st === 'idle' ||
@@ -71,46 +73,18 @@ export const FactoryFreeMachinesPage: React.FC = () => {
         );
       });
 
-      if (freeList.length > 0) {
-        return freeList.map((m: any) => ({
+      setMachines(
+        freeList.map((m: any) => ({
           code: m.code || m.id,
           brand: m.brand || 'Pailung (Taiwan)',
           diaGg: m.spec_label || `${m.dia || '30"'} × ${m.gg || '24G'}`,
           broadcast: Boolean(m.broadcast_free || String(m.status || '').toLowerCase() === 'free'),
           freeFrom: m.free_from || m.availFrom || new Date().toISOString().split('T')[0],
           capacityKg: Number(m.daily_capacity_kg || m.targetKg || m.target_kg || 450),
-        }));
-      }
-    }
-    return INITIAL_IDLE_MACHINES;
-  });
-
-  // Sync state whenever database machines are fetched
-  useEffect(() => {
-    if (effectiveMachinesList && effectiveMachinesList.length > 0) {
-      const freeList = effectiveMachinesList.filter((m: any) => {
-        const st = String(m.status || '').toLowerCase();
-        return (
-          st === 'free' ||
-          st === 'idle' ||
-          st === 'wait' ||
-          Boolean(m.broadcast_free) ||
-          (!st.startsWith('run') && st !== 'down')
-        );
-      });
-
-      if (freeList.length > 0) {
-        setMachines(
-          freeList.map((m: any) => ({
-            code: m.code || m.id,
-            brand: m.brand || 'Pailung (Taiwan)',
-            diaGg: m.spec_label || `${m.dia || '30"'} × ${m.gg || '24G'}`,
-            broadcast: Boolean(m.broadcast_free || String(m.status || '').toLowerCase() === 'free'),
-            freeFrom: m.free_from || m.availFrom || new Date().toISOString().split('T')[0],
-            capacityKg: Number(m.daily_capacity_kg || m.targetKg || m.target_kg || 450),
-          }))
-        );
-      }
+        }))
+      );
+    } else {
+      setMachines([]);
     }
   }, [effectiveMachinesList]);
 
@@ -234,18 +208,16 @@ export const FactoryFreeMachinesPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 3 KPI Cards - 100% Dynamic from Database */}
-      <div className="kpis">
+      {/* 3 KPI Cards - 100% Dynamic from Database with proper gap after */}
+      <div className="kpis" style={{ marginBottom: 28, marginTop: 14 }}>
         <div className="kpi">
           <span>মোট মেশিন (ক্যাপাসিটি)</span>
           <b>
-            {effectiveMachinesList.length > 0 ? (
-              `${bnNum(circularCount)}টি সার্কুলার + ${bnNum(flatCount)}টি ফ্ল্যাট`
-            ) : (
-              '২৪টি সার্কুলার + ৬টি ফ্ল্যাট'
-            )}
+            {effectiveMachinesList.length > 0
+              ? `${bnNum(circularCount)}টি সার্কুলার + ${bnNum(flatCount)}টি ফ্ল্যাট`
+              : '০টি সার্কুলার + ০টি ফ্ল্যাট'}
           </b>
-          <i>মোট {bnNum(effectiveMachinesList.length || 30)}টি নিটিং মেশিন</i>
+          <i>মোট {bnNum(effectiveMachinesList.length)}টি নিটিং মেশিন</i>
         </div>
         <div className="kpi">
           <span>এখন খালি / অলস</span>
@@ -261,6 +233,7 @@ export const FactoryFreeMachinesPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Grid with Machine Broadcast Management & Marketplace RFQs */}
       <div className="grid g2" style={{ marginBottom: 20 }}>
         {/* Idle Machines Management - Real Database Machines */}
         <div className="card">

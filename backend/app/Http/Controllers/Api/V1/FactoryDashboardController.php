@@ -106,9 +106,8 @@ class FactoryDashboardController extends Controller
             ];
         })->values();
 
-        // 3. Machines State & Matrix (24 Circular Knitting Machines)
+        // 3. Machines State & Matrix (All Knitting Machines: Circular + Flat)
         $machines = FactoryMachine::where('factory_id', $factory->id)
-            ->where('knit_type', 'c')
             ->orderBy('code')
             ->get();
 
@@ -187,10 +186,11 @@ class FactoryDashboardController extends Controller
                 'id' => $m->code,
                 'code' => $m->code,
                 'brand' => $m->brand ?: 'Pailung (Taiwan)',
-                'type' => $m->gauge >= 24 ? 'Single Jersey' : 'Rib / Interlock',
-                'dia' => $m->dia ? "{$m->dia}\"" : '30"',
-                'gg' => $m->gauge ? "{$m->gauge}G" : '24G',
-                'spec_label' => $m->spec_label ?: "{$m->dia}\" × {$m->gauge}G",
+                'knit_type' => $m->knit_type === 'f' ? 'flat' : 'circular',
+                'type' => $m->knit_type === 'f' ? 'Flat Knitting' : ($m->gauge >= 24 ? 'Single Jersey' : 'Rib / Interlock'),
+                'dia' => $m->dia ? "{$m->dia}\"" : ($m->knit_type === 'f' ? 'Flat Bed' : '30"'),
+                'gg' => $m->gauge ? "{$m->gauge}G" : ($m->knit_type === 'f' ? '14G' : '24G'),
+                'spec_label' => $m->spec_label ?: ($m->knit_type === 'f' ? 'Flat Bed 14G' : "{$m->dia}\" × {$m->gauge}G"),
                 'status' => $normalizedStatus === 'run' ? 'Running' : ($normalizedStatus === 'down' ? 'Maint' : ($m->broadcast_free ? 'Free' : 'Idle')),
                 'raw_status' => $m->status,
                 'order_no' => $orderNo,
@@ -200,6 +200,7 @@ class FactoryDashboardController extends Controller
                 'today_kg' => round($todayKg, 1),
                 'target_kg' => round($targetKg, 1),
                 'broadcast_free' => (bool) $m->broadcast_free,
+                'free_from' => $m->free_from ? Carbon::parse($m->free_from)->toDateString() : null,
                 'daily_capacity_kg' => $targetKg,
             ];
         });
