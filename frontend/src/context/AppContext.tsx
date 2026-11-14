@@ -965,7 +965,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
               payoutNumber: d.partner.payout_number,
             }));
           }
-          addToast({ type: 'success', title: 'ডাটাবেজ সংযুক্ত', message: 'Laravel 13 ও MySQL এর সাথে সফলভাবে সিঙ্ক হয়েছে।' });
         }
       })
       .catch((err) => {
