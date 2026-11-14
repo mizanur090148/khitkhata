@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import { bnNum } from '@/utils/formatters';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 
 interface YarnRowItem {
   o: any;
@@ -275,13 +276,15 @@ export const FactoryYarnPage: React.FC = () => {
           <div className="no-grid" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
             <label className="no-f">
               <span>অর্ডার</span>
-              <select value={yaO} onChange={(e) => setYaO(e.target.value)}>
-                {runningOrders.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.id} ({o.buyer || '—'})
-                  </option>
-                ))}
-              </select>
+              <SearchableSelect
+                value={yaO}
+                onChange={(val) => setYaO(val)}
+                options={runningOrders.map((o) => ({
+                  value: o.id,
+                  label: `${o.id} (${o.buyer || '—'})`,
+                }))}
+                searchPlaceholder="অর্ডার খুঁজুন..."
+              />
             </label>
 
             <label className="no-f">
@@ -373,16 +376,20 @@ export const FactoryYarnPage: React.FC = () => {
         {!isVendor && (
           <label className="no-f">
             <span>ভেন্ডর</span>
-            <select value={ytV} onChange={(e) => setYtV(e.target.value)}>
-              <option value="all">সব ভেন্ডর</option>
-              {parties
-                .filter((p) => p.type === 'ven')
-                .map((p) => (
-                  <option key={p.code} value={p.code}>
-                    {p.name}
-                  </option>
-                ))}
-            </select>
+            <SearchableSelect
+              value={ytV}
+              onChange={(val) => setYtV(val)}
+              options={[
+                { value: 'all', label: 'সব ভেন্ডর' },
+                ...parties
+                  .filter((p) => p.type === 'ven')
+                  .map((p) => ({
+                    value: p.code || p.name || '',
+                    label: p.name,
+                  })),
+              ]}
+              searchPlaceholder="ভেন্ডর খুঁজুন..."
+            />
           </label>
         )}
 

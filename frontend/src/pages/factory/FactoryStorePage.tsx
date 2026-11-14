@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import { bnNum } from '@/utils/formatters';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 
 interface StoreItemModel {
   id: string;
@@ -284,14 +285,15 @@ export const FactoryStorePage: React.FC = () => {
               <>
                 <label className="no-f">
                   <span>মেশিন</span>
-                  <select value={stM} onChange={(e) => setStM(e.target.value)}>
-                    {machineList.map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
-                    <option value="সব মেশিন">সব মেশিন</option>
-                  </select>
+                  <SearchableSelect
+                    value={stM}
+                    onChange={(val) => setStM(val)}
+                    options={[
+                      ...machineList.map((m) => ({ value: m, label: m })),
+                      { value: 'সব মেশিন', label: 'সব মেশিন' },
+                    ]}
+                    searchPlaceholder="মেশিন খুঁজুন..."
+                  />
                 </label>
                 <label className="no-f">
                   <span>কে নিল</span>

@@ -4,6 +4,7 @@ import { useApp } from '@/context/AppContext';
 import { bnNum, pct } from '@/utils/formatters';
 import { apiClient } from '@/api/client';
 import { SubcontractOrderItem } from '@/types/domain.types';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 import {
   Search,
   Filter,
@@ -371,32 +372,24 @@ export const FactoryOrdersPage: React.FC = () => {
           {/* 3. Party Filter */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: '0.82rem', color: 'var(--muted)', whiteSpace: 'nowrap' }}>পার্টি:</span>
-            <select
+            <SearchableSelect
               value={partyFilter}
-              onChange={(e) => {
-                setPartyFilter(e.target.value);
+              onChange={(val) => {
+                setPartyFilter(val);
                 setCurrentPage(1);
               }}
-              style={{
-                width: '100%',
-                padding: '8px 10px',
-                borderRadius: 8,
-                border: '1px solid var(--border)',
-                background: 'var(--surface)',
-                color: 'var(--text)',
-                fontSize: '0.88rem',
-                cursor: 'pointer',
-              }}
-            >
-              <option value="all">সকল বায়ার / ভেন্ডর</option>
-              {parties
-                .filter((p) => (p.type || '').toLowerCase() !== 'sup')
-                .map((p) => (
-                  <option key={p.id || p.code} value={p.code || p.name}>
-                    {p.name}
-                  </option>
-                ))}
-            </select>
+              options={[
+                { value: 'all', label: 'সকল বায়ার / ভেন্ডর' },
+                ...parties
+                  .filter((p) => (p.type || '').toLowerCase() !== 'sup')
+                  .map((p) => ({
+                    value: p.code || p.name,
+                    label: p.name,
+                  })),
+              ]}
+              searchPlaceholder="পার্টি খুঁজুন..."
+              style={{ minWidth: 190 }}
+            />
           </div>
 
           {/* 4. Per Page & Reset Filter */}

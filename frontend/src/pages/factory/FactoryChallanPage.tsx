@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
 import { bnNum } from '@/utils/formatters';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 
 export const FactoryChallanPage: React.FC = () => {
   const navigate = useNavigate();
@@ -469,42 +470,40 @@ export const FactoryChallanPage: React.FC = () => {
               <div className="no-grid" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
                 <label className="no-f">
                   <span>ভেন্ডর</span>
-                  <select
+                  <SearchableSelect
                     id="chV"
                     value={chV}
-                    onChange={(e) => {
-                      setChV(e.target.value);
+                    onChange={(val) => {
+                      setChV(val);
                       setChSel(new Set());
                     }}
-                  >
-                    {vendorCodes.map((k) => (
-                      <option key={k} value={k}>
-                        {vName(k)}
-                      </option>
-                    ))}
-                  </select>
+                    options={vendorCodes.map((k) => ({
+                      value: k,
+                      label: vName(k),
+                    }))}
+                    searchPlaceholder="ভেন্ডর খুঁজুন..."
+                  />
                 </label>
 
                 <label className="no-f">
                   <span>অর্ডার</span>
-                  <select
+                  <SearchableSelect
                     id="chO"
                     value={chO}
-                    onChange={(e) => {
-                      setChO(e.target.value);
+                    onChange={(val) => {
+                      setChO(val);
                       setChSel(new Set());
                     }}
-                  >
-                    {vendorOrders.length ? (
-                      vendorOrders.map((o) => (
-                        <option key={o.id} value={o.id}>
-                          {o.id}
-                        </option>
-                      ))
-                    ) : (
-                      <option value="">রোল নেই</option>
-                    )}
-                  </select>
+                    options={
+                      vendorOrders.length
+                        ? vendorOrders.map((o) => ({
+                            value: o.id,
+                            label: o.id,
+                          }))
+                        : [{ value: '', label: 'রোল নেই' }]
+                    }
+                    searchPlaceholder="অর্ডার খুঁজুন..."
+                  />
                 </label>
 
                 <label className="no-f">

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
 import { SearchableOperatorSelect } from '@/components';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 
 // 16 FAULTS matching KnitKhata.html
 export const FAULTS = [
@@ -951,38 +952,36 @@ export const FactoryProductionEntryPage: React.FC = () => {
             <div className="no-grid pe-top">
               <label className="no-f">
                 <span>ভেন্ডর</span>
-                <select
+                <SearchableSelect
                   id="pV"
                   value={selectedVendorKey}
-                  onChange={(e) => {
-                    setSelectedVendorKey(e.target.value);
+                  onChange={(val) => {
+                    setSelectedVendorKey(val);
                     setSelectedOrderId('');
                   }}
-                >
-                  {vendorKeys.map((k) => {
+                  options={vendorKeys.map((k) => {
                     const p = parties.find((party) => party.code === k || String(party.id) === k || party.name === k);
-                    return (
-                      <option key={k} value={k}>
-                        {p?.name || k}
-                      </option>
-                    );
+                    return {
+                      value: k,
+                      label: p?.name || k,
+                    };
                   })}
-                </select>
+                  searchPlaceholder="ভেন্ডর খুঁজুন..."
+                />
               </label>
 
               <label className="no-f">
                 <span>অর্ডার নং</span>
-                <select
+                <SearchableSelect
                   id="pO"
                   value={selectedOrderId}
-                  onChange={(e) => setSelectedOrderId(e.target.value)}
-                >
-                  {vendorOrders.map((o) => (
-                    <option key={o.id} value={o.id}>
-                      {o.id} {o.buyer ? `· ${o.buyer}` : ''}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => setSelectedOrderId(val)}
+                  options={vendorOrders.map((o) => ({
+                    value: o.id,
+                    label: `${o.id}${o.buyer ? ` · ${o.buyer}` : ''}`,
+                  }))}
+                  searchPlaceholder="অর্ডার খুঁজুন..."
+                />
               </label>
 
               <label className="no-f">
@@ -1113,24 +1112,23 @@ export const FactoryProductionEntryPage: React.FC = () => {
                           {mRow.machine ? (
                             <b className="mono">{mRow.machine}</b>
                           ) : (
-                            <select
+                            <SearchableSelect
                               value={mRow.machine}
-                              onChange={(e) => {
-                                const nextVal = e.target.value;
+                              onChange={(nextVal) => {
                                 setLineForms((prev) => {
                                   const next = [...prev];
                                   next[lIdx].machines[mIdx].machine = nextVal;
                                   return next;
                                 });
                               }}
-                            >
-                              <option value="">বাছুন</option>
-                              {availableMachines.map((mc) => (
-                                <option key={mc} value={mc}>
-                                  {mc}
-                                </option>
-                              ))}
-                            </select>
+                              options={[
+                                { value: '', label: 'বাছুন' },
+                                ...availableMachines.map((mc) => ({ value: mc, label: mc })),
+                              ]}
+                              placeholder="মেশিন বাছুন"
+                              searchPlaceholder="মেশিন খুঁজুন..."
+                              minWidth={110}
+                            />
                           )}
                         </div>
 
@@ -1203,25 +1201,24 @@ export const FactoryProductionEntryPage: React.FC = () => {
                             {mRow.machine ? (
                               <b className="mono">{mRow.machine}</b>
                             ) : (
-                              <select
+                              <SearchableSelect
                                 className="pe-msel"
                                 value={mRow.machine}
-                                onChange={(e) => {
-                                  const nextVal = e.target.value;
+                                onChange={(nextVal) => {
                                   setLineForms((prev) => {
                                     const next = [...prev];
                                     next[lIdx].machines[mIdx].machine = nextVal;
                                     return next;
                                   });
                                 }}
-                              >
-                                <option value="">বাছুন</option>
-                                {availableMachines.map((mc) => (
-                                  <option key={mc} value={mc}>
-                                    {mc}
-                                  </option>
-                                ))}
-                              </select>
+                                options={[
+                                  { value: '', label: 'বাছুন' },
+                                  ...availableMachines.map((mc) => ({ value: mc, label: mc })),
+                                ]}
+                                placeholder="মেশিন বাছুন"
+                                searchPlaceholder="মেশিন খুঁজুন..."
+                                minWidth={110}
+                              />
                             )}
                           </div>
                           <span className="pe-sum mono">

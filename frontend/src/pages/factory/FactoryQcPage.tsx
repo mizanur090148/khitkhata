@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '@/context/AppContext';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 
 export const BN_DIGITS = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
 export const toBn = (n: number | string | undefined | null): string => {
@@ -474,41 +475,39 @@ export const FactoryQcPage: React.FC = () => {
             {!isVendorRole && (
               <label className="no-f">
                 <span>ভেন্ডর</span>
-                <select
+                <SearchableSelect
                   value={activeVendorCode}
-                  onChange={(e) => {
-                    setNewVendor(e.target.value);
+                  onChange={(val) => {
+                    setNewVendor(val);
                     setNewOrderNo('');
                     setNewPlIndex(0);
                   }}
-                >
-                  {uniqueVendors.map((v) => (
-                    <option key={v.code} value={v.code}>
-                      {v.name}
-                    </option>
-                  ))}
-                </select>
+                  options={uniqueVendors.map((v) => ({
+                    value: v.code,
+                    label: v.name,
+                  }))}
+                  searchPlaceholder="ভেন্ডর খুঁজুন..."
+                />
               </label>
             )}
 
             <label className="no-f">
               <span>অর্ডার নং</span>
-              <select
+              <SearchableSelect
                 value={activeSelectedOrder ? ((activeSelectedOrder as any).id || (activeSelectedOrder as any).order_no) : ''}
-                onChange={(e) => {
-                  setNewOrderNo(e.target.value);
+                onChange={(val) => {
+                  setNewOrderNo(val);
                   setNewPlIndex(0);
                 }}
-              >
-                {ordersForSelectedVendor.map((o: any) => {
+                options={ordersForSelectedVendor.map((o: any) => {
                   const id = o.id || o.order_no;
-                  return (
-                    <option key={id} value={id}>
-                      {id} {o.buyer ? `· ${o.buyer}` : ''}
-                    </option>
-                  );
+                  return {
+                    value: id,
+                    label: `${id}${o.buyer ? ` · ${o.buyer}` : ''}`,
+                  };
                 })}
-              </select>
+                searchPlaceholder="অর্ডার খুঁজুন..."
+              />
             </label>
 
             <label className="no-f">
@@ -540,17 +539,18 @@ export const FactoryQcPage: React.FC = () => {
 
             <label className="no-f">
               <span>মেশিন</span>
-              <select
+              <SearchableSelect
                 value={newMachine}
-                onChange={(e) => setNewMachine(e.target.value)}
-              >
-                <option value="—">—</option>
-                {(((currentLine as any)?.machines || (activeSelectedOrder as any)?.machines || []) as string[]).map((m: string) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => setNewMachine(val)}
+                options={[
+                  { value: '—', label: '—' },
+                  ...(((currentLine as any)?.machines || (activeSelectedOrder as any)?.machines || []) as string[]).map((m: string) => ({
+                    value: m,
+                    label: m,
+                  })),
+                ]}
+                searchPlaceholder="মেশিন খুঁজুন..."
+              />
             </label>
 
             <label className="no-f">

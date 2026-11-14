@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { bnNum, fmtKg, fmtTk, pct } from '@/utils/formatters';
 import { VendorOrdersPage } from '../vendor/VendorOrdersPage';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 
 export const FactoryDashboardPage: React.FC = () => {
   const navigate = useNavigate();
@@ -428,17 +429,18 @@ export const FactoryDashboardPage: React.FC = () => {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                     <div>
                       <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>মেশিন নির্বাচন</label>
-                      <select
-                        className="select"
-                        style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink)' }}
+                      <SearchableSelect
                         value={qeMachine}
-                        onChange={(e) => setQeMachine(e.target.value)}
-                      >
-                        {(dashboardData?.machines || machines).map((m: any) => {
+                        onChange={(val) => setQeMachine(val)}
+                        options={(dashboardData?.machines || machines).map((m: any) => {
                           const id = m.code || m.id;
-                          return <option key={id} value={id}>{id} ({m.spec_label || m.type})</option>;
+                          return {
+                            value: id,
+                            label: `${id} (${m.spec_label || m.type})`,
+                          };
                         })}
-                      </select>
+                        searchPlaceholder="মেশিন খুঁজুন..."
+                      />
                     </div>
 
                     <div>
@@ -470,16 +472,15 @@ export const FactoryDashboardPage: React.FC = () => {
 
                     <div>
                       <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>ওয়ার্ক অর্ডার নং</label>
-                      <select
-                        className="select"
-                        style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink)' }}
+                      <SearchableSelect
                         value={qeOrderNo}
-                        onChange={(e) => setQeOrderNo(e.target.value)}
-                      >
-                        {(dashboardData?.running_orders || orders).map((o: any) => (
-                          <option key={o.id} value={o.id}>{o.id} ({o.party})</option>
-                        ))}
-                      </select>
+                        onChange={(val) => setQeOrderNo(val)}
+                        options={(dashboardData?.running_orders || orders).map((o: any) => ({
+                          value: o.id,
+                          label: `${o.id} (${o.party})`,
+                        }))}
+                        searchPlaceholder="অর্ডার খুঁজুন..."
+                      />
                     </div>
                   </div>
 

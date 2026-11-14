@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '@/context/AppContext';
 import { bnNum, inWords } from '@/utils/formatters';
+import { SearchableSelect } from '@/components/common/SearchableSelect';
 
 export const FactoryBillPage: React.FC = () => {
   const {
@@ -418,33 +419,33 @@ export const FactoryBillPage: React.FC = () => {
         <div className="grid g2" style={{ marginBottom: 20 }}>
           <form className="card" id="nb" onSubmit={handleCreateBill}>
             <h3>নতুন বিল তৈরি করুন</h3>
-            <label className="f" style={{ maxWidth: 320, marginTop: 8 }}>
+            <label className="f" style={{ maxWidth: 360, marginTop: 8 }}>
               পার্টি
-              <select
+              <SearchableSelect
                 id="nbp"
                 value={newBillParty}
-                onChange={(e) => setNewBillParty(e.target.value)}
-              >
-                <option value="abc">
-                  ABC Knit Composite{' '}
-                  {getUnbilledOrders('abc').length > 0 &&
-                    `(${getUnbilledOrders('abc').length}টি বাকি)`}
-                </option>
-                <option value="xyz">
-                  XYZ Fashion Ltd{' '}
-                  {getUnbilledOrders('xyz').length > 0 &&
-                    `(${getUnbilledOrders('xyz').length}টি বাকি)`}
-                </option>
-                {parties
-                  .filter((p) => p.code !== 'abc' && p.code !== 'xyz')
-                  .map((p) => (
-                    <option key={p.code} value={p.code}>
-                      {p.name}{' '}
-                      {getUnbilledOrders(p.code).length > 0 &&
-                        `(${getUnbilledOrders(p.code).length}টি বাকি)`}
-                    </option>
-                  ))}
-              </select>
+                onChange={(val) => setNewBillParty(val)}
+                options={[
+                  {
+                    value: 'abc',
+                    label: `ABC Knit Composite ${getUnbilledOrders('abc').length > 0 ? `(${getUnbilledOrders('abc').length}টি বাকি)` : ''}`.trim(),
+                  },
+                  {
+                    value: 'xyz',
+                    label: `XYZ Fashion Ltd ${getUnbilledOrders('xyz').length > 0 ? `(${getUnbilledOrders('xyz').length}টি বাকি)` : ''}`.trim(),
+                  },
+                  ...parties
+                    .filter((p) => p.code !== 'abc' && p.code !== 'xyz')
+                    .map((p) => {
+                      const code = p.code || String(p.id || p.name);
+                      return {
+                        value: code,
+                        label: `${p.name} ${getUnbilledOrders(code).length > 0 ? `(${getUnbilledOrders(code).length}টি বাকি)` : ''}`.trim(),
+                      };
+                    }),
+                ]}
+                searchPlaceholder="পার্টি খুঁজুন..."
+              />
             </label>
 
             {unbilledCandidates.length > 0 ? (
