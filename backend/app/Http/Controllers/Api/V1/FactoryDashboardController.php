@@ -550,28 +550,46 @@ class FactoryDashboardController extends Controller
 
         $factory = $this->getActiveFactory($request);
 
+        $targetMachines = FactoryMachine::where('factory_id', $factory->id)
+            ->whereIn('code', $validated['machine_codes'])
+            ->get();
+
+        $freeFrom = !empty($validated['free_from']) ? Carbon::parse($validated['free_from'])->toDateString() : Carbon::today()->toDateString();
+
         FactoryMachine::where('factory_id', $factory->id)
             ->whereIn('code', $validated['machine_codes'])
             ->update([
                 'broadcast_free' => $validated['is_broadcast'],
-                'free_from' => $validated['free_from'] ?? Carbon::today()->toDateString(),
+                'free_from' => $freeFrom,
                 'status' => $validated['is_broadcast'] ? 'idle' : 'wait',
             ]);
 
-        // Also create a free machine request record if broadcasting
+        // Also create or update free machine request record if broadcasting
         if ($validated['is_broadcast']) {
+            $specLabel = $targetMachines->pluck('spec_label')->filter()->unique()->implode(' / ') ?: '30" × 24G';
+            $allFabrics = $targetMachines->pluck('supported_fabrics_json')->flatten()->filter()->unique()->take(3)->implode(' / ');
+            $fabrication = $allFabrics ?: 'Single Jersey / 1×1 Rib';
+            $dailyCap = $targetMachines->sum('daily_capacity_kg') ?: (($validated['daily_capacity_kg'] ?? 190) * count($validated['machine_codes']));
+
             FreeMachineRequest::create([
                 'request_no' => 'BC-' . strtoupper(substr(uniqid(), -5)),
                 'factory_id' => $factory->id,
                 'party_code' => 'broadcast',
                 'contact_person' => $factory->name,
-                'fabrication' => 'Single Jersey / 1x1 Rib',
-                'qty_kg' => (count($validated['machine_codes']) * ($validated['daily_capacity_kg'] ?? 190) * 10),
+                'fabrication' => $fabrication,
+                'qty_kg' => (float) ($dailyCap * 10),
                 'machines_needed' => count($validated['machine_codes']),
-                'dia_gauge_spec' => '30"x24G / 34"x18G',
+                'spec_label' => $specLabel,
+                'start_date' => $freeFrom,
+                'message' => $validated['note'] ?? 'ফ্যাক্টরি ড্যাশবোর্ড থেকে তাৎক্ষণিক ফ্রি মেশিন ব্রডকাস্ট সক্রিয় করা হয়েছে।',
                 'status' => 'open',
-                'notes' => $validated['note'] ?? 'ফ্যাক্টরি ড্যাশবোর্ড থেকে তাৎক্ষণিক ফ্রি মেশিন ব্রডকাস্ট সক্রিয় করা হয়েছে।',
             ]);
+        } else {
+            // Close any open broadcast requests for this factory
+            FreeMachineRequest::where('factory_id', $factory->id)
+                ->where('party_code', 'broadcast')
+                ->where('status', 'open')
+                ->update(['status' => 'conf']);
         }
 
         return $this->success([
