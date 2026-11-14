@@ -302,10 +302,10 @@ export const FactoryReadyFabricPage: React.FC = () => {
       )}
 
       {/* Header */}
-      <div className="head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+      <div className="head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8, marginBottom: 2 }}>
         <div>
           <h2 style={{ margin: 0 }}>রেডি কাপড়</h2>
-          <p style={{ margin: '4px 0 0', color: 'var(--muted)' }}>
+          <p style={{ margin: '2px 0 0', color: 'var(--muted)' }}>
             অর্ডার ধরে মোট পরিমাণ, তৈরি, ডেলিভারি, রেডি স্টক আর বাকি। গ্রে আর Y/D kg-তে, ফ্ল্যাট নিট (কলার-কাফ) পিসে।
           </p>
         </div>
@@ -316,8 +316,8 @@ export const FactoryReadyFabricPage: React.FC = () => {
         </div>
       </div>
 
-      {/* KPIs exact from live database with clean gap below */}
-      <div className="kpis" style={{ marginBottom: 28, marginTop: 14 }}>
+      {/* KPIs exact from live database with minimized compact gaps */}
+      <div className="kpis" style={{ marginTop: 8, marginBottom: 10 }}>
         <div className="kpi">
           <span>গ্রে কাপড় রেডি</span>
           <b>{toBn(sumByType('grey', 'rd'))} kg</b>
@@ -340,8 +340,8 @@ export const FactoryReadyFabricPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Fabric Type Filter Chips */}
-      <div className="chips no-pdf" style={{ margin: '18px 0 14px' }}>
+      {/* Fabric Type Filter Chips with compact margin */}
+      <div className="chips no-pdf" style={{ margin: '0 0 10px' }}>
         <button
           type="button"
           className={fabricTypeFilter === 'all' ? 'on' : ''}
@@ -396,7 +396,7 @@ export const FactoryReadyFabricPage: React.FC = () => {
         <>
           {/* Party / Vendor Breakdown Card (only for factory role) */}
           {!isVendorRole && (
-            <div className="card" style={{ marginTop: 16 }}>
+            <div className="card" style={{ marginTop: 0 }}>
               <h3 style={{ marginTop: 0 }}>পার্টি (ভেন্ডর) অনুযায়ী সারাংশ</h3>
               <div className="tw" style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -450,7 +450,7 @@ export const FactoryReadyFabricPage: React.FC = () => {
           )}
 
           {/* Order & Line Breakdown Detailed Table Card */}
-          <div className="card" style={{ marginTop: 16 }}>
+          <div className="card" style={{ marginTop: isVendorRole ? 0 : 14 }}>
             <h3 style={{ marginTop: 0 }}>অর্ডার ও অংশ অনুযায়ী বিস্তারিত রেডি স্টক</h3>
             <div className="tw" style={{ overflowX: 'auto' }}>
               <table className="rt" style={{ width: '100%', borderCollapse: 'collapse' }}>
