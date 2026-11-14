@@ -1215,8 +1215,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const fetchOrders = async () => {
     try {
       const res = await apiClient.get('portal/orders');
-      if (res && res.data && Array.isArray(res.data)) {
-        setOrders(res.data);
+      if (res && res.data) {
+        if (Array.isArray(res.data)) {
+          setOrders(res.data);
+        } else if (res.data.items && Array.isArray(res.data.items)) {
+          setOrders(res.data.items);
+        }
       }
     } catch (err: any) {
       console.info('Fetch orders fallback:', err.message);

@@ -15,87 +15,156 @@ use Illuminate\Support\Facades\DB;
 
 class OrderController extends Controller
 {
-        public function getOrders(): JsonResponse
+        public function getOrders(Request $request): JsonResponse
     {
+        $validated = $request->validate([
+            'page' => ['nullable', 'integer', 'min:1'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'search' => ['nullable', 'string', 'max:120'],
+            'status' => ['nullable', 'string', 'max:40'],
+            'party_code' => ['nullable', 'string', 'max:60'],
+            'sort_by' => ['nullable', 'string', 'in:id,order_no,total_qty_kg,done_kg,created_at,delivery_due_date'],
+            'sort_dir' => ['nullable', 'string', 'in:asc,desc,ASC,DESC'],
+            'paginate' => ['nullable', 'boolean'],
+        ]);
+
         $factory = Factory::where('code', 'f1')->firstOrFail();
-        $orders = SubcontractOrder::with(['lines', 'qcInspections', 'party'])
-            ->where('factory_id', $factory->id)
-            ->orderBy('id', 'desc')
-            ->get()
-            ->map(function (SubcontractOrder $o) {
-                $lines = $o->lines->map(fn ($l) => [
-                    'id' => $l->line_index,
-                    'line_index' => $l->line_index,
-                    'kt' => $l->knit_type,
-                    'yd' => (bool) $l->is_yarn_dyed,
-                    'unit' => $l->unit,
-                    'place' => $l->placement,
-                    'fab' => $l->fabrication,
-                    'color' => $l->color ?? '—',
-                    'qty' => (float) $l->qty,
-                    'done' => (float) $l->done_qty,
-                    'dl' => (float) $l->delivered_qty,
-                    'ggsm' => $l->grey_gsm,
-                    'fgsm' => $l->finish_gsm,
-                    'sl' => $l->stitch_length,
-                    'gdia' => $l->grey_dia,
-                    'dia' => $l->dia_gauge,
-                    'size' => $l->flat_size,
-                    'pcw' => $l->piece_weight_gm,
-                    'fdes' => $l->flat_design,
-                    'machines' => $l->machines_json ?? [],
-                    'yarns' => $l->yarns_json ?? [],
-                ])->values()->all();
+        $query = SubcontractOrder::with(['lines', 'qcInspections', 'party'])
+            ->where('factory_id', $factory->id);
 
-                $qc = $o->qcInspections->map(fn ($q) => [
-                    'id' => $q->qc_no,
-                    'd' => $q->date_label ?? ($q->created_at ? $q->created_at->format('d M') : '03 Oct'),
-                    'roll' => $q->roll_no,
-                    'm' => $q->machine_code ?? '—',
-                    'pl' => (int) $q->placement_index,
-                    'kg' => (float) $q->weight_kg,
-                    'issue' => $q->issue_description,
-                    'src' => $q->source ?? 'fac',
-                    'fac' => $q->factory_sign_json ?? ['v' => null, 'by' => '', 'at' => '', 'note' => ''],
-                    'ven' => $q->vendor_sign_json ?? ['v' => null, 'by' => '', 'at' => '', 'note' => ''],
-                    'act' => $q->action_taken ?? '',
-                ])->values()->all();
-
-                return [
-                    'id' => $o->order_no,
-                    'po' => $o->order_no,
-                    'party' => $o->party?->name ?? $o->party_code,
-                    'party_id' => $o->party_id,
-                    'party_code' => $o->party_code,
-                    'v' => $o->party_code,
-                    'buyer' => $o->buyer,
-                    'fabric' => $o->fabric_summary,
-                    'gsm' => $o->gsm,
-                    'finishGsm' => $o->finish_gsm,
-                    'stitch' => $o->stitch_length,
-                    'greyDia' => $o->grey_dia,
-                    'dia' => $o->dia_gauge,
-                    'color' => $o->color,
-                    'yarn' => $o->yarn_summary,
-                    'qty' => (float) $o->total_qty_kg,
-                    'done' => (float) $o->done_kg,
-                    'machines' => $o->machines_json ?? [],
-                    'rate' => (float) $o->daily_rate_kg,
-                    'start' => $o->start_label,
-                    'status' => $o->status,
-                    'rateTk' => (float) $o->rate_tk,
-                    'orderDate' => $o->order_date ? $o->order_date->format('Y-m-d') : null,
-                    'delivDate' => $o->delivery_due_date ? $o->delivery_due_date->format('Y-m-d') : null,
-                    'completeDate' => $o->complete_date ? $o->complete_date->format('Y-m-d') : null,
-                    'delivered' => (float) $o->delivered_kg,
-                    'challans' => $o->challans_json ?? [],
-                    'yarnIn' => $o->yarn_in_json ?? [],
-                    'lines' => $lines,
-                    'qc' => $qc,
-                ];
+        if (!empty($validated['search'])) {
+            $term = trim($validated['search']);
+            $query->where(function ($q) use ($term) {
+                $q->where('order_no', 'like', "%{$term}%")
+                    ->orWhere('buyer', 'like', "%{$term}%")
+                    ->orWhere('fabric_summary', 'like', "%{$term}%")
+                    ->orWhere('color', 'like', "%{$term}%")
+                    ->orWhere('party_code', 'like', "%{$term}%")
+                    ->orWhereHas('party', function ($pq) use ($term) {
+                        $pq->where('name', 'like', "%{$term}%");
+                    });
             });
+        }
+
+        if (!empty($validated['status']) && $validated['status'] !== 'all') {
+            $st = strtolower(trim($validated['status']));
+            if ($st === 'running' || $st === 'run') {
+                $query->whereIn('status', ['running', 'run']);
+            } elseif ($st === 'pending' || $st === 'wait') {
+                $query->whereIn('status', ['pending', 'wait']);
+            } elseif ($st === 'completed' || $st === 'done' || $st === 'delivered') {
+                $query->whereIn('status', ['completed', 'done', 'delivered']);
+            } else {
+                $query->where('status', $st);
+            }
+        }
+
+        if (!empty($validated['party_code']) && $validated['party_code'] !== 'all') {
+            $query->where('party_code', $validated['party_code']);
+        }
+
+        $sortBy = $validated['sort_by'] ?? 'id';
+        $sortDir = strtolower($validated['sort_dir'] ?? 'desc');
+        $query->orderBy($sortBy, $sortDir);
+
+        $shouldPaginate = $request->has('page') || $request->has('per_page') || $request->boolean('paginate', false);
+
+        if ($shouldPaginate) {
+            $perPage = (int) ($validated['per_page'] ?? 15);
+            $paginated = $query->paginate($perPage);
+
+            $items = collect($paginated->items())->map(fn (SubcontractOrder $o) => $this->transformOrder($o))->values()->all();
+
+            return $this->success([
+                'items' => $items,
+                'pagination' => [
+                    'current_page' => $paginated->currentPage(),
+                    'per_page' => $paginated->perPage(),
+                    'total' => $paginated->total(),
+                    'last_page' => $paginated->lastPage(),
+                    'from' => $paginated->firstItem(),
+                    'to' => $paginated->lastItem(),
+                ],
+            ], 'অর্ডার তালিকা লোড হয়েছে');
+        }
+
+        $orders = $query->get()->map(fn (SubcontractOrder $o) => $this->transformOrder($o))->values()->all();
 
         return $this->success($orders, 'অর্ডার তালিকা লোড হয়েছে');
+    }
+
+    private function transformOrder(SubcontractOrder $o): array
+    {
+        $lines = $o->lines->map(fn ($l) => [
+            'id' => $l->line_index,
+            'line_index' => $l->line_index,
+            'kt' => $l->knit_type,
+            'yd' => (bool) $l->is_yarn_dyed,
+            'unit' => $l->unit,
+            'place' => $l->placement,
+            'fab' => $l->fabrication,
+            'color' => $l->color ?? '—',
+            'qty' => (float) $l->qty,
+            'done' => (float) $l->done_qty,
+            'dl' => (float) $l->delivered_qty,
+            'ggsm' => $l->grey_gsm,
+            'fgsm' => $l->finish_gsm,
+            'sl' => $l->stitch_length,
+            'gdia' => $l->grey_dia,
+            'dia' => $l->dia_gauge,
+            'size' => $l->flat_size,
+            'pcw' => $l->piece_weight_gm,
+            'fdes' => $l->flat_design,
+            'machines' => $l->machines_json ?? [],
+            'yarns' => $l->yarns_json ?? [],
+        ])->values()->all();
+
+        $qc = $o->qcInspections->map(fn ($q) => [
+            'id' => $q->qc_no,
+            'd' => $q->date_label ?? ($q->created_at ? $q->created_at->format('d M') : '03 Oct'),
+            'roll' => $q->roll_no,
+            'm' => $q->machine_code ?? '—',
+            'pl' => (int) $q->placement_index,
+            'kg' => (float) $q->weight_kg,
+            'issue' => $q->issue_description,
+            'src' => $q->source ?? 'fac',
+            'fac' => $q->factory_sign_json ?? ['v' => null, 'by' => '', 'at' => '', 'note' => ''],
+            'ven' => $q->vendor_sign_json ?? ['v' => null, 'by' => '', 'at' => '', 'note' => ''],
+            'act' => $q->action_taken ?? '',
+        ])->values()->all();
+
+        return [
+            'id' => $o->order_no,
+            'po' => $o->order_no,
+            'party' => $o->party?->name ?? $o->party_code,
+            'party_id' => $o->party_id,
+            'party_code' => $o->party_code,
+            'v' => $o->party_code,
+            'buyer' => $o->buyer,
+            'fabric' => $o->fabric_summary,
+            'gsm' => $o->gsm,
+            'finishGsm' => $o->finish_gsm,
+            'stitch' => $o->stitch_length,
+            'greyDia' => $o->grey_dia,
+            'dia' => $o->dia_gauge,
+            'color' => $o->color,
+            'yarn' => $o->yarn_summary,
+            'qty' => (float) $o->total_qty_kg,
+            'done' => (float) $o->done_kg,
+            'machines' => $o->machines_json ?? [],
+            'rate' => (float) $o->daily_rate_kg,
+            'start' => $o->start_label,
+            'status' => $o->status,
+            'rateTk' => (float) $o->rate_tk,
+            'orderDate' => $o->order_date ? $o->order_date->format('Y-m-d') : null,
+            'delivDate' => $o->delivery_due_date ? $o->delivery_due_date->format('Y-m-d') : null,
+            'completeDate' => $o->complete_date ? $o->complete_date->format('Y-m-d') : null,
+            'delivered' => (float) $o->delivered_kg,
+            'challans' => $o->challans_json ?? [],
+            'yarnIn' => $o->yarn_in_json ?? [],
+            'lines' => $lines,
+            'qc' => $qc,
+        ];
     }
 
         public function storeOrder(Request $request): JsonResponse
