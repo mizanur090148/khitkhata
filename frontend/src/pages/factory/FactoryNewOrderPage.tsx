@@ -1173,13 +1173,12 @@ export const FactoryNewOrderPage: React.FC = () => {
                       type="text"
                       list="dl-fab"
                       autoComplete="off"
-                      placeholder={`যেমন: ${
-                        l.kt === 'f'
+                      placeholder={`যেমন: ${l.kt === 'f'
                           ? /cuff|কাফ/i.test(l.place)
                             ? 'Flat Knit Cuff'
                             : 'Flat Knit Collar'
                           : fabHint(l.place)
-                      }`}
+                        }`}
                       value={l.fab}
                       onChange={(e) => {
                         const val = e.target.value;
@@ -1693,19 +1692,18 @@ export const FactoryNewOrderPage: React.FC = () => {
                 <button
                   key={m.id}
                   type="button"
-                  className={`mcb ${isBusy ? 'busy' : ''} ${isDown ? 'down' : ''} ${
-                    o !== undefined ? 'own' : ''
-                  }`}
+                  className={`mcb ${isBusy ? 'busy' : ''} ${isDown ? 'down' : ''} ${o !== undefined ? 'own' : ''
+                    }`}
                   style={o !== undefined ? ({ ['--c' as any]: `var(--l${(o % 5) + 1})` } as any) : undefined}
                   disabled={isBusy || isDown}
                   title={
                     isBusy
                       ? 'অন্য অর্ডারে চলছে'
                       : isDown
-                      ? 'ব্রেকডাউন'
-                      : o !== undefined
-                      ? noLines[o].fab || `লাইন ${o + 1}`
-                      : 'খালি'
+                        ? 'ব্রেকডাউন'
+                        : o !== undefined
+                          ? noLines[o].fab || `লাইন ${o + 1}`
+                          : 'খালি'
                   }
                   onClick={() => handleToggleMachine(m.id)}
                 >
@@ -1837,9 +1835,6 @@ export const FactoryNewOrderPage: React.FC = () => {
                       ইনস্ট্যান্ট লিংক
                     </span>
                   </div>
-                  <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--muted, #64748b)', lineHeight: 1.4 }}>
-                    নতুন বায়ারের তথ্য দিন — সেভ হওয়ামাত্রই বর্তমান অর্ডারে ভেন্ডর হিসেবে অটো-সিলেক্ট হবে
-                  </p>
                 </div>
               </div>
 
