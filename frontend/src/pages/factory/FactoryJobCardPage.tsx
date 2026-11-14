@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
 import { bnNum } from '@/utils/formatters';
 import { QrCodeSvg } from '@/components/common/QrCodeSvg';
+import { ChevronDown, Search, X, Check } from 'lucide-react';
 
 // The exact 16 faults from KnitKhata.html
 const FAULTS = [
@@ -151,6 +152,47 @@ export const FactoryJobCardPage: React.FC = () => {
   const activeOrder = useMemo(() => {
     return orders.find((o) => o.id === selectedOrderId) || validOrders[0] || orders[0];
   }, [orders, validOrders, selectedOrderId]);
+
+  // Searchable Order Dropdown states
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const orderDropdownRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Close dropdown on click outside or Esc key
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (orderDropdownRef.current && !orderDropdownRef.current.contains(e.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsDropdownOpen(false);
+      }
+    };
+    if (isDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleKeyDown);
+      setTimeout(() => searchInputRef.current?.focus(), 50);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isDropdownOpen]);
+
+  // Filtered orders for dropdown
+  const filteredOrders = useMemo(() => {
+    if (!searchTerm.trim()) return validOrders;
+    const q = searchTerm.toLowerCase().trim();
+    return validOrders.filter((o) => {
+      const idMatch = o.id.toLowerCase().includes(q);
+      const partyMatch = o.party ? o.party.toLowerCase().includes(q) : false;
+      const buyerMatch = o.buyer ? o.buyer.toLowerCase().includes(q) : false;
+      return idMatch || partyMatch || buyerMatch;
+    });
+  }, [validOrders, searchTerm]);
 
   // Normalized order lines
   const lines = useMemo(() => normalizeOrderLines(activeOrder), [activeOrder]);
@@ -440,64 +482,221 @@ export const FactoryJobCardPage: React.FC = () => {
         )}
       </div>
 
-      {/* 2. ORDER SELECTOR MATCHING KnitKhata.html */}
-      <div className="row" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
-        <label className="f" style={{ minWidth: 260 }}>
-          <span style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 13 }}>অর্ডার</span>
-          <select
-            id="jcO"
-            value={selectedOrderId}
-            onChange={(e) => {
-              setSelectedOrderId(e.target.value);
-              setSelectedMachine('');
-              setEditMode(false);
-            }}
-            style={{ width: '100%', padding: '7px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)' }}
-          >
-            {validOrders.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.id} {o.party ? `· ${o.party}` : ''} {o.buyer ? `(${o.buyer})` : ''}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-
-      {/* 3. MACHINE CHIPS MATCHING KnitKhata.html */}
-      <div className="chips" id="jcM" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, margin: '8px 0 16px', position: 'static' }}>
-        {ms.map((x, idx) => {
-          const isSelected = x.m === curMachine.m;
-          const partLine = lines[x.i];
-          const colorVar = `var(--l${(x.i % 5) + 1})`;
-
-          return (
-            <button
-              key={`${x.m}-${idx}`}
-              type="button"
-              className={isSelected ? 'on' : ''}
-              data-m={x.m}
-              onClick={() => {
-                setSelectedMachine(x.m);
+      {/* 2. ORDER SELECTOR & MACHINE CHIPS IN SAME ROW */}
+      <div className="row" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12, margin: '8px 0 16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap' }}>অর্ডার:</span>
+          <div ref={orderDropdownRef} style={{ position: 'relative', width: 280 }}>
+            {/* Hidden native select for fallback/tests */}
+            <select
+              id="jcO"
+              value={selectedOrderId}
+              onChange={(e) => {
+                setSelectedOrderId(e.target.value);
+                setSelectedMachine('');
                 setEditMode(false);
               }}
-              style={{
-                '--c': colorVar,
-                position: 'static',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                cursor: 'pointer',
-                padding: '6px 14px',
-                borderRadius: 999,
-                fontSize: '0.88rem',
-                fontWeight: isSelected ? 600 : 500,
-              } as React.CSSProperties}
+              style={{ display: 'none' }}
+              aria-hidden="true"
+              tabIndex={-1}
             >
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: colorVar, display: 'inline-block' }} />
-              {x.m} · {partLine?.place || 'Body'}
+              {validOrders.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.id} {o.party ? `· ${o.party}` : ''} {o.buyer ? `(${o.buyer})` : ''}
+                </option>
+              ))}
+            </select>
+
+            {/* Custom Searchable Trigger Button */}
+            <button
+              type="button"
+              onClick={() => setIsDropdownOpen((prev) => !prev)}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 8,
+                padding: '7px 12px',
+                borderRadius: 6,
+                border: '1px solid var(--border)',
+                background: 'var(--surface)',
+                color: 'inherit',
+                fontSize: 13,
+                cursor: 'pointer',
+                textAlign: 'left',
+                minHeight: 34,
+              }}
+            >
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {activeOrder.id} {activeOrder.party ? `· ${activeOrder.party}` : ''} {activeOrder.buyer ? `(${activeOrder.buyer})` : ''}
+              </span>
+              <ChevronDown
+                size={14}
+                style={{
+                  color: 'var(--muted)',
+                  flexShrink: 0,
+                  transform: isDropdownOpen ? 'rotate(180deg)' : 'none',
+                  transition: 'transform 0.15s ease',
+                }}
+              />
             </button>
-          );
-        })}
+
+            {/* Searchable Dropdown Floating Panel */}
+            {isDropdownOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 4px)',
+                  left: 0,
+                  width: '100%',
+                  minWidth: 280,
+                  maxWidth: 360,
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 6,
+                  boxShadow: '0 6px 18px rgba(0,0,0,0.12)',
+                  zIndex: 50,
+                  overflow: 'hidden',
+                }}
+              >
+                {/* Search input */}
+                <div
+                  style={{
+                    padding: '6px 8px',
+                    borderBottom: '1px solid var(--border)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    background: 'var(--surface2)',
+                  }}
+                >
+                  <Search size={14} style={{ color: 'var(--muted)', flexShrink: 0 }} />
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="অর্ডার বা ভেন্ডর খুঁজুন..."
+                    style={{
+                      width: '100%',
+                      border: 'none',
+                      background: 'transparent',
+                      outline: 'none',
+                      fontSize: 13,
+                      color: 'inherit',
+                    }}
+                  />
+                  {searchTerm && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchTerm('')}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: 'var(--muted)',
+                        padding: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                      }}
+                      title="ক্লিয়ার"
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+
+                {/* List options */}
+                <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+                  {filteredOrders.length === 0 ? (
+                    <div style={{ padding: '10px 12px', fontSize: 13, color: 'var(--muted)', textAlign: 'center' }}>
+                      কোনো অর্ডার পাওয়া যায়নি
+                    </div>
+                  ) : (
+                    filteredOrders.map((o) => {
+                      const isSelected = o.id === selectedOrderId;
+                      return (
+                        <div
+                          key={o.id}
+                          onClick={() => {
+                            setSelectedOrderId(o.id);
+                            setSelectedMachine('');
+                            setEditMode(false);
+                            setIsDropdownOpen(false);
+                            setSearchTerm('');
+                          }}
+                          style={{
+                            padding: '7px 12px',
+                            fontSize: 13,
+                            cursor: 'pointer',
+                            background: isSelected ? 'var(--accent-soft, #e7edff)' : 'transparent',
+                            color: isSelected ? 'var(--accent, #2f5bea)' : 'inherit',
+                            fontWeight: isSelected ? 600 : 400,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!isSelected) e.currentTarget.style.background = 'var(--surface2)';
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!isSelected) e.currentTarget.style.background = 'transparent';
+                          }}
+                        >
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {o.id} {o.party ? `· ${o.party}` : ''} {o.buyer ? `(${o.buyer})` : ''}
+                          </span>
+                          {isSelected && <Check size={14} style={{ marginLeft: 6, flexShrink: 0 }} />}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* 3. MACHINE CHIPS MATCHING KnitKhata.html in SAME ROW */}
+        <div className="chips" id="jcM" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, margin: 0, position: 'static' }}>
+          {ms.map((x, idx) => {
+            const isSelected = x.m === curMachine.m;
+            const partLine = lines[x.i];
+            const colorVar = `var(--l${(x.i % 5) + 1})`;
+
+            return (
+              <button
+                key={`${x.m}-${idx}`}
+                type="button"
+                className={isSelected ? 'on' : ''}
+                data-m={x.m}
+                onClick={() => {
+                  setSelectedMachine(x.m);
+                  setEditMode(false);
+                }}
+                style={{
+                  '--c': colorVar,
+                  position: 'static',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  cursor: 'pointer',
+                  padding: '6px 14px',
+                  borderRadius: 999,
+                  fontSize: '0.88rem',
+                  fontWeight: isSelected ? 600 : 500,
+                } as React.CSSProperties}
+              >
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: colorVar, display: 'inline-block' }} />
+                {x.m} · {partLine?.place || 'Body'}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* 4. THE JOB CARD PAPER SHEET (.jc) MATCHING KnitKhata.html */}
