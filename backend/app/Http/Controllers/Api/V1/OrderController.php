@@ -25,7 +25,7 @@ class OrderController extends Controller
             'party_code' => ['nullable', 'string', 'max:60'],
             'sort_by' => ['nullable', 'string', 'in:id,order_no,total_qty_kg,done_kg,created_at,delivery_due_date'],
             'sort_dir' => ['nullable', 'string', 'in:asc,desc,ASC,DESC'],
-            'paginate' => ['nullable', 'boolean'],
+            'paginate' => ['nullable'],
         ]);
 
         $factory = Factory::where('code', 'f1')->firstOrFail();
@@ -67,7 +67,10 @@ class OrderController extends Controller
         $sortDir = strtolower($validated['sort_dir'] ?? 'desc');
         $query->orderBy($sortBy, $sortDir);
 
-        $shouldPaginate = $request->has('page') || $request->has('per_page') || $request->boolean('paginate', false);
+        $shouldPaginate = $request->has('page')
+            || $request->has('per_page')
+            || filter_var($request->input('paginate'), FILTER_VALIDATE_BOOLEAN)
+            || $request->boolean('paginate', false);
 
         if ($shouldPaginate) {
             $perPage = (int) ($validated['per_page'] ?? 15);

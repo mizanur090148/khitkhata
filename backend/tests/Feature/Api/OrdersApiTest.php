@@ -141,6 +141,14 @@ class OrdersApiTest extends TestCase
         $response4 = $this->getJson('/api/v1/portal/orders?sort_dir=sideways');
         $response4->assertStatus(422);
         $response4->assertJsonValidationErrors(['sort_dir']);
+
+        // 5. paginate=true as string must NOT fail validation
+        $response5 = $this->getJson('/api/v1/portal/orders?paginate=true');
+        $response5->assertStatus(200);
+
+        // 6. paginate=1 must NOT fail validation
+        $response6 = $this->getJson('/api/v1/portal/orders?paginate=1');
+        $response6->assertStatus(200);
     }
 
     public function test_server_side_pagination_returns_paginated_results_and_metadata(): void

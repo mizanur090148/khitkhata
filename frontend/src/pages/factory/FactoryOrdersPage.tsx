@@ -71,7 +71,7 @@ export const FactoryOrdersPage: React.FC = () => {
           party_code: partyFilter !== 'all' ? partyFilter : undefined,
           sort_by: sortBy,
           sort_dir: sortDir,
-          paginate: true,
+          paginate: 1,
         },
       });
 
