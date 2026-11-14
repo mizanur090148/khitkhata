@@ -1,8 +1,26 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
 import { bnNum } from '@/utils/formatters';
 import { QrCodeSvg } from '@/components/common/QrCodeSvg';
+import {
+  Search,
+  ChevronDown,
+  Check,
+  X,
+  Building2,
+  Printer,
+  QrCode,
+  Edit3,
+  Save,
+  Plus,
+  Layers,
+  AlertCircle,
+  CheckCircle2,
+  RotateCcw,
+  Sparkles,
+  SlidersHorizontal,
+} from 'lucide-react';
 
 // The exact 16 faults from KnitKhata.html
 const FAULTS = [
@@ -152,6 +170,115 @@ export const FactoryJobCardPage: React.FC = () => {
     return orders.find((o) => o.id === selectedOrderId) || validOrders[0] || orders[0];
   }, [orders, validOrders, selectedOrderId]);
 
+  // Searchable Dropdown States
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'running' | 'completed'>('all');
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Close dropdown on click outside or Esc key
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsDropdownOpen(false);
+      }
+    };
+    if (isDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleKeyDown);
+      setTimeout(() => searchInputRef.current?.focus(), 60);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isDropdownOpen]);
+
+  // Status badge helper
+  const getOrderStatusBadge = (status?: string) => {
+    const st = String(status || '').toLowerCase();
+    if (st === 'running' || st === 'run') {
+      return { label: 'চলছে', className: 'p-acc' };
+    }
+    if (st === 'completed' || st === 'done' || st === 'delivered') {
+      return { label: 'সম্পন্ন', className: 'p-ok' };
+    }
+    if (st === 'pending' || st === 'wait') {
+      return { label: 'অপেক্ষায়', className: 'p-warn' };
+    }
+    return { label: status || 'অন্যান্য', className: 'p-idle' };
+  };
+
+  // Orders count for dropdown tabs
+  const orderCounts = useMemo(() => {
+    const baseList = isVendor
+      ? orders.filter(
+          (o) =>
+            o.party_code === 'abc' ||
+            o.party === 'abc' ||
+            o.v === 'abc' ||
+            (o.party && o.party.includes('ABC'))
+        )
+      : orders;
+    const runningCount = baseList.filter((o) => {
+      const st = String(o.status || '').toLowerCase();
+      return st === 'running' || st === 'run';
+    }).length;
+    const completedCount = baseList.filter((o) => {
+      const st = String(o.status || '').toLowerCase();
+      return st === 'completed' || st === 'done' || st === 'delivered';
+    }).length;
+    return { all: baseList.length, running: runningCount, completed: completedCount };
+  }, [orders, isVendor]);
+
+  // Filtered orders in dropdown
+  const filteredDropdownOrders = useMemo(() => {
+    let list = orders;
+    if (isVendor) {
+      list = list.filter((o) => {
+        return (
+          o.party_code === 'abc' ||
+          o.party === 'abc' ||
+          o.v === 'abc' ||
+          (o.party && o.party.includes('ABC'))
+        );
+      });
+    }
+
+    if (statusFilter === 'running') {
+      list = list.filter((o) => {
+        const st = String(o.status || '').toLowerCase();
+        return st === 'running' || st === 'run';
+      });
+    } else if (statusFilter === 'completed') {
+      list = list.filter((o) => {
+        const st = String(o.status || '').toLowerCase();
+        return st === 'completed' || st === 'done' || st === 'delivered';
+      });
+    }
+
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase().trim();
+      list = list.filter((o) => {
+        const idMatch = String(o.id || '').toLowerCase().includes(q);
+        const partyMatch = String(o.party || '').toLowerCase().includes(q);
+        const buyerMatch = String(o.buyer || '').toLowerCase().includes(q);
+        const fabricMatch = String(o.fabric || '').toLowerCase().includes(q);
+        const styleMatch = String(o.style || '').toLowerCase().includes(q);
+        const machineMatch = (o.machines || []).some((m: string) => m.toLowerCase().includes(q));
+        return idMatch || partyMatch || buyerMatch || fabricMatch || styleMatch || machineMatch;
+      });
+    }
+
+    return list;
+  }, [orders, isVendor, statusFilter, searchTerm]);
+
   // Normalized order lines
   const lines = useMemo(() => normalizeOrderLines(activeOrder), [activeOrder]);
 
@@ -218,7 +345,7 @@ export const FactoryJobCardPage: React.FC = () => {
   const [remarks, setRemarks] = useState<string>('');
 
   // Sync Grid with Database rolls when active order/machine changes
-  useEffect(() => {
+  const populateGridFromRolls = () => {
     const count = Math.max(machineDbRolls.length, 10);
     setCols(count);
 
@@ -245,6 +372,10 @@ export const FactoryJobCardPage: React.FC = () => {
     setOperators(opArr);
     setFaultMap(fObj);
     setEditMode(false);
+  };
+
+  useEffect(() => {
+    populateGridFromRolls();
   }, [machineDbRolls, activeOrder?.id, curMachine.m]);
 
   // Vendor display name
@@ -336,6 +467,11 @@ export const FactoryJobCardPage: React.FC = () => {
           remarks,
         });
 
+        addToast({
+          type: 'success',
+          title: 'সংরক্ষিত',
+          message: 'জব কার্ড ফল্ট ডাটাবেজে সফলভাবে সংরক্ষিত হয়েছে।',
+        });
         setEditMode(false);
       } catch (err: any) {
         addToast({
@@ -349,6 +485,11 @@ export const FactoryJobCardPage: React.FC = () => {
     } else {
       setEditMode(true);
     }
+  };
+
+  const handleCancelEdit = () => {
+    populateGridFromRolls();
+    setEditMode(false);
   };
 
   // Print helper for Job Card document
@@ -397,28 +538,83 @@ export const FactoryJobCardPage: React.FC = () => {
 
   if (!activeOrder) {
     return (
-      <div className="card" style={{ padding: 40, textAlign: 'center' }}>
-        <p style={{ color: 'var(--muted)', marginBottom: 16 }}>কোনো অর্ডার পাওয়া যায়নি।</p>
-        <button className="btn pri" onClick={() => navigate('/dashboard/neworder')}>
-          + New Order Entry
+      <div className="card" style={{ padding: 48, textAlign: 'center', borderRadius: 12, border: '1px solid var(--line)' }}>
+        <AlertCircle size={42} style={{ color: 'var(--muted)', margin: '0 auto 12px', opacity: 0.7 }} />
+        <h3 style={{ marginBottom: 6, fontSize: '1.2rem' }}>কোনো সক্রিয় অর্ডার পাওয়া যায়নি</h3>
+        <p style={{ color: 'var(--muted)', marginBottom: 20, fontSize: '0.9rem' }}>
+          জব কার্ড তৈরি করতে প্রথমে একটি অর্ডার এন্ট্রি করুন এবং মেশিন অ্যাসাইন করুন।
+        </p>
+        <button
+          className="btn pri"
+          onClick={() => navigate('/dashboard/neworder')}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, margin: '0 auto' }}
+        >
+          <Plus size={16} /> নতুন অর্ডার এন্ট্রি
         </button>
       </div>
     );
   }
 
   return (
-    <div className="jobcard-page" style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 40 }}>
-      {/* 1. HEADER MATCHING KnitKhata.html */}
-      <div className="head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+    <div className="jobcard-page" style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 48 }}>
+      {/* 1. TOP HEADER & QR STICKER TOGGLE */}
+      <div
+        className="head"
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 16,
+          background: 'var(--surface)',
+          padding: '16px 20px',
+          borderRadius: 12,
+          border: '1px solid var(--line)',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+        }}
+      >
         <div>
-          <h2>জব কার্ড</h2>
-          <p>
-            মেশিন অ্যাসাইন হলেই প্রতিটা মেশিনের জব কার্ড তৈরি হয়। রোল নামলে নিচের QC ঘরে উঠে যায়, {isVendor ? 'আর আপনি এখানেই দেখেন কোন রোলে কী সমস্যা।' : 'আর ভেন্ডরও সাথে সাথে দেখে কোন রোলে কী সমস্যা।'}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <h2 style={{ margin: 0, fontSize: '1.45rem', fontWeight: 700, color: 'var(--ink)' }}>জব কার্ড</h2>
+            <span
+              style={{
+                fontSize: '0.74rem',
+                fontWeight: 600,
+                background: 'var(--accent-soft)',
+                color: 'var(--accent)',
+                padding: '2px 8px',
+                borderRadius: 999,
+              }}
+            >
+              QC ট্র্যাকিং
+            </span>
+          </div>
+          <p style={{ margin: '4px 0 0', fontSize: '0.86rem', color: 'var(--muted)' }}>
+            মেশিন অ্যাসাইন হলেই জব কার্ড তৈরি হয়। রোল নামলে QC ঘরে ডাটা উঠে যায়,{' '}
+            {isVendor ? 'আর আপনি সহজেই প্রতিটি রোলের বিস্তারিত পর্যবেক্ষণ করতে পারেন।' : 'আর ভেন্ডরও সাথে সাথে দেখে কোন রোলে কী সমস্যা।'}
           </p>
         </div>
+
         {!isVendor && (
-          <div className="st-sw" style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--surface)', padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border)' }}>
-            <span style={{ fontSize: 13, fontWeight: 500 }}>QR রোল স্টিকার (ঐচ্ছিক)</span>
+          <div
+            className="st-sw"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              background: 'var(--surface2)',
+              padding: '8px 14px',
+              borderRadius: 10,
+              border: '1px solid var(--line)',
+            }}
+          >
+            <QrCode size={18} style={{ color: 'var(--accent)' }} />
+            <div>
+              <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--ink)' }}>QR রোল স্টিকার</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>
+                {stickerOn ? 'চালু আছে' : 'বন্ধ · হাতে লিখে চলবে'}
+              </div>
+            </div>
             <button
               className={`switch ${stickerOn ? 'on' : ''}`}
               type="button"
@@ -432,95 +628,607 @@ export const FactoryJobCardPage: React.FC = () => {
               }}
               aria-pressed={stickerOn}
               aria-label="QR রোল স্টিকার চালু বা বন্ধ"
+              style={{ marginLeft: 4 }}
             />
-            <span className="small muted" style={{ fontSize: 12 }}>
-              {stickerOn ? 'চালু' : 'বন্ধ, হাতে লিখে চলবে'}
-            </span>
           </div>
         )}
       </div>
 
-      {/* 2. ORDER SELECTOR MATCHING KnitKhata.html */}
-      <div className="row" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
-        <label className="f" style={{ minWidth: 260 }}>
-          <span style={{ display: 'block', marginBottom: 4, fontWeight: 600, fontSize: 13 }}>অর্ডার</span>
-          <select
-            id="jcO"
-            value={selectedOrderId}
-            onChange={(e) => {
-              setSelectedOrderId(e.target.value);
-              setSelectedMachine('');
-              setEditMode(false);
-            }}
-            style={{ width: '100%', padding: '7px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)' }}
-          >
-            {validOrders.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.id} {o.party ? `· ${o.party}` : ''} {o.buyer ? `(${o.buyer})` : ''}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+      {/* 2. CONTROL PANEL (SEARCHABLE ORDER DROPDOWN & ACTIONS & MACHINE CHIPS) */}
+      <div
+        className="card"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 16,
+          padding: '18px 20px',
+          borderRadius: 12,
+          border: '1px solid var(--line)',
+          background: 'var(--surface)',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+        }}
+      >
+        {/* Top Control Row: Searchable Dropdown & Action Buttons */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
+          
+          {/* SEARCHABLE ORDER DROPDOWN */}
+          <div ref={dropdownRef} style={{ position: 'relative', flex: '1 1 360px', maxWidth: 480 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, fontWeight: 600, fontSize: '0.86rem', color: 'var(--ink)' }}>
+              <span>অর্ডার নির্বাচন করুন</span>
+              <span style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--muted)' }}>(ড্রপডাউনে সার্চ করুন)</span>
+            </label>
 
-      {/* 3. MACHINE CHIPS MATCHING KnitKhata.html */}
-      <div className="chips" id="jcM" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, margin: '8px 0 16px', position: 'static' }}>
-        {ms.map((x, idx) => {
-          const isSelected = x.m === curMachine.m;
-          const partLine = lines[x.i];
-          const colorVar = `var(--l${(x.i % 5) + 1})`;
-
-          return (
-            <button
-              key={`${x.m}-${idx}`}
-              type="button"
-              className={isSelected ? 'on' : ''}
-              data-m={x.m}
-              onClick={() => {
-                setSelectedMachine(x.m);
+            {/* Hidden fallback select for tests / screen readers */}
+            <select
+              id="jcO"
+              value={selectedOrderId}
+              onChange={(e) => {
+                setSelectedOrderId(e.target.value);
+                setSelectedMachine('');
                 setEditMode(false);
               }}
+              style={{ display: 'none' }}
+              aria-hidden="true"
+              tabIndex={-1}
+            >
+              {orders.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.id} · {o.party || ''}
+                </option>
+              ))}
+            </select>
+
+            {/* Dropdown Trigger Button */}
+            <button
+              type="button"
+              onClick={() => setIsDropdownOpen((prev) => !prev)}
               style={{
-                '--c': colorVar,
-                position: 'static',
+                width: '100%',
+                padding: '9px 14px',
+                background: 'var(--surface)',
+                border: isDropdownOpen ? '1px solid var(--accent)' : '1px solid var(--line)',
+                borderRadius: 10,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+                boxShadow: isDropdownOpen ? '0 0 0 3px var(--accent-soft)' : '0 1px 3px rgba(0,0,0,0.04)',
+                cursor: 'pointer',
+                textAlign: 'left',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
+                <span
+                  style={{
+                    background: 'var(--accent-soft)',
+                    color: 'var(--accent)',
+                    fontWeight: 700,
+                    fontSize: '0.84rem',
+                    padding: '3px 8px',
+                    borderRadius: 6,
+                    fontFamily: 'var(--f-mono)',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {activeOrder.id}
+                </span>
+
+                <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <div
+                    style={{
+                      fontWeight: 600,
+                      fontSize: '0.88rem',
+                      color: 'var(--ink)',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    <Building2 size={13} style={{ color: 'var(--muted)', flexShrink: 0 }} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{vendorName}</span>
+                    {activeOrder.buyer && (
+                      <span style={{ fontSize: '0.78rem', color: 'var(--muted)', fontWeight: 400, flexShrink: 0 }}>
+                        ({activeOrder.buyer})
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: '0.76rem', color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {curLine.place} · {curLine.fab} · {bnNum(Math.round(curLine.qty))} {curLine.unit || 'kg'}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                {(() => {
+                  const badge = getOrderStatusBadge(activeOrder.status);
+                  return <span className={`pill ${badge.className}`}>{badge.label}</span>;
+                })()}
+                <ChevronDown
+                  size={18}
+                  style={{
+                    color: 'var(--muted)',
+                    transform: isDropdownOpen ? 'rotate(180deg)' : 'none',
+                    transition: 'transform 0.2s ease',
+                  }}
+                />
+              </div>
+            </button>
+
+            {/* Dropdown Floating Popover */}
+            {isDropdownOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 6px)',
+                  left: 0,
+                  width: '100%',
+                  minWidth: 340,
+                  background: 'var(--surface)',
+                  border: '1px solid var(--line)',
+                  borderRadius: 12,
+                  boxShadow: '0 14px 34px rgba(0, 0, 0, 0.15), 0 4px 10px rgba(0, 0, 0, 0.05)',
+                  zIndex: 100,
+                  overflow: 'hidden',
+                  animation: 'fadeIn 0.15s ease-out',
+                }}
+              >
+                {/* Search Bar & Tabs */}
+                <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--line)', background: 'var(--surface2)' }}>
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <Search size={15} style={{ position: 'absolute', left: 10, color: 'var(--muted)' }} />
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      placeholder="অর্ডার নং, ভেন্ডর বা বায়ার দিয়ে খুঁজুন..."
+                      style={{
+                        width: '100%',
+                        padding: '8px 32px 8px 32px',
+                        borderRadius: 8,
+                        border: '1px solid var(--line)',
+                        background: 'var(--surface)',
+                        color: 'var(--ink)',
+                        fontSize: '0.85rem',
+                        outline: 'none',
+                        transition: 'border-color 0.15s',
+                      }}
+                      onFocus={(e) => (e.target.style.borderColor = 'var(--accent)')}
+                      onBlur={(e) => (e.target.style.borderColor = 'var(--line)')}
+                    />
+                    {searchTerm && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchTerm('')}
+                        style={{
+                          position: 'absolute',
+                          right: 8,
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          color: 'var(--muted)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: 4,
+                        }}
+                        title="ক্লিয়ার করুন"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Filter Pills */}
+                  <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => setStatusFilter('all')}
+                      style={{
+                        padding: '3px 9px',
+                        fontSize: '0.74rem',
+                        borderRadius: 6,
+                        border: 'none',
+                        background: statusFilter === 'all' ? 'var(--accent)' : 'transparent',
+                        color: statusFilter === 'all' ? '#ffffff' : 'var(--muted)',
+                        fontWeight: statusFilter === 'all' ? 600 : 400,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      সব ({orderCounts.all})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStatusFilter('running')}
+                      style={{
+                        padding: '3px 9px',
+                        fontSize: '0.74rem',
+                        borderRadius: 6,
+                        border: 'none',
+                        background: statusFilter === 'running' ? 'var(--accent)' : 'transparent',
+                        color: statusFilter === 'running' ? '#ffffff' : 'var(--muted)',
+                        fontWeight: statusFilter === 'running' ? 600 : 400,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      চলমান ({orderCounts.running})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStatusFilter('completed')}
+                      style={{
+                        padding: '3px 9px',
+                        fontSize: '0.74rem',
+                        borderRadius: 6,
+                        border: 'none',
+                        background: statusFilter === 'completed' ? 'var(--accent)' : 'transparent',
+                        color: statusFilter === 'completed' ? '#ffffff' : 'var(--muted)',
+                        fontWeight: statusFilter === 'completed' ? 600 : 400,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      সম্পন্ন ({orderCounts.completed})
+                    </button>
+                  </div>
+                </div>
+
+                {/* Filtered Order Options */}
+                <div style={{ maxHeight: 290, overflowY: 'auto' }}>
+                  {filteredDropdownOrders.length === 0 ? (
+                    <div style={{ padding: '28px 16px', textAlign: 'center', color: 'var(--muted)', fontSize: '0.85rem' }}>
+                      <Search size={24} style={{ margin: '0 auto 8px', opacity: 0.4 }} />
+                      <div style={{ fontWeight: 600 }}>কোনো অর্ডার পাওয়া যায়নি</div>
+                      <div style={{ fontSize: '0.76rem', marginTop: 4, opacity: 0.8 }}>অন্য কোনো কি-ওয়ার্ড বা নম্বর দিয়ে খুঁজুন</div>
+                    </div>
+                  ) : (
+                    filteredDropdownOrders.map((o) => {
+                      const isSelected = o.id === selectedOrderId;
+                      const badge = getOrderStatusBadge(o.status);
+                      const pName =
+                        parties.find(
+                          (p) =>
+                            p.code === o.party_code ||
+                            p.code === (o as any).v ||
+                            p.id === (o as any).party_id ||
+                            p.name === o.party
+                        )?.name ||
+                        o.party ||
+                        (o as any).v ||
+                        '—';
+
+                      const oLines = normalizeOrderLines(o);
+                      const oMachines = oLines.flatMap((l) => l.machines || []);
+                      const uniqueMachines = Array.from(new Set(oMachines));
+
+                      return (
+                        <div
+                          key={o.id}
+                          onClick={() => {
+                            setSelectedOrderId(o.id);
+                            setSelectedMachine('');
+                            setEditMode(false);
+                            setIsDropdownOpen(false);
+                            setSearchTerm('');
+                          }}
+                          style={{
+                            padding: '10px 14px',
+                            borderBottom: '1px solid var(--line)',
+                            background: isSelected ? 'var(--accent-soft)' : 'transparent',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 12,
+                            transition: 'background 0.12s ease',
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!isSelected) e.currentTarget.style.background = 'var(--surface2)';
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!isSelected) e.currentTarget.style.background = 'transparent';
+                          }}
+                        >
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                              <span
+                                style={{
+                                  fontWeight: 700,
+                                  fontFamily: 'var(--f-mono)',
+                                  fontSize: '0.85rem',
+                                  color: isSelected ? 'var(--accent)' : 'var(--ink)',
+                                }}
+                              >
+                                {o.id}
+                              </span>
+                              <span className={`pill ${badge.className}`} style={{ fontSize: '0.68rem', padding: '1px 6px' }}>
+                                {badge.label}
+                              </span>
+                              {o.orderDate && (
+                                <span style={{ fontSize: '0.72rem', color: 'var(--muted)', marginLeft: 'auto' }}>
+                                  {o.orderDate}
+                                </span>
+                              )}
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.82rem', color: 'var(--ink)', fontWeight: 500 }}>
+                              <Building2 size={13} style={{ color: 'var(--muted)', flexShrink: 0 }} />
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {pName}
+                              </span>
+                              {o.buyer && (
+                                <span style={{ color: 'var(--muted)', fontSize: '0.78rem', flexShrink: 0 }}>
+                                  · বায়ার: {o.buyer}
+                                </span>
+                              )}
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6, fontSize: '0.74rem', color: 'var(--muted)', marginTop: 3 }}>
+                              <span>{o.fabric || oLines[0]?.fab || 'Single Jersey'}</span>
+                              <span>·</span>
+                              <span>{bnNum(Math.round(Number(o.qty || (o as any).totalKg || 0)))} kg</span>
+                              {uniqueMachines.length > 0 && (
+                                <>
+                                  <span>·</span>
+                                  <span style={{ fontFamily: 'var(--f-mono)', color: 'var(--accent)', fontWeight: 600 }}>
+                                    {uniqueMachines.join(', ')}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          {isSelected && (
+                            <div style={{ color: 'var(--accent)', flexShrink: 0 }}>
+                              <Check size={18} />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ACTION BUTTONS GROUP */}
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10, alignSelf: 'flex-end', paddingTop: 6 }}>
+            {editMode ? (
+              <>
+                <button
+                  type="button"
+                  className="btn sm"
+                  onClick={handleCancelEdit}
+                  disabled={isSaving}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    background: 'var(--surface2)',
+                    color: 'var(--ink)',
+                    border: '1px solid var(--line)',
+                    fontWeight: 600,
+                    padding: '8px 14px',
+                  }}
+                >
+                  <RotateCcw size={14} /> বাতিল
+                </button>
+                <button
+                  type="button"
+                  className="btn sm"
+                  onClick={handleToggleEdit}
+                  disabled={isSaving}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    background: '#10b981',
+                    color: '#ffffff',
+                    border: '1px solid #059669',
+                    fontWeight: 600,
+                    padding: '8px 16px',
+                    boxShadow: '0 2px 6px rgba(16, 185, 129, 0.25)',
+                  }}
+                >
+                  <Save size={15} /> {isSaving ? 'সংরক্ষণ হচ্ছে...' : 'সংরক্ষণ করুন'}
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                className="btn sm"
+                id="jcEdit"
+                onClick={handleToggleEdit}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  background: 'var(--surface)',
+                  color: 'var(--ink)',
+                  border: '1px solid var(--line)',
+                  fontWeight: 600,
+                  padding: '8px 14px',
+                }}
+              >
+                <Edit3 size={15} style={{ color: 'var(--accent)' }} /> ফল্ট লিখুন
+              </button>
+            )}
+
+            <button
+              type="button"
+              className="btn sm no-pdf"
+              onClick={handlePrintJobCard}
+              style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 6,
-                cursor: 'pointer',
-                padding: '6px 14px',
-                borderRadius: 999,
-                fontSize: '0.88rem',
-                fontWeight: isSelected ? 600 : 500,
-              } as React.CSSProperties}
+                background: 'var(--accent)',
+                color: '#ffffff',
+                border: '1px solid var(--accent)',
+                fontWeight: 600,
+                padding: '8px 15px',
+                boxShadow: '0 2px 6px rgba(47, 91, 234, 0.25)',
+              }}
             >
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: colorVar, display: 'inline-block' }} />
-              {x.m} · {partLine?.place || 'Body'}
+              <Printer size={15} /> প্রিন্ট জব কার্ড
             </button>
-          );
-        })}
-      </div>
-
-      {/* 4. THE JOB CARD PAPER SHEET (.jc) MATCHING KnitKhata.html */}
-      <div className="jc">
-        {/* Job Card Header (.jc-h) */}
-        <div className="jc-h">
-          <div>
-            <b>{factoryProfile?.name || 'রহমান নিটিং ইন্ডাস্ট্রিজ'}</b>
-            <span>{factoryProfile?.address || 'কোনাবাড়ি, গাজীপুর'}</span>
-            <em>জব কার্ড</em>
-          </div>
-          <div className="jc-r">
-            <div className="row no-pdf jc-tools">
-              <button className="btn sm no-pdf prn-btn" type="button" onClick={handlePrintJobCard}>
-                🖨️ প্রিন্ট
-              </button>
-            </div>
-            <QrCodeSvg value={`${activeOrder.id}-${curMachine.m}`} size={78} />
           </div>
         </div>
 
-        {/* Facts Grid (.jc-g) matching KnitKhata.html */}
-        <div className="jc-g">
+        {/* Machine Selector Chips */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 6, borderTop: '1px solid var(--line)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+            <span style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Layers size={14} /> অ্যাসাইন করা মেশিনসমূহ ({ms.length} টি):
+            </span>
+            <span style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>
+              বর্তমান নির্বাচিত: <b style={{ color: 'var(--accent)', fontFamily: 'var(--f-mono)' }}>{curMachine.m}</b> ({curLine.place})
+            </span>
+          </div>
+
+          <div className="chips" id="jcM" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, margin: 0, position: 'static' }}>
+            {ms.map((x, idx) => {
+              const isSelected = x.m === curMachine.m;
+              const partLine = lines[x.i];
+              const colorVar = `var(--l${(x.i % 5) + 1})`;
+
+              // Count rolls saved in database for this specific machine
+              const mRolls = rolls.filter(
+                (r: any) =>
+                  (r.o === activeOrder.id || r.order_no === activeOrder.id) &&
+                  (r.m === x.m || r.machine_code === x.m)
+              );
+
+              return (
+                <button
+                  key={`${x.m}-${idx}`}
+                  type="button"
+                  className={isSelected ? 'on' : ''}
+                  data-m={x.m}
+                  onClick={() => {
+                    setSelectedMachine(x.m);
+                    setEditMode(false);
+                  }}
+                  style={{
+                    position: 'relative',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    cursor: 'pointer',
+                    padding: '7px 14px',
+                    borderRadius: 10,
+                    fontSize: '0.86rem',
+                    fontWeight: isSelected ? 700 : 500,
+                    background: isSelected ? 'var(--surface)' : 'var(--surface2)',
+                    color: isSelected ? 'var(--ink)' : 'var(--muted)',
+                    border: isSelected ? '2px solid var(--accent)' : '1px solid var(--line)',
+                    boxShadow: isSelected ? '0 2px 8px rgba(47, 91, 234, 0.15)' : 'none',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 9,
+                      height: 9,
+                      borderRadius: '50%',
+                      background: isSelected ? 'var(--accent)' : colorVar,
+                      display: 'inline-block',
+                      boxShadow: isSelected ? '0 0 0 3px var(--accent-soft)' : 'none',
+                    }}
+                  />
+                  <span style={{ fontFamily: 'var(--f-mono)', fontWeight: 700 }}>{x.m}</span>
+                  <span style={{ color: 'var(--muted)', fontSize: '0.8rem', fontWeight: 400 }}>·</span>
+                  <span>{partLine?.place || 'Body'}</span>
+
+                  {mRolls.length > 0 && (
+                    <span
+                      style={{
+                        fontSize: '0.72rem',
+                        background: isSelected ? 'var(--accent-soft)' : 'var(--surface)',
+                        color: isSelected ? 'var(--accent)' : 'var(--muted)',
+                        padding: '1px 6px',
+                        borderRadius: 999,
+                        fontWeight: 600,
+                        border: '1px solid var(--line)',
+                      }}
+                    >
+                      {bnNum(mRolls.length)} রোল
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* 3. THE JOB CARD PAPER SHEET (.jc) */}
+      <div
+        className="jc"
+        style={{
+          background: 'var(--paper, #ffffff)',
+          color: 'var(--paper-ink, #1e2124)',
+          border: '1px solid var(--paper-line, #cdd0cc)',
+          borderRadius: 12,
+          padding: '24px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 16,
+          boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.06), 0 2px 6px -1px rgba(0, 0, 0, 0.04)',
+        }}
+      >
+        {/* Job Card Paper Header (.jc-h) */}
+        <div className="jc-h" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, borderBottom: '2px solid var(--paper-ink)', paddingBottom: 14 }}>
+          <div>
+            <b style={{ fontSize: '1.25rem', color: 'var(--paper-ink)', fontWeight: 800 }}>{factoryProfile?.name || 'রহমান নিটিং ইন্ডাস্ট্রিজ'}</b>
+            <span style={{ fontSize: '0.85rem', color: 'var(--paper-muted)', marginTop: 2 }}>{factoryProfile?.address || 'কোনাবাড়ি, গাজীপুর'}</span>
+            <em style={{ display: 'inline-block', marginTop: 6, fontStyle: 'normal', fontWeight: 700, letterSpacing: '0.05em', color: 'var(--accent, #2563eb)', background: 'var(--accent-soft, #eff6ff)', padding: '2px 8px', borderRadius: 4, fontSize: '0.82rem' }}>
+              জব কার্ড (JOB CARD)
+            </em>
+          </div>
+
+          <div className="jc-r" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+            <div className="row no-pdf jc-tools">
+              <button
+                className="btn sm no-pdf prn-btn"
+                type="button"
+                onClick={handlePrintJobCard}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '5px 12px',
+                  fontSize: '0.82rem',
+                }}
+              >
+                <Printer size={14} /> প্রিন্ট
+              </button>
+            </div>
+            <div style={{ background: '#ffffff', padding: 4, borderRadius: 6, border: '1px solid var(--paper-line)' }}>
+              <QrCodeSvg value={`${activeOrder.id}-${curMachine.m}`} size={72} />
+            </div>
+          </div>
+        </div>
+
+        {/* Facts Spec Grid (.jc-g) */}
+        <div
+          className="jc-g"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: '8px 24px',
+            background: 'var(--surface2, #f8fafc)',
+            padding: '16px 20px',
+            borderRadius: 10,
+            border: '1px solid var(--paper-line, #e2e8f0)',
+          }}
+        >
           <div>
             <span>SL / লট নং</span>
             <b className="mono">
@@ -528,15 +1236,15 @@ export const FactoryJobCardPage: React.FC = () => {
             </b>
           </div>
           <div>
-            <span>ভেন্ডর</span>
+            <span>ভেন্ডর / পার্টি</span>
             <b>{vendorName}</b>
           </div>
           <div>
             <span>অর্ডার নং</span>
-            <b className="mono">{activeOrder.id}</b>
+            <b className="mono" style={{ color: 'var(--accent)' }}>{activeOrder.id}</b>
           </div>
           <div>
-            <span>অংশ</span>
+            <span>অংশ ও ফেব্রিক</span>
             <b>
               {curLine.place} · {curLine.fab}{' '}
               {curLine.kt === 'f' ? (
@@ -554,7 +1262,7 @@ export const FactoryJobCardPage: React.FC = () => {
             <b>{activeOrder.buyer || '—'}</b>
           </div>
           <div>
-            <span>মেশিন</span>
+            <span>মেশিন ও ডায়া</span>
             <b className="mono">
               {curMachine.m} · {curLine.dia || (activeOrder as any).dia || '30" × 24G'}
             </b>
@@ -616,47 +1324,133 @@ export const FactoryJobCardPage: React.FC = () => {
           </div>
           <div>
             <span>সমস্যাযুক্ত রোল (Not OK)</span>
-            <b className="mono" style={{ color: notOkCount > 0 ? 'var(--bad, #b91c1c)' : 'inherit' }}>
-              {notOkCount}
+            <b
+              className="mono"
+              style={{
+                color: notOkCount > 0 ? '#b91c1c' : '#10b981',
+                background: notOkCount > 0 ? '#fee2e2' : '#ecfdf5',
+                padding: '2px 8px',
+                borderRadius: 4,
+              }}
+            >
+              {notOkCount} টি
             </b>
           </div>
           <div>
             <span>বাকি (WIP)</span>
-            <b className="mono">{bnNum(Math.max(0, inQty - Math.round(outQty)))} kg</b>
+            <b className="mono" style={{ color: inQty - Math.round(outQty) > 0 ? '#f59e0b' : 'inherit' }}>
+              {bnNum(Math.max(0, inQty - Math.round(outQty)))} kg
+            </b>
           </div>
         </div>
 
-        {/* QC Heading (.jc-qh) matching KnitKhata.html */}
-        <div className="jc-qh" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <b>রোল অনুযায়ী QC</b>
-          <span className="row no-pdf">
-            <button
-              className="btn sm"
-              id="jcEdit"
-              type="button"
-              onClick={handleToggleEdit}
-              disabled={isSaving}
-              style={{
-                background: editMode ? 'var(--ok, #10b981)' : 'var(--surface)',
-                color: editMode ? '#ffffff' : 'inherit',
-                border: '1px solid var(--border)',
-                fontWeight: 600,
-              }}
-            >
-              {isSaving ? 'সেভ হচ্ছে...' : editMode ? 'সেভ করুন' : 'ফল্ট লিখুন'}
-            </button>
+        {/* QC Section Bar (.jc-qh) */}
+        <div
+          className="jc-qh"
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '8px 4px 4px',
+            borderBottom: '1px solid var(--paper-line)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <b style={{ fontSize: '1rem', color: 'var(--paper-ink)' }}>রোল অনুযায়ী কোয়ালিটি কন্ট্রোল (QC)</b>
+            {editMode && (
+              <span
+                style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 600,
+                  background: '#dcfce7',
+                  color: '#16a34a',
+                  padding: '2px 8px',
+                  borderRadius: 999,
+                }}
+              >
+                এডিটিং চলছে...
+              </span>
+            )}
+          </div>
+
+          <span className="row no-pdf" style={{ display: 'flex', gap: 8 }}>
+            {editMode ? (
+              <>
+                <button
+                  className="btn sm"
+                  type="button"
+                  onClick={handleCancelEdit}
+                  disabled={isSaving}
+                  style={{
+                    background: 'var(--paper)',
+                    color: 'var(--paper-ink)',
+                    border: '1px solid var(--paper-line)',
+                    fontWeight: 600,
+                  }}
+                >
+                  বাতিল
+                </button>
+                <button
+                  className="btn sm"
+                  type="button"
+                  onClick={handleToggleEdit}
+                  disabled={isSaving}
+                  style={{
+                    background: '#10b981',
+                    color: '#ffffff',
+                    border: '1px solid #059669',
+                    fontWeight: 600,
+                  }}
+                >
+                  {isSaving ? 'সংরক্ষণ হচ্ছে...' : 'সংরক্ষণ করুন'}
+                </button>
+              </>
+            ) : (
+              <button
+                className="btn sm"
+                id="jcEdit"
+                type="button"
+                onClick={handleToggleEdit}
+                disabled={isSaving}
+                style={{
+                  background: 'var(--paper)',
+                  color: 'var(--paper-ink)',
+                  border: '1px solid var(--paper-line)',
+                  fontWeight: 600,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <Edit3 size={14} /> ফল্ট লিখুন
+              </button>
+            )}
           </span>
         </div>
 
-        {/* Table (.tw > table.jc-t) matching KnitKhata.html */}
-        <div className="tw" style={{ overflowX: 'auto' }}>
-          <table className="jc-t" style={{ width: '100%', minWidth: 640 }}>
+        {/* Table (.tw > table.jc-t) with Sticky First Column for horizontal scrolling */}
+        <div className="tw" style={{ overflowX: 'auto', borderRadius: 8, border: '1px solid var(--paper-line)' }}>
+          <table className="jc-t" style={{ width: '100%', minWidth: 680, borderCollapse: 'collapse' }}>
             <tbody>
-              {/* Roll Numbers */}
-              <tr className="jc-roll">
-                <td style={{ fontWeight: 600 }}>রোল নং</td>
+              {/* Roll Numbers Row */}
+              <tr className="jc-roll" style={{ background: '#F1F3F2' }}>
+                <td
+                  style={{
+                    fontWeight: 700,
+                    position: 'sticky',
+                    left: 0,
+                    background: '#F1F3F2',
+                    zIndex: 3,
+                    borderRight: '2px solid var(--paper-line)',
+                    whiteSpace: 'nowrap',
+                    padding: '8px 12px',
+                    fontSize: '0.85rem',
+                  }}
+                >
+                  রোল নং
+                </td>
                 {Array.from({ length: cols }, (_, i) => (
-                  <td key={`r-${i}`} className="n mono">
+                  <td key={`r-${i}`} className="n mono" style={{ textAlign: 'center', minWidth: 46 }}>
                     {editMode ? (
                       <input
                         className="jc-in"
@@ -669,7 +1463,15 @@ export const FactoryJobCardPage: React.FC = () => {
                             return arr;
                           });
                         }}
-                        style={{ width: '100%', minWidth: 42, textAlign: 'center', padding: '2px 4px', fontSize: 12 }}
+                        style={{
+                          width: '100%',
+                          minWidth: 44,
+                          textAlign: 'center',
+                          padding: '3px 4px',
+                          fontSize: 12,
+                          border: '1px solid var(--paper-line)',
+                          borderRadius: 4,
+                        }}
                       />
                     ) : (
                       rollNums[i] || ''
@@ -679,10 +1481,24 @@ export const FactoryJobCardPage: React.FC = () => {
               </tr>
 
               {/* Weight Row */}
-              <tr>
-                <td style={{ fontWeight: 600 }}>ওজন (kg)</td>
+              <tr style={{ background: 'var(--paper)' }}>
+                <td
+                  style={{
+                    fontWeight: 700,
+                    position: 'sticky',
+                    left: 0,
+                    background: 'var(--paper)',
+                    zIndex: 3,
+                    borderRight: '2px solid var(--paper-line)',
+                    whiteSpace: 'nowrap',
+                    padding: '8px 12px',
+                    fontSize: '0.85rem',
+                  }}
+                >
+                  ওজন (kg)
+                </td>
                 {Array.from({ length: cols }, (_, i) => (
-                  <td key={`w-${i}`} className="n mono">
+                  <td key={`w-${i}`} className="n mono" style={{ textAlign: 'center', minWidth: 46 }}>
                     {editMode ? (
                       <input
                         className="jc-in"
@@ -697,7 +1513,15 @@ export const FactoryJobCardPage: React.FC = () => {
                             return arr;
                           });
                         }}
-                        style={{ width: '100%', minWidth: 42, textAlign: 'center', padding: '2px 4px', fontSize: 12 }}
+                        style={{
+                          width: '100%',
+                          minWidth: 44,
+                          textAlign: 'center',
+                          padding: '3px 4px',
+                          fontSize: 12,
+                          border: '1px solid var(--paper-line)',
+                          borderRadius: 4,
+                        }}
                       />
                     ) : (
                       weights[i] || ''
@@ -706,14 +1530,28 @@ export const FactoryJobCardPage: React.FC = () => {
                 ))}
               </tr>
 
-              {/* All 16 Fault Rows matching KnitKhata.html */}
+              {/* All 16 Fault Rows */}
               {FAULTS.map((fault) => (
                 <tr key={fault}>
-                  <td>{fault}</td>
+                  <td
+                    style={{
+                      fontWeight: 600,
+                      position: 'sticky',
+                      left: 0,
+                      background: 'var(--paper)',
+                      zIndex: 3,
+                      borderRight: '2px solid var(--paper-line)',
+                      whiteSpace: 'nowrap',
+                      padding: '6px 12px',
+                      fontSize: '0.84rem',
+                    }}
+                  >
+                    {fault}
+                  </td>
                   {Array.from({ length: cols }, (_, i) => {
                     const cnt = parseNum(faultMap[fault]?.[i]);
                     return editMode ? (
-                      <td key={`${fault}-${i}`} className="n">
+                      <td key={`${fault}-${i}`} className="n" style={{ textAlign: 'center', minWidth: 46 }}>
                         <input
                           className="jc-in"
                           type="number"
@@ -727,11 +1565,30 @@ export const FactoryJobCardPage: React.FC = () => {
                               return { ...prev, [fault]: fArr };
                             });
                           }}
-                          style={{ width: '100%', minWidth: 38, textAlign: 'center', padding: '2px 4px', fontSize: 12 }}
+                          style={{
+                            width: '100%',
+                            minWidth: 40,
+                            textAlign: 'center',
+                            padding: '3px 4px',
+                            fontSize: 12,
+                            border: '1px solid var(--paper-line)',
+                            borderRadius: 4,
+                            background: cnt > 0 ? '#fee2e2' : '#ffffff',
+                          }}
                         />
                       </td>
                     ) : (
-                      <td key={`${fault}-${i}`} className={`n ${cnt > 0 ? 'jc-bad' : ''}`}>
+                      <td
+                        key={`${fault}-${i}`}
+                        className={`n ${cnt > 0 ? 'jc-bad' : ''}`}
+                        style={{
+                          textAlign: 'center',
+                          minWidth: 46,
+                          background: cnt > 0 ? '#fee2e2' : undefined,
+                          color: cnt > 0 ? '#b91c1c' : undefined,
+                          fontWeight: cnt > 0 ? 700 : undefined,
+                        }}
+                      >
                         {cnt > 0 ? cnt : ''}
                       </td>
                     );
@@ -740,13 +1597,36 @@ export const FactoryJobCardPage: React.FC = () => {
               ))}
 
               {/* Total Faults Row (.jc-tot) */}
-              <tr className="jc-tot" style={{ fontWeight: 700, borderTop: '2px solid var(--paper-ink)' }}>
-                <td>মোট ফল্ট</td>
+              <tr className="jc-tot" style={{ fontWeight: 700, borderTop: '2px solid var(--paper-ink)', background: '#F1F3F2' }}>
+                <td
+                  style={{
+                    fontWeight: 700,
+                    position: 'sticky',
+                    left: 0,
+                    background: '#F1F3F2',
+                    zIndex: 3,
+                    borderRight: '2px solid var(--paper-line)',
+                    whiteSpace: 'nowrap',
+                    padding: '8px 12px',
+                    fontSize: '0.86rem',
+                  }}
+                >
+                  মোট ফল্ট
+                </td>
                 {Array.from({ length: cols }, (_, i) => {
                   const tot = rollTotalFaults(i);
                   const hasRoll = Boolean(rollNums[i]) || parseNum(weights[i]) > 0;
                   return (
-                    <td key={`tot-${i}`} className={`n ${tot > 0 ? 'jc-bad' : ''}`}>
+                    <td
+                      key={`tot-${i}`}
+                      className={`n ${tot > 0 ? 'jc-bad' : ''}`}
+                      style={{
+                        textAlign: 'center',
+                        minWidth: 46,
+                        background: tot > 0 ? '#fee2e2' : undefined,
+                        color: tot > 0 ? '#b91c1c' : undefined,
+                      }}
+                    >
                       {hasRoll ? tot : ''}
                     </td>
                   );
@@ -757,57 +1637,156 @@ export const FactoryJobCardPage: React.FC = () => {
         </div>
 
         {/* Remarks Box (.jc-remb) */}
-        <div className="jc-remb" style={{ marginTop: 12 }}>
-          <b>মন্তব্য</b>
+        <div className="jc-remb" style={{ marginTop: 8 }}>
+          <b style={{ fontSize: '0.88rem', color: 'var(--paper-ink)' }}>মন্তব্য ও বিশেষ নির্দেশনা:</b>
           {editMode ? (
             <textarea
               className="jc-ta"
               value={remarks}
               onChange={(e) => setRemarks(e.target.value)}
-              placeholder="যেমন: রোল ৭-এ হোল, নিডল বদলানো হয়েছে"
-              style={{ width: '100%', minHeight: 60, padding: '8px 10px', borderRadius: 6, border: '1px solid var(--paper-line)', marginTop: 4, fontFamily: 'inherit' }}
+              placeholder="যেমন: রোল ৭-এ হোল পাওয়া গিয়েছে, নিডল বদলানো হয়েছে..."
+              style={{
+                width: '100%',
+                minHeight: 64,
+                padding: '10px 12px',
+                borderRadius: 8,
+                border: '1px solid var(--paper-line)',
+                marginTop: 6,
+                fontFamily: 'inherit',
+                fontSize: '0.85rem',
+              }}
             />
           ) : (
-            <div className="jc-remt" style={{ minHeight: 24, color: remarks ? 'inherit' : 'var(--muted)', marginTop: 4 }}>
-              {remarks || 'কোনো মন্তব্য নেই'}
+            <div
+              className="jc-remt"
+              style={{
+                minHeight: 38,
+                color: remarks ? 'inherit' : 'var(--paper-muted)',
+                marginTop: 6,
+                padding: '8px 12px',
+                background: 'var(--surface2)',
+                borderRadius: 8,
+                border: '1px solid var(--paper-line)',
+                fontSize: '0.86rem',
+              }}
+            >
+              {remarks || 'কোনো বিশেষ মন্তব্য রেকর্ড করা হয়নি।'}
             </div>
           )}
         </div>
 
-        {/* Bottom helper row */}
-        <div className="row no-pdf" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginTop: 12 }}>
-          <span className="small muted" style={{ fontSize: 12 }}>
-            প্রোডাকশন এন্ট্রিতে রোল লিখলে এখানে নিজে থেকে উঠে যায়। চাইলে কাগজের ব্যাচ কার্ডের মতো হাতেও লেখা যায়। "ফল্ট লিখুন" চাপলে ঘরগুলো লেখা যায়।
+        {/* Bottom Helper Bar */}
+        <div
+          className="row no-pdf"
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 12,
+            marginTop: 8,
+            paddingTop: 12,
+            borderTop: '1px solid var(--paper-line)',
+          }}
+        >
+          <span className="small muted" style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Sparkles size={14} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+            প্রোডাকশন এন্ট্রিতে রোল লিখলে এখানে অটোমেটিক চলে আসে। "ফল্ট লিখুন" চেপে কাগজের ব্যাচ কার্ডের মতো ফল্ট ও ওজন এন্ট্রি করা যায়।
           </span>
-          <button className="btn sm" id="jcMore" type="button" onClick={handleAddMoreCols}>
-            + আরও ৫টা রোল যোগ করুন
+          <button
+            className="btn sm"
+            id="jcMore"
+            type="button"
+            onClick={handleAddMoreCols}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              background: 'var(--surface2)',
+              color: 'var(--ink)',
+              border: '1px solid var(--line)',
+            }}
+          >
+            <Plus size={14} /> আরও ৫টি রোল যোগ করুন
           </button>
         </div>
       </div>
 
-      {/* 5. STICKER SECTION (#jcStk) MATCHING KnitKhata.html */}
+      {/* 4. STICKER SECTION (#jcStk) */}
       {stickerOn && machineDbRolls.length > 0 && (
-        <div className="card" id="jcStk" style={{ marginTop: 8 }}>
-          <div className="row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <h3 style={{ margin: 0 }}>এই মেশিনের রোল স্টিকার</h3>
-            <button className="btn sm no-pdf" type="button" onClick={handlePrintStickers}>
-              🖨️ স্টিকার প্রিন্ট
+        <div
+          className="card"
+          id="jcStk"
+          style={{
+            marginTop: 8,
+            padding: '20px',
+            borderRadius: 12,
+            border: '1px solid var(--line)',
+            background: 'var(--surface)',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+          }}
+        >
+          <div className="row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 10 }}>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '1.15rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <QrCode size={18} style={{ color: 'var(--accent)' }} /> এই মেশিনের রোল স্টিকার ({curMachine.m})
+              </h3>
+              <p className="small muted" style={{ margin: '4px 0 0', fontSize: '0.82rem' }}>
+                রোল ট্র্যাকিং স্টিকার প্রিন্ট করে রোলের প্যাকেটে সাঁটানো যায়।
+              </p>
+            </div>
+            <button
+              className="btn sm no-pdf"
+              type="button"
+              onClick={handlePrintStickers}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                background: 'var(--accent)',
+                color: '#ffffff',
+                border: '1px solid var(--accent)',
+                fontWeight: 600,
+                padding: '7px 14px',
+              }}
+            >
+              <Printer size={14} /> স্টিকার প্রিন্ট
             </button>
           </div>
-          <p className="small muted" style={{ margin: '-4px 0 12px', fontSize: 12 }}>
-            স্টিকার ব্যবহার ঐচ্ছিক। আসল অ্যাপে এখান থেকে প্রিন্ট হবে।
-          </p>
-          <div className="stk-grid">
-            {machineDbRolls.slice(-4).map((r: any, idx: number) => {
+
+          <div className="stk-grid" style={{ marginTop: 12 }}>
+            {machineDbRolls.slice(-6).map((r: any, idx: number) => {
               const rollCode = r.no || r.roll_no || `${curMachine.m}/${r.jc || r.jc_seq || '001'}`;
               return (
-                <div key={r.id || idx} className="stk">
-                  <QrCodeSvg value={rollCode} size={64} />
-                  <div className="stk-t" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <b className="mono" style={{ fontSize: 14 }}>{rollCode}</b>
-                    <span style={{ fontSize: 12 }}>{activeOrder.id} · {vendorName}</span>
-                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>{curLine.place} · {curLine.fab}</span>
-                    <span className="mono" style={{ fontSize: 12, fontWeight: 600 }}>
+                <div
+                  key={r.id || idx}
+                  className="stk"
+                  style={{
+                    display: 'flex',
+                    gap: 12,
+                    alignItems: 'center',
+                    background: '#ffffff',
+                    color: '#1e2124',
+                    border: '1.5px dashed #9ca3af',
+                    borderRadius: 10,
+                    padding: '12px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                  }}
+                >
+                  <div style={{ background: '#ffffff', padding: 2, borderRadius: 4, border: '1px solid #e5e7eb', flexShrink: 0 }}>
+                    <QrCodeSvg value={rollCode} size={64} />
+                  </div>
+                  <div className="stk-t" style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: 1 }}>
+                    <b className="mono" style={{ fontSize: '0.95rem', color: '#111827' }}>
+                      {rollCode}
+                    </b>
+                    <span style={{ fontSize: '0.78rem', color: '#4b5563', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {activeOrder.id} · {vendorName}
+                    </span>
+                    <span style={{ fontSize: '0.74rem', color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {curLine.place} · {curLine.fab}
+                    </span>
+                    <span className="mono" style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1e40af', marginTop: 2 }}>
                       {r.kg || r.weight_kg} kg · {r.lot || r.yarn_lot || (curLine.yarns && curLine.yarns[0]?.lot) || '—'}
                     </span>
                   </div>
