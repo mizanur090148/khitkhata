@@ -335,6 +335,7 @@ interface AppContextType {
   }) => Promise<PartyItem>;
   togglePartyStatus: (idOrCode: string | number) => Promise<void>;
   deleteParty: (idOrCode: string | number) => Promise<void>;
+  qcInspections: any[];
   fetchQcInspections: () => Promise<any[]>;
   storeQcInspection: (payload: {
     order_no: string;
@@ -682,6 +683,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [qcLogs, setQcLogs] = useState<QcLogItem[]>(INITIAL_QC_LOGS);
   const [challans, setChallans] = useState<ChallanItem[]>(INITIAL_CHALLANS);
   const [deliveryChallans, setDeliveryChallans] = useState<any[]>([]);
+  const [qcInspections, setQcInspections] = useState<any[]>([]);
   const [storeInventory, setStoreInventory] = useState<any[]>([]);
   const [storeLogs, setStoreLogs] = useState<any[]>([]);
   const [factoryBills, setFactoryBills] = useState<KKBill[]>(INITIAL_KK_BILLS);
@@ -979,6 +981,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     fetchOrders();
     fetchParties();
     fetchOperators();
+    fetchQcInspections();
     fetchChallans();
     fetchStoreData();
     fetchDashboardData();
@@ -1411,6 +1414,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       const res = await apiClient.get('portal/qc');
       if (res && res.data && Array.isArray(res.data)) {
+        setQcInspections(res.data);
         return res.data;
       }
     } catch (err: any) {
@@ -1432,7 +1436,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     signed_by: string;
   }): Promise<any> => {
     const res = await apiClient.post('portal/qc', payload);
-    await fetchOrders();
+    await Promise.all([fetchOrders(), fetchQcInspections()]);
     addToast({
       type: 'success',
       title: 'QC এন্ট্রি সম্পন্ন',
@@ -1452,7 +1456,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   ): Promise<any> => {
     const res = await apiClient.post(`portal/qc/${qcNo}/sign`, payload);
-    await fetchOrders();
+    await Promise.all([fetchOrders(), fetchQcInspections()]);
     addToast({
       type: 'success',
       title: 'QC সাইন সম্পন্ন',
@@ -1463,7 +1467,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const updateQcAction = async (qcNo: string, action_taken: string): Promise<any> => {
     const res = await apiClient.post(`portal/qc/${qcNo}/action`, { action_taken });
-    await fetchOrders();
+    await Promise.all([fetchOrders(), fetchQcInspections()]);
     addToast({
       type: 'info',
       title: 'সিদ্ধান্ত সংরক্ষিত',
@@ -2110,6 +2114,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         createParty,
         togglePartyStatus,
         deleteParty,
+        qcInspections,
         fetchQcInspections,
         storeQcInspection,
         signQcInspection,

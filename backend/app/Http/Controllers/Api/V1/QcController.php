@@ -67,8 +67,16 @@ class QcController extends Controller
             'signed_by' => ['required', 'string'],
         ]);
 
-        $maxId = QcInspection::max('id') ?? 100;
-        $candidateNum = $maxId + 1;
+        $maxNum = 100;
+        foreach (QcInspection::pluck('qc_no') as $numStr) {
+            if (preg_match('/QC-(\d+)/', (string) $numStr, $m)) {
+                $val = (int) $m[1];
+                if ($val > $maxNum) {
+                    $maxNum = $val;
+                }
+            }
+        }
+        $candidateNum = $maxNum + 1;
         do {
             $qcNo = 'QC-' . str_pad((string) $candidateNum, 4, '0', STR_PAD_LEFT);
             $candidateNum++;
@@ -102,10 +110,25 @@ class QcController extends Controller
             'action_taken' => '',
         ]);
 
-        return $this->success($qc, "{$qcNo} জমা হয়েছে", 201);
+        $item = [
+            'id' => $qc->qc_no,
+            'o' => $qc->order_no,
+            'pl' => (int) $qc->placement_index,
+            'd' => $qc->date_label ?? ($qc->created_at ? $qc->created_at->format('d M') : now()->format('d M')),
+            'roll' => $qc->roll_no,
+            'm' => $qc->machine_code ?? '—',
+            'kg' => (float) $qc->weight_kg,
+            'issue' => $qc->issue_description,
+            'src' => $qc->source ?? 'fac',
+            'fac' => $qc->factory_sign_json ?? $blank,
+            'ven' => $qc->vendor_sign_json ?? $blank,
+            'act' => $qc->action_taken ?? '',
+        ];
+
+        return $this->success($item, "{$qcNo} জমা হয়েছে", 201);
     }
 
-        public function signQcInspection(Request $request, string $qcNo): JsonResponse
+    public function signQcInspection(Request $request, string $qcNo): JsonResponse
     {
         $validated = $request->validate([
             'side' => ['required', 'string', 'in:fac,ven'],
@@ -135,10 +158,25 @@ class QcController extends Controller
 
         $qc->save();
 
-        return $this->success($qc, 'QC সাইন সংরক্ষিত হয়েছে');
+        $item = [
+            'id' => $qc->qc_no,
+            'o' => $qc->order_no,
+            'pl' => (int) $qc->placement_index,
+            'd' => $qc->date_label ?? ($qc->created_at ? $qc->created_at->format('d M') : now()->format('d M')),
+            'roll' => $qc->roll_no,
+            'm' => $qc->machine_code ?? '—',
+            'kg' => (float) $qc->weight_kg,
+            'issue' => $qc->issue_description,
+            'src' => $qc->source ?? 'fac',
+            'fac' => $qc->factory_sign_json ?? ['v' => null, 'by' => '', 'at' => '', 'note' => ''],
+            'ven' => $qc->vendor_sign_json ?? ['v' => null, 'by' => '', 'at' => '', 'note' => ''],
+            'act' => $qc->action_taken ?? '',
+        ];
+
+        return $this->success($item, 'QC সাইন সংরক্ষিত হয়েছে');
     }
 
-        public function updateQcAction(Request $request, string $qcNo): JsonResponse
+    public function updateQcAction(Request $request, string $qcNo): JsonResponse
     {
         $validated = $request->validate([
             'action_taken' => ['nullable', 'string'],
@@ -148,6 +186,21 @@ class QcController extends Controller
         $qc->action_taken = $validated['action_taken'] ?? '';
         $qc->save();
 
-        return $this->success($qc, 'সিদ্ধান্ত সংরক্ষিত হয়েছে');
+        $item = [
+            'id' => $qc->qc_no,
+            'o' => $qc->order_no,
+            'pl' => (int) $qc->placement_index,
+            'd' => $qc->date_label ?? ($qc->created_at ? $qc->created_at->format('d M') : now()->format('d M')),
+            'roll' => $qc->roll_no,
+            'm' => $qc->machine_code ?? '—',
+            'kg' => (float) $qc->weight_kg,
+            'issue' => $qc->issue_description,
+            'src' => $qc->source ?? 'fac',
+            'fac' => $qc->factory_sign_json ?? ['v' => null, 'by' => '', 'at' => '', 'note' => ''],
+            'ven' => $qc->vendor_sign_json ?? ['v' => null, 'by' => '', 'at' => '', 'note' => ''],
+            'act' => $qc->action_taken ?? '',
+        ];
+
+        return $this->success($item, 'সিদ্ধান্ত সংরক্ষিত হয়েছে');
     }
 }

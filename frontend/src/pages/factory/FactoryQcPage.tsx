@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { SearchableSelect } from '@/components/common/SearchableSelect';
 
@@ -17,23 +18,23 @@ export const QC_ACT = [
 
 export const ISSUES = [
   { val: '', label: 'কোনো ফল্ট নেই' },
-  { val: 'Hole', label: 'Hole' },
-  { val: 'Needle Mark', label: 'Needle Mark' },
-  { val: 'Needle Broken', label: 'Needle Broken' },
-  { val: 'Oil Spot', label: 'Oil Spot' },
-  { val: 'Ink Spot', label: 'Ink Spot' },
-  { val: 'Star Mark', label: 'Star Mark' },
-  { val: 'Lycra Out', label: 'Lycra Out' },
-  { val: 'Patta (Barre)', label: 'Patta (Barre)' },
-  { val: 'Missing Yarn', label: 'Missing Yarn' },
-  { val: 'Shade Up', label: 'Shade Up' },
-  { val: 'Yarn Fault', label: 'Yarn Fault' },
-  { val: 'Y/D Design', label: 'Y/D Design' },
-  { val: 'Foreign Fiber', label: 'Foreign Fiber' },
-  { val: 'Slab Yarn', label: 'Slab Yarn' },
-  { val: 'Thick Thin', label: 'Thick Thin' },
-  { val: 'Sinker Mark', label: 'Sinker Mark' },
-  { val: 'other', label: 'অন্যান্য' },
+  { val: 'Hole', label: 'Hole (হোল)' },
+  { val: 'Needle Mark', label: 'Needle Mark (নিডল দাগ)' },
+  { val: 'Needle Broken', label: 'Needle Broken (নিডল ভাঙা)' },
+  { val: 'Oil Spot', label: 'Oil Spot (তেলের দাগ)' },
+  { val: 'Ink Spot', label: 'Ink Spot (কালির দাগ)' },
+  { val: 'Star Mark', label: 'Star Mark (স্টার মার্ক)' },
+  { val: 'Lycra Out', label: 'Lycra Out (লাইক্রা আউট)' },
+  { val: 'Patta (Barre)', label: 'Patta / Barre (শেড লাইন)' },
+  { val: 'Missing Yarn', label: 'Missing Yarn (সুতা মিস)' },
+  { val: 'Shade Up', label: 'Shade Up (শেড আপ)' },
+  { val: 'Yarn Fault', label: 'Yarn Fault (সুতার ফল্ট)' },
+  { val: 'Y/D Design', label: 'Y/D Design (ডিজাইন ত্রুটি)' },
+  { val: 'Foreign Fiber', label: 'Foreign Fiber (অন্যান্য আঁশ)' },
+  { val: 'Slab Yarn', label: 'Slab Yarn (স্ল্যাব সুতা)' },
+  { val: 'Thick Thin', label: 'Thick Thin (মোটা-পাতলা)' },
+  { val: 'Sinker Mark', label: 'Sinker Mark (সিঙ্কার দাগ)' },
+  { val: 'other', label: 'অন্যান্য ফল্ট' },
 ];
 
 export interface QcSignInfo {
@@ -73,12 +74,27 @@ export function qcState(q: QcItem) {
 }
 
 export const FactoryQcPage: React.FC = () => {
-  const { orders, role, currentUser, storeQcInspection, signQcInspection, updateQcAction } = useApp();
+  const {
+    orders,
+    qcInspections,
+    fetchQcInspections,
+    fetchOrders,
+    machines,
+    role,
+    currentUser,
+    storeQcInspection,
+    signQcInspection,
+    updateQcAction,
+    addToast,
+  } = useApp();
 
   const isVendorRole = (role as string) === 'vendor' || (role as string) === 'ven';
   const mySide: 'fac' | 'ven' = isVendorRole ? 'ven' : 'fac';
 
-  // State
+  // Loading state
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Filter state
   const [qcFilter, setQcFilter] = useState<'all' | 'mine' | 'theirs' | 'disp' | 'agree'>('all');
   const [qcFormOpen, setQcFormOpen] = useState(false);
   const [qcSignTarget, setQcSignTarget] = useState<{ id: string; v: 'ok' | 'bad'; side: 'fac' | 'ven' } | null>(null);
@@ -100,9 +116,30 @@ export const FactoryQcPage: React.FC = () => {
   const [formError, setFormError] = useState('');
   const [isSubmittingForm, setIsSubmittingForm] = useState(false);
 
-  // Collect all QC records from orders (filtered to vendor orders if in vendor role)
+  // Fetch fresh data from Laravel MySQL database on mount
+  useEffect(() => {
+    let isMounted = true;
+    const loadInitialData = async () => {
+      setIsLoading(true);
+      try {
+        await Promise.all([fetchOrders(), fetchQcInspections()]);
+      } catch (err) {
+        console.warn('Error loading QC page data:', err);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+    loadInitialData();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Collect and merge all QC records (order-embedded and live database inspections)
   const allQcItems = useMemo(() => {
-    const list: Array<{ q: QcItem; o: any }> = [];
+    const map = new Map<string, { q: QcItem; o: any }>();
+
+    // 1. First add from orders.qc
     const relevantOrders = isVendorRole
       ? orders.filter(
           (o: any) =>
@@ -116,8 +153,10 @@ export const FactoryQcPage: React.FC = () => {
     relevantOrders.forEach((o: any) => {
       const qcs: any[] = o.qc || [];
       qcs.forEach((rawQ) => {
+        const id = rawQ.id || rawQ.qc_no;
+        if (!id) return;
         const item: QcItem = {
-          id: rawQ.id || rawQ.qc_no,
+          id,
           o: o.id || o.order_no,
           order_no: o.id || o.order_no,
           d: rawQ.d || rawQ.date_label || '03 Oct',
@@ -131,18 +170,68 @@ export const FactoryQcPage: React.FC = () => {
           ven: rawQ.ven || { v: null, by: '', at: '', note: '' },
           act: rawQ.act || rawQ.action_taken || '',
         };
-        list.push({ q: item, o });
+        map.set(id, { q: item, o });
       });
     });
-    return list;
-  }, [orders, isVendorRole]);
+
+    // 2. Overlay / add direct database inspections from qcInspections (ensures 100% live state from MySQL)
+    (qcInspections || []).forEach((rawQ: any) => {
+      const id = rawQ.id || rawQ.qc_no;
+      if (!id) return;
+      const orderNo = rawQ.o || rawQ.order_no;
+      const matchedOrder = orders.find((ord: any) => ord.id === orderNo || ord.order_no === orderNo);
+
+      // If vendor role, filter out if it does not belong to vendor
+      if (isVendorRole) {
+        const partyName = matchedOrder?.party || (matchedOrder as any)?.party_name || (matchedOrder as any)?.party_code || '';
+        const isVenMatch =
+          partyName.includes('ABC') ||
+          (matchedOrder as any)?.party_code === 'abc' ||
+          (matchedOrder as any)?.v === 'abc' ||
+          (rawQ.ven?.by && rawQ.ven.by.includes('ABC'));
+        if (!isVenMatch) return;
+      }
+
+      const o = matchedOrder || {
+        id: orderNo,
+        order_no: orderNo,
+        party: 'ABC Fabrics',
+        lines: [{ place: rawQ.placement_name || 'Body', fab: 'Single Jersey' }],
+      };
+
+      const item: QcItem = {
+        id,
+        o: orderNo,
+        order_no: orderNo,
+        d: rawQ.d || rawQ.date_label || '03 Oct',
+        roll: rawQ.roll || rawQ.roll_no || '—',
+        m: rawQ.m || rawQ.machine_code || '—',
+        pl: Number(rawQ.pl ?? rawQ.placement_index ?? 0),
+        kg: Number(rawQ.kg ?? rawQ.weight_kg ?? 20),
+        issue: rawQ.issue || rawQ.issue_description || 'কোনো ফল্ট নেই',
+        src: rawQ.src || rawQ.source || 'fac',
+        fac: rawQ.fac || { v: null, by: '', at: '', note: '' },
+        ven: rawQ.ven || { v: null, by: '', at: '', note: '' },
+        act: rawQ.act || rawQ.action_taken || '',
+      };
+
+      map.set(id, { q: item, o });
+    });
+
+    // Sort newest inspections first (e.g. descending by QC number)
+    return Array.from(map.values()).sort((a, b) => b.q.id.localeCompare(a.q.id));
+  }, [orders, qcInspections, isVendorRole]);
 
   // KPIs
   const myPend = useMemo(() => allQcItems.filter(({ q }) => !q[mySide]?.v), [allQcItems, mySide]);
   const theirSide: 'fac' | 'ven' = mySide === 'fac' ? 'ven' : 'fac';
-  const theirPend = useMemo(() => allQcItems.filter(({ q }) => q[mySide]?.v && !q[theirSide]?.v), [allQcItems, mySide, theirSide]);
+  const theirPend = useMemo(
+    () => allQcItems.filter(({ q }) => q[mySide]?.v && !q[theirSide]?.v),
+    [allQcItems, mySide, theirSide]
+  );
   const disp = useMemo(() => allQcItems.filter(({ q }) => qcState(q).k === 'dispute'), [allQcItems]);
   const agr = useMemo(() => allQcItems.filter(({ q }) => qcState(q).k === 'agree'), [allQcItems]);
+  const passCount = useMemo(() => agr.filter(({ q }) => q.fac?.v === 'ok' && q.ven?.v === 'ok').length, [agr]);
 
   // Filtered List
   const filteredList = useMemo(() => {
@@ -161,7 +250,10 @@ export const FactoryQcPage: React.FC = () => {
   }, [qcFilter, myPend, theirPend, disp, agr, allQcItems]);
 
   // Selectable vendors & orders for new QC
-  const selectableOrders = useMemo(() => orders.filter((o: any) => o.status !== 'done' && o.status !== 'Completed'), [orders]);
+  const selectableOrders = useMemo(
+    () => orders.filter((o: any) => o.status !== 'done' && o.status !== 'Completed'),
+    [orders]
+  );
   const uniqueVendors = useMemo(() => {
     const vMap = new Map<string, string>();
     selectableOrders.forEach((o: any) => {
@@ -194,10 +286,34 @@ export const FactoryQcPage: React.FC = () => {
     if (!activeSelectedOrder) return [];
     const lines = (activeSelectedOrder as any).lines || [];
     if (lines.length > 0) return lines;
-    return [{ place: 'Body', fab: (activeSelectedOrder as any).fabric || 'Single Jersey', machines: (activeSelectedOrder as any).machines || [] }];
+    return [
+      {
+        place: 'Body',
+        fab: (activeSelectedOrder as any).fabric || 'Single Jersey',
+        machines: (activeSelectedOrder as any).machines || [],
+      },
+    ];
   }, [activeSelectedOrder]);
 
   const currentLine = activeLines[newPlIndex] || activeLines[0];
+
+  // Dynamically populated machines
+  const availableMachineOptions = useMemo(() => {
+    const opts: Array<{ value: string; label: string }> = [{ value: '—', label: '—' }];
+    const assigned = ((currentLine as any)?.machines || (activeSelectedOrder as any)?.machines || []) as string[];
+    assigned.forEach((m) => {
+      if (m && !opts.some((o) => o.value === m)) {
+        opts.push({ value: m, label: `${m} (অর্ডারে নির্ধারিত)` });
+      }
+    });
+    (machines || []).forEach((m: any) => {
+      const code = m.code || m.name || m.id;
+      if (code && !opts.some((o) => o.value === code)) {
+        opts.push({ value: code, label: code });
+      }
+    });
+    return opts;
+  }, [currentLine, activeSelectedOrder, machines]);
 
   // Start quick signing
   const handleStartSign = (id: string, verdict: 'ok' | 'bad', side: 'fac' | 'ven') => {
@@ -210,11 +326,19 @@ export const FactoryQcPage: React.FC = () => {
   const handleConfirmSign = async () => {
     if (!qcSignTarget) return;
     if (qcSignTarget.v === 'bad' && !signNote.trim()) {
-      alert('কী সমস্যা দেখলেন লিখুন');
+      addToast({
+        type: 'info',
+        title: 'মন্তব্য আবশ্যক',
+        message: 'কী সমস্যা দেখলেন তা মন্তব্য ঘরে লিখুন',
+      });
       return;
     }
     if (!signConfirmed) {
-      alert('সাইন করার আগে টিক দিন');
+      addToast({
+        type: 'info',
+        title: 'স্বীকৃতি প্রয়োজন',
+        message: 'সাইন করার আগে চেকবক্সে টিক দিন',
+      });
       return;
     }
 
@@ -235,7 +359,11 @@ export const FactoryQcPage: React.FC = () => {
       setSignNote('');
       setSignConfirmed(false);
     } catch (err: any) {
-      alert(err.message || 'সাইন সংরক্ষণে ব্যর্থ হয়েছে');
+      addToast({
+        type: 'error',
+        title: 'সাইন ব্যর্থ',
+        message: err.message || 'সাইন সংরক্ষণে ব্যর্থ হয়েছে',
+      });
     } finally {
       setSubmittingSign(false);
     }
@@ -252,6 +380,10 @@ export const FactoryQcPage: React.FC = () => {
     }
     if (!newRollNo.trim()) {
       setFormError('রোল নম্বর প্রদান করা আবশ্যক (যেমন: M-03/007)');
+      return;
+    }
+    if (newVerdict === 'bad' && !newIssue && !newNote.trim()) {
+      setFormError('কাপড় খারাপ চিহ্নিত করলে ফল্ট নির্বাচন করুন অথবা বিবরণ লিখুন');
       return;
     }
     if (!newFormConfirmed) {
@@ -283,6 +415,7 @@ export const FactoryQcPage: React.FC = () => {
       setQcFormOpen(false);
       setNewRollNo('');
       setNewNote('');
+      setNewIssue('');
       setNewFormConfirmed(false);
       setFormError('');
     } catch (err: any) {
@@ -297,7 +430,11 @@ export const FactoryQcPage: React.FC = () => {
     try {
       await updateQcAction(qcNo, val);
     } catch (err: any) {
-      alert(err.message || 'সিদ্ধান্ত সংরক্ষণে সমস্যা হয়েছে');
+      addToast({
+        type: 'error',
+        title: 'সিদ্ধান্ত সংরক্ষণ ব্যর্থ',
+        message: err.message || 'সিদ্ধান্ত সংরক্ষণে সমস্যা হয়েছে',
+      });
     }
   };
 
@@ -369,7 +506,7 @@ export const FactoryQcPage: React.FC = () => {
                 type="text"
                 value={signNote}
                 onChange={(e) => setSignNote(e.target.value)}
-                placeholder={qcSignTarget.v === 'bad' ? 'কী সমস্যা দেখলেন — যেমন: ৩ জায়গায় হোল' : 'ঐচ্ছিক'}
+                placeholder={qcSignTarget.v === 'bad' ? 'কী সমস্যা দেখলেন — যেমন: ৩ জায়গায় হোল' : 'ঐচ্ছিক মন্তব্য'}
                 style={{ width: '100%' }}
                 autoFocus
               />
@@ -437,13 +574,13 @@ export const FactoryQcPage: React.FC = () => {
         </button>
       </div>
 
-      {/* KPIs exact from KnitKhata.html */}
+      {/* KPIs exact from live database */}
       <div className="kpis" style={{ marginTop: 16 }}>
         {!isVendorRole && (
           <div className="kpi">
-            <span>আজ পরিদর্শন</span>
-            <b>{toBn(allQcItems.length || 46)} রোল</b>
-            <i>পাস {toBn(agr.filter(({ q }) => q.fac?.v === 'ok').length || 44)}</i>
+            <span>মোট পরিদর্শন</span>
+            <b>{toBn(allQcItems.length)} রোল</b>
+            <i>উভয় পক্ষের পাস {toBn(passCount)}</i>
           </div>
         )}
         <div className="kpi">
@@ -512,16 +649,15 @@ export const FactoryQcPage: React.FC = () => {
 
             <label className="no-f">
               <span>অংশ (Placement)</span>
-              <select
-                value={newPlIndex}
-                onChange={(e) => setNewPlIndex(Number(e.target.value))}
-              >
-                {activeLines.map((l: any, i: number) => (
-                  <option key={i} value={i}>
-                    {l.place || 'Body'} · {l.fab || l.fabric || 'Single Jersey'}
-                  </option>
-                ))}
-              </select>
+              <SearchableSelect
+                value={String(newPlIndex)}
+                onChange={(val) => setNewPlIndex(Number(val))}
+                options={activeLines.map((l: any, i: number) => ({
+                  value: String(i),
+                  label: `${l.place || 'Body'} · ${l.fab || l.fabric || 'Single Jersey'}`,
+                }))}
+                searchPlaceholder="অংশ খুঁজুন..."
+              />
             </label>
 
             <label className="no-f">
@@ -542,13 +678,7 @@ export const FactoryQcPage: React.FC = () => {
               <SearchableSelect
                 value={newMachine}
                 onChange={(val) => setNewMachine(val)}
-                options={[
-                  { value: '—', label: '—' },
-                  ...(((currentLine as any)?.machines || (activeSelectedOrder as any)?.machines || []) as string[]).map((m: string) => ({
-                    value: m,
-                    label: m,
-                  })),
-                ]}
+                options={availableMachineOptions}
                 searchPlaceholder="মেশিন খুঁজুন..."
               />
             </label>
@@ -565,17 +695,16 @@ export const FactoryQcPage: React.FC = () => {
             </label>
 
             <label className="no-f">
-              <span>ফল্ট</span>
-              <select
+              <span>ফল্ট / সমস্যা</span>
+              <SearchableSelect
                 value={newIssue}
-                onChange={(e) => setNewIssue(e.target.value)}
-              >
-                {ISSUES.map((iss) => (
-                  <option key={iss.val} value={iss.val}>
-                    {iss.label}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => setNewIssue(val)}
+                options={ISSUES.map((iss) => ({
+                  value: iss.val,
+                  label: iss.label,
+                }))}
+                searchPlaceholder="ফল্ট খুঁজুন..."
+              />
             </label>
 
             <label className="no-f">
@@ -590,7 +719,7 @@ export const FactoryQcPage: React.FC = () => {
             </label>
 
             <label className="no-f">
-              <span>বিবরণ</span>
+              <span>বিবরণ / মন্তব্য</span>
               <input
                 type="text"
                 value={newNote}
@@ -667,100 +796,130 @@ export const FactoryQcPage: React.FC = () => {
         </button>
       </div>
 
-      {/* QC Cards List */}
-      <div className="qc-list">
-        {filteredList.length === 0 ? (
-          <div className="card muted" style={{ padding: 24, textAlign: 'center' }}>
-            এই তালিকায় কিছু নেই।
+      {/* Loading Spinner or QC Cards List */}
+      {isLoading ? (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 260 }}>
+          <div
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: '50%',
+              background: 'var(--surface, #ffffff)',
+              boxShadow: '0 4px 14px rgba(0, 0, 0, 0.08)',
+              border: '1px solid var(--border)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--primary, #0284c7)',
+            }}
+          >
+            <Loader2 size={24} className="animate-spin" />
           </div>
-        ) : (
-          filteredList.map(({ q, o }) => {
-            const st = qcState(q);
-            const line = (o.lines || [])[q.pl || 0];
-            const partyName = o.party || o.party_name || o.party_code || 'ABC';
+        </div>
+      ) : (
+        <div className="qc-list">
+          {filteredList.length === 0 ? (
+            <div className="card muted" style={{ padding: 24, textAlign: 'center' }}>
+              এই তালিকায় কোনো QC রেকর্ড পাওয়া যায়নি।
+            </div>
+          ) : (
+            filteredList.map(({ q, o }) => {
+              const st = qcState(q);
+              const line = (o.lines || [])[q.pl || 0];
+              const partyName = o.party || o.party_name || o.party_code || 'ABC';
 
-            return (
-              <div className={`qc-c qc-${st.k}`} id={q.id} key={q.id}>
-                {/* Top: QC ID + Date & Status Pill */}
-                <div className="qc-top">
-                  <span className="mono small muted">
-                    {q.id} · {q.d}
-                  </span>
-                  <span className={`pill p-${st.s}`}>{st.t}</span>
-                </div>
-
-                {/* Issue title */}
-                <div className="qc-t">
-                  <b>{q.issue}</b>
-                </div>
-
-                {/* Tag info items */}
-                <div className="pe-info" style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', fontSize: '.84rem', color: 'var(--muted)' }}>
-                  <span>
-                    {!isVendorRole && <>{partyName} · </>}
-                    <b className="mono">{o.id || o.order_no}</b>
-                  </span>
-                  <span>{line ? `${line.place || 'Body'} · ${line.fab || line.fabric || 'Single Jersey'}` : '—'}</span>
-                  <span>
-                    রোল <b className="mono">{q.roll}</b>
-                  </span>
-                  <span>মেশিন {q.m}</span>
-                  <span>{toBn(q.kg)} kg</span>
-                  <span>
-                    জানিয়েছে:{' '}
-                    {q.src === 'ven'
-                      ? 'ভেন্ডর QC'
-                      : q.src === 'floor'
-                      ? 'প্রোডাকশন ফ্লোর'
-                      : 'ফ্যাক্টরি QC'}
-                  </span>
-                </div>
-
-                {/* Dual Signature Section */}
-                <div className="qs-wrap">
-                  {renderSideBox(q, o, 'fac')}
-                  {renderSideBox(q, o, 'ven')}
-                </div>
-
-                {/* Dispute Note */}
-                {st.k === 'dispute' && (
-                  <div className="qc-note">
-                    দুই পক্ষের মত মেলেনি। দুই পক্ষের QC একসাথে রোলটা দেখে যেকোনো এক পক্ষ মত বদলালেই বিষয়টা মিটে যাবে। ততক্ষণ এই রোল ডেলিভারি ও বিলে আটকে থাকবে।
+              return (
+                <div className={`qc-c qc-${st.k}`} id={q.id} key={q.id}>
+                  {/* Top: QC ID + Date & Status Pill */}
+                  <div className="qc-top">
+                    <span className="mono small muted">
+                      {q.id} · {q.d}
+                    </span>
+                    <span className={`pill p-${st.s}`}>{st.t}</span>
                   </div>
-                )}
 
-                {/* Factory Action Dropdown (When agreed bad) */}
-                {st.k === 'agree' && st.s === 'bad' && (
-                  <>
-                    {!isVendorRole ? (
-                      <div className="qc-act" style={{ marginTop: 8 }}>
-                        <label className="no-f">
-                          <span>এখন কী হবে?</span>
-                          <select
-                            value={q.act || ''}
-                            onChange={(e) => handleActionChange(q.id, e.target.value)}
-                          >
-                            <option value="">বাছুন</option>
-                            {QC_ACT.map((a) => (
-                              <option key={a} value={a}>
-                                {a}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                      </div>
-                    ) : q.act ? (
-                      <div className="qc-act small" style={{ marginTop: 6, color: 'var(--muted)' }}>
-                        ফ্যাক্টরির সিদ্ধান্ত: <b>{q.act}</b>
-                      </div>
-                    ) : null}
-                  </>
-                )}
-              </div>
-            );
-          })
-        )}
-      </div>
+                  {/* Issue title */}
+                  <div className="qc-t">
+                    <b>{q.issue}</b>
+                  </div>
+
+                  {/* Tag info items */}
+                  <div
+                    className="pe-info"
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: '6px 14px',
+                      fontSize: '.84rem',
+                      color: 'var(--muted)',
+                    }}
+                  >
+                    <span>
+                      {!isVendorRole && <>{partyName} · </>}
+                      <b className="mono">{o.id || o.order_no}</b>
+                    </span>
+                    <span>{line ? `${line.place || 'Body'} · ${line.fab || line.fabric || 'Single Jersey'}` : '—'}</span>
+                    <span>
+                      রোল <b className="mono">{q.roll}</b>
+                    </span>
+                    <span>মেশিন {q.m}</span>
+                    <span>{toBn(q.kg)} kg</span>
+                    <span>
+                      জানিয়েছে:{' '}
+                      {q.src === 'ven'
+                        ? 'ভেন্ডর QC'
+                        : q.src === 'floor'
+                        ? 'প্রোডাকশন ফ্লোর'
+                        : 'ফ্যাক্টরি QC'}
+                    </span>
+                  </div>
+
+                  {/* Dual Signature Section */}
+                  <div className="qs-wrap">
+                    {renderSideBox(q, o, 'fac')}
+                    {renderSideBox(q, o, 'ven')}
+                  </div>
+
+                  {/* Dispute Note */}
+                  {st.k === 'dispute' && (
+                    <div className="qc-note">
+                      দুই পক্ষের মত মেলেনি। দুই পক্ষের QC একসাথে রোলটা দেখে যেকোনো এক পক্ষ মত বদলালেই বিষয়টা মিটে যাবে। ততক্ষণ এই রোল ডেলিভারি ও বিলে আটকে থাকবে।
+                    </div>
+                  )}
+
+                  {/* Factory Action Dropdown (When agreed bad) */}
+                  {st.k === 'agree' && st.s === 'bad' && (
+                    <>
+                      {!isVendorRole ? (
+                        <div className="qc-act" style={{ marginTop: 8 }}>
+                          <label className="no-f">
+                            <span>এখন কী হবে?</span>
+                            <select
+                              value={q.act || ''}
+                              onChange={(e) => handleActionChange(q.id, e.target.value)}
+                            >
+                              <option value="">বাছুন</option>
+                              {QC_ACT.map((a) => (
+                                <option key={a} value={a}>
+                                  {a}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        </div>
+                      ) : q.act ? (
+                        <div className="qc-act small" style={{ marginTop: 6, color: 'var(--muted)' }}>
+                          ফ্যাক্টরির সিদ্ধান্ত: <b>{q.act}</b>
+                        </div>
+                      ) : null}
+                    </>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
     </div>
   );
 };
