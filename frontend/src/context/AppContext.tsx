@@ -1522,7 +1522,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       const res = await apiClient.post(`portal/challans/${challanNo}/sign`, {
         received_rolls: receivedRolls,
-        signed_by: signedBy || 'মো. কামরুল হাসান',
+        signed_by: signedBy || (currentUser?.name ? `${currentUser.name} (ভেন্ডর)` : 'ভেন্ডর প্রতিনিধি'),
       });
       await fetchChallans();
       addToast({

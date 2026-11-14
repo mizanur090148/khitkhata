@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { bnNum } from '@/utils/formatters';
 import { SearchableSelect } from '@/components/common/SearchableSelect';
@@ -8,6 +9,8 @@ export const FactoryChallanPage: React.FC = () => {
   const navigate = useNavigate();
   const {
     role,
+    currentUser,
+    factoryProfile,
     orders,
     parties,
     rolls,
@@ -23,6 +26,9 @@ export const FactoryChallanPage: React.FC = () => {
 
   const isVendor = role === 'vendor' || (role as string) === 'ven';
 
+  // Loading state
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+
   // State
   const [chOpen, setChOpen] = useState<string | null>(null);
   const [chNew, setChNew] = useState<boolean>(false);
@@ -34,48 +40,95 @@ export const FactoryChallanPage: React.FC = () => {
   const [chSel, setChSel] = useState<Set<string>>(new Set());
   const [vendorGotCount, setVendorGotCount] = useState<string>('');
 
-  // Initial load
+  // Initial load from live backend
   useEffect(() => {
-    fetchChallans();
-    fetchRolls();
-    fetchOrders();
+    let mounted = true;
+    Promise.all([fetchChallans(), fetchRolls(), fetchOrders()])
+      .catch((err) => console.warn('Challan page data load error:', err))
+      .finally(() => {
+        if (mounted) setIsLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
   }, []);
+
+  // Format challan dates dynamically
+  const getChallanDate = (c: any) => {
+    if (c?.d && c.d !== '03 Oct') return c.d;
+    if (c?.created_at) {
+      try {
+        const dt = new Date(c.created_at);
+        if (!isNaN(dt.getTime())) {
+          return dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+        }
+      } catch {}
+    }
+    return c?.d || new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+  };
+
+  const getChallanFullDate = (c: any) => {
+    const dStr = getChallanDate(c);
+    let year = new Date().getFullYear();
+    if (c?.created_at) {
+      try {
+        const dt = new Date(c.created_at);
+        if (!isNaN(dt.getTime())) year = dt.getFullYear();
+      } catch {}
+    }
+    return `${dStr} ${year}`;
+  };
 
   // Vendor party helper
   const vName = (code: string) => {
-    const p = parties.find((x) => x.code === code || String(x.id) === String(code));
+    if (!code) return '—';
+    const p = parties.find(
+      (x) => x.code === code || String(x.id) === String(code) || x.name === code
+    );
     if (p) return p.name;
-    const ord = orders.find((o) => (o as any).party_code === code || (o as any).v === code);
+    const ord = orders.find(
+      (o) => (o as any).party_code === code || (o as any).v === code || o.party === code
+    );
     return ord?.party || code;
   };
 
-  // Vendor codes
+  // Vendor codes dynamically from parties and active orders (no hardcoded fallbacks)
   const vendorCodes = useMemo(() => {
-    const activeOrders = orders.filter((o) => (o.status as string) !== 'done' && o.status !== 'Completed');
-    const codes = Array.from(
-      new Set(
-        activeOrders
-          .map((o) => (o as any).party_code || (o as any).v || o.party)
-          .filter(Boolean)
-      )
-    );
-    return codes.length ? codes : ['abc', 'xyz', 'nobo'];
-  }, [orders]);
+    const fromParties = parties
+      .filter((p) => p.type === 'ven' || p.type === 'vendor' || (p as any).category === 'vendor')
+      .map((p) => p.code || String(p.id));
 
-  // Set default vendor and order
+    const activeOrders = orders.filter((o) => (o.status as string) !== 'done' && o.status !== 'Completed');
+    const fromOrders = activeOrders
+      .map((o) => (o as any).party_code || (o as any).v || o.party)
+      .filter(Boolean);
+
+    const merged = Array.from(new Set([...fromParties, ...fromOrders]));
+    return merged;
+  }, [parties, orders]);
+
+  // Set default vendor
   useEffect(() => {
     if (!chV && vendorCodes.length) {
       setChV(vendorCodes[0]);
     }
   }, [vendorCodes, chV]);
 
+  // Open orders for selected vendor
   const vendorOrders = useMemo(() => {
-    return orders.filter(
-      (o) =>
-        ((o as any).party_code === chV || (o as any).v === chV || o.party === chV) &&
-        rolls.some((r) => (r.orderId || (r as any).o) === o.id)
-    );
-  }, [orders, chV, rolls]);
+    return orders.filter((o) => {
+      const isNotDone = (o.status as string) !== 'done' && o.status !== 'Completed';
+      if (!isNotDone) return false;
+      if (!chV) return true;
+      return (
+        (o as any).party_code === chV ||
+        (o as any).v === chV ||
+        o.party === chV ||
+        (o as any).party_name === chV ||
+        vName(chV) === o.party
+      );
+    });
+  }, [orders, chV, parties]);
 
   useEffect(() => {
     if (vendorOrders.length && (!chO || !vendorOrders.some((o) => o.id === chO))) {
@@ -91,9 +144,9 @@ export const FactoryChallanPage: React.FC = () => {
   const availableRolls = useMemo(() => {
     if (!chO) return [];
     return rolls.filter((r) => {
-      const orderNo = r.orderId || (r as any).o;
+      const orderNo = (r as any).no ? (r as any).o : (r.orderId || (r as any).order_no);
       const isChallan = (r as any).ch || (r as any).challan_no;
-      return orderNo === chO && !isChallan;
+      return (orderNo === chO || (r as any).o === chO) && !isChallan;
     });
   }, [rolls, chO]);
 
@@ -103,7 +156,7 @@ export const FactoryChallanPage: React.FC = () => {
       const qcList = (o as any).qc || [];
       return qcList.some(
         (q: any) =>
-          q.roll === rollNo &&
+          (q.roll === rollNo || q.roll_no === rollNo) &&
           q.fac?.v &&
           q.ven?.v &&
           q.fac.v !== q.ven.v
@@ -111,22 +164,27 @@ export const FactoryChallanPage: React.FC = () => {
     });
   };
 
-  // Calculate sum weight of selected rolls
+  // Calculate sum weight of selected rolls dynamically
   const selectedKg = useMemo(() => {
     return availableRolls
-      .filter((r) => chSel.has(r.rollId || (r as any).no))
+      .filter((r) => chSel.has((r as any).no || r.rollId || (r as any).roll_no))
       .reduce((sum, r) => sum + (Number(r.kg) || Number((r as any).weight_kg) || 0), 0);
   }, [availableRolls, chSel]);
 
   // Filter challans for vendor vs factory
   const listChallans = useMemo(() => {
     if (isVendor) {
-      return deliveryChallans.filter(
-        (c) => c.v === 'abc' || c.party_code === 'abc' || c.party === 'abc' || (c.party && c.party.includes('ABC'))
-      );
+      const myPartyCode = (currentUser as any)?.party_code || (currentUser as any)?.party || 'abc';
+      const myOrgName = currentUser?.organization_name;
+      return deliveryChallans.filter((c) => {
+        if (c.v === myPartyCode || c.party_code === myPartyCode) return true;
+        if (myOrgName && (c.party === myOrgName || vName(c.v || c.party_code) === myOrgName)) return true;
+        if (currentUser?.name && c.ven?.by?.includes(currentUser.name)) return true;
+        return c.v === 'abc' || c.party_code === 'abc' || (c.party && c.party.includes('ABC'));
+      });
     }
     return deliveryChallans;
-  }, [deliveryChallans, isVendor]);
+  }, [deliveryChallans, isVendor, currentUser, parties]);
 
   // Status helper
   const chState = (c: any) => {
@@ -141,14 +199,20 @@ export const FactoryChallanPage: React.FC = () => {
     return { s: 'ok', t: 'ভেন্ডর বুঝে পেয়েছে' };
   };
 
-  // Total kg of a challan
+  // Total kg of a challan dynamically calculated
   const challanKg = (c: any) => {
     const rollNos = Array.isArray(c.rolls) ? c.rolls : [];
-    const matched = rolls.filter((r) => rollNos.includes(r.rollId || (r as any).no));
+    if (!rollNos.length) return 0;
+    const matched = rolls.filter((r) =>
+      rollNos.includes((r as any).no || r.rollId || (r as any).roll_no)
+    );
     if (matched.length) {
       return matched.reduce((a, r) => a + (Number(r.kg) || Number((r as any).weight_kg) || 0), 0);
     }
-    return rollNos.length * 23.5;
+    if (c.kg || c.weight_kg || c.total_kg) {
+      return Number(c.kg || c.weight_kg || c.total_kg) || 0;
+    }
+    return 0;
   };
 
   // Scan roll barcode handler
@@ -158,7 +222,7 @@ export const FactoryChallanPage: React.FC = () => {
     if (mm) {
       v = `${mm[1]}-${mm[2].padStart(2, '0')}/${mm[3].padStart(3, '0')}`;
     }
-    const r = availableRolls.find((x) => (x.rollId || (x as any).no) === v);
+    const r = availableRolls.find((x) => ((x as any).no || x.rollId || (x as any).roll_no) === v);
     if (!r) {
       addToast({ type: 'error', message: `${v || 'রোল'} এই অর্ডারে পাঠানোর তালিকায় নেই` });
       return;
@@ -191,17 +255,17 @@ export const FactoryChallanPage: React.FC = () => {
         rolls: Array.from(chSel),
         vehicle_no: chVeh.trim(),
         driver_name: chDrv.trim() || '—',
-        signed_by: 'শফিকুল ইসলাম',
+        signed_by: currentUser?.name || 'ফ্যাক্টরি ইনচার্জ',
       });
       setChNew(false);
       setChSel(new Set());
       setChVeh('');
       setChDrv('');
-      if (res?.challan_no) {
-        setChOpen(res.challan_no);
+      if (res?.challan_no || res?.no) {
+        setChOpen(res.challan_no || res.no);
       }
     } catch {
-      // Handled
+      // Handled in context
     }
   };
 
@@ -211,10 +275,13 @@ export const FactoryChallanPage: React.FC = () => {
     const validGot = isNaN(got) ? maxRolls : Math.min(maxRolls, got);
 
     try {
-      await signChallan(challanNo, validGot, 'মো. কামরুল হাসান');
+      const signerName = currentUser?.name
+        ? `${currentUser.name} (ভেন্ডর)`
+        : 'ভেন্ডর প্রতিনিধি';
+      await signChallan(challanNo, validGot, signerName);
       setVendorGotCount('');
     } catch {
-      // Handled
+      // Handled in context
     }
   };
 
@@ -223,6 +290,29 @@ export const FactoryChallanPage: React.FC = () => {
     if (!chOpen) return null;
     return deliveryChallans.find((c) => c.no === chOpen || c.challan_no === chOpen);
   }, [chOpen, deliveryChallans]);
+
+  if (isLoading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 280 }}>
+        <div
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: '50%',
+            background: 'var(--surface, #ffffff)',
+            boxShadow: '0 4px 14px rgba(0, 0, 0, 0.08)',
+            border: '1px solid var(--border)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'var(--primary, #0284c7)',
+          }}
+        >
+          <Loader2 size={24} className="animate-spin" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ width: '100%', maxWidth: '100%' }}>
@@ -238,7 +328,9 @@ export const FactoryChallanPage: React.FC = () => {
           const c = currentChallan;
           const st = chState(c);
           const rollNos = Array.isArray(c.rolls) ? c.rolls : [];
-          const matchedRolls = rolls.filter((r) => rollNos.includes(r.rollId || (r as any).no));
+          const matchedRolls = rolls.filter((r) =>
+            rollNos.includes((r as any).no || r.rollId || (r as any).roll_no)
+          );
           const totalKg = matchedRolls.length
             ? matchedRolls.reduce((a, r) => a + (Number(r.kg) || Number((r as any).weight_kg) || 0), 0)
             : challanKg(c);
@@ -253,7 +345,7 @@ export const FactoryChallanPage: React.FC = () => {
                   </button>
                   <h2 style={{ marginTop: 8 }}>ডেলিভারি চালান {c.no || c.challan_no}</h2>
                   <p>
-                    {vName(c.v || c.party_code)} · {c.o || c.order_no} · {c.d || '03 Oct'}
+                    {vName(c.v || c.party_code)} · {c.o || c.order_no} · {getChallanDate(c)}
                   </p>
                 </div>
                 <div className="row">
@@ -267,7 +359,37 @@ export const FactoryChallanPage: React.FC = () => {
                       openPrintModal(
                         'challan',
                         `ডেলিভারি চালান ${c.no || c.challan_no}`,
-                        { challan: c, rolls: matchedRolls, order }
+                        {
+                          no: c.no || c.challan_no,
+                          date: getChallanDate(c),
+                          party: vName(c.v || c.party_code),
+                          orderId: c.o || c.order_no,
+                          vehicle: c.veh || c.vehicle_no || '—',
+                          driver: c.drv || c.driver_name || '—',
+                          driverPhone: c.ph || c.driver_phone || '—',
+                          gatePass: c.no || c.challan_no,
+                          status: st.t,
+                          fabric: order?.fabric || (order as any)?.fab || 'Single Jersey',
+                          dia: order?.dia || '—',
+                          rolls: rollNos.length,
+                          grossKg: totalKg > 0 ? totalKg.toFixed(1) : '—',
+                          netKg: totalKg > 0 ? totalKg.toFixed(1) : '—',
+                          challan: c,
+                          rollItems: matchedRolls.length
+                            ? matchedRolls
+                            : rollNos.map((rNo: string) => {
+                                const foundRoll = rolls.find(
+                                  (r) => ((r as any).no || r.rollId || (r as any).roll_no) === rNo
+                                );
+                                return {
+                                  no: rNo,
+                                  machine: foundRoll?.machine || (foundRoll as any)?.m || rNo.split('/')[0] || '—',
+                                  lot: foundRoll?.lot || (foundRoll as any)?.yarn_lot || '—',
+                                  kg: Number(foundRoll?.kg) || Number((foundRoll as any)?.weight_kg) || 0,
+                                };
+                              }),
+                          order,
+                        }
                       )
                     }
                   >
@@ -290,13 +412,13 @@ export const FactoryChallanPage: React.FC = () => {
               <div className="dc">
                 <div className="dc-h">
                   <div>
-                    <b>রহমান নিটিং ইন্ডাস্ট্রিজ</b>
-                    <span>কোনাবাড়ি, গাজীপুর</span>
+                    <b>{factoryProfile?.name || 'ফ্যাক্টরি'}</b>
+                    <span>{factoryProfile?.address || factoryProfile?.area || 'কোনাবাড়ি, গাজীপুর'}</span>
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <em>ডেলিভারি চালান</em>
                     <b className="mono">{c.no || c.challan_no}</b>
-                    <span>{c.d || '03 Oct'} 2026</span>
+                    <span>{getChallanFullDate(c)}</span>
                   </div>
                 </div>
 
@@ -313,12 +435,12 @@ export const FactoryChallanPage: React.FC = () => {
                   </div>
                   <div>
                     <span>গাড়ি</span>
-                    <b>{c.veh || c.vehicle_no}</b>
+                    <b>{c.veh || c.vehicle_no || '—'}</b>
                   </div>
                   <div>
                     <span>ড্রাইভার</span>
                     <b>
-                      {c.drv || c.driver_name} · {c.ph || c.driver_phone || '—'}
+                      {c.drv || c.driver_name || '—'} · {c.ph || c.driver_phone || '—'}
                     </b>
                   </div>
                 </div>
@@ -339,14 +461,14 @@ export const FactoryChallanPage: React.FC = () => {
                     <tbody>
                       {matchedRolls.length ? (
                         matchedRolls.map((r, i) => {
-                          const rNo = r.rollId || (r as any).no;
-                          const rM = r.machine || (r as any).m || 'M-01';
+                          const rNo = (r as any).no || r.rollId || (r as any).roll_no;
+                          const rM = r.machine || (r as any).m || (r as any).machine_code || '—';
                           const rLot = r.lot || (r as any).yarn_lot || '—';
-                          const rKg = Number(r.kg) || Number((r as any).weight_kg) || 23.5;
+                          const rKg = Number(r.kg) || Number((r as any).weight_kg) || 0;
                           const faults = (r as any).f || (r as any).faults_json || {};
                           const faultCount = Object.values(faults).reduce((a: any, b: any) => a + (Number(b) || 0), 0);
                           const lines = (order as any)?.lines || [];
-                          const line = lines[r.lineIdx || (r as any).pl || 0];
+                          const line = lines[r.lineIdx || (r as any).pl || (r as any).placement_index || 0];
 
                           return (
                             <tr key={rNo}>
@@ -356,29 +478,40 @@ export const FactoryChallanPage: React.FC = () => {
                               <td className="mono">{rM}</td>
                               <td className="mono small">{rLot}</td>
                               <td className="n">{faultCount ? String(faultCount) : '—'}</td>
-                              <td className="n">{rKg.toFixed(1)}</td>
+                              <td className="n">{rKg ? rKg.toFixed(1) : '—'}</td>
                             </tr>
                           );
                         })
                       ) : (
-                        rollNos.map((rNo: string, i: number) => (
-                          <tr key={rNo}>
-                            <td>{i + 1}</td>
-                            <td className="mono">{rNo}</td>
-                            <td>Body</td>
-                            <td className="mono">M-03</td>
-                            <td className="mono small">SQ-88419</td>
-                            <td className="n">—</td>
-                            <td className="n">23.5</td>
-                          </tr>
-                        ))
+                        rollNos.map((rNo: string, i: number) => {
+                          const foundRoll = rolls.find(
+                            (r) => ((r as any).no || r.rollId || (r as any).roll_no) === rNo
+                          );
+                          const rM = foundRoll?.machine || (foundRoll as any)?.m || (foundRoll as any)?.machine_code || rNo.split('/')[0] || '—';
+                          const rLot = foundRoll?.lot || (foundRoll as any)?.yarn_lot || (order as any)?.lines?.[0]?.yarns?.[0]?.lot || '—';
+                          const rKg = Number(foundRoll?.kg) || Number((foundRoll as any)?.weight_kg) || 0;
+                          const lines = (order as any)?.lines || [];
+                          const line = lines[foundRoll?.lineIdx || (foundRoll as any)?.pl || (foundRoll as any)?.placement_index || 0];
+
+                          return (
+                            <tr key={rNo}>
+                              <td>{i + 1}</td>
+                              <td className="mono">{rNo}</td>
+                              <td>{line?.place || line?.placement || 'Body'}</td>
+                              <td className="mono">{rM}</td>
+                              <td className="mono small">{rLot}</td>
+                              <td className="n">—</td>
+                              <td className="n">{rKg ? rKg.toFixed(1) : '—'}</td>
+                            </tr>
+                          );
+                        })
                       )}
                       <tr>
                         <td colSpan={6}>
                           <b>মোট {rollNos.length} রোল</b>
                         </td>
                         <td className="n">
-                          <b>{totalKg.toFixed(1)}</b>
+                          <b>{totalKg > 0 ? totalKg.toFixed(1) : '—'}</b>
                         </td>
                       </tr>
                     </tbody>
@@ -388,8 +521,8 @@ export const FactoryChallanPage: React.FC = () => {
                 <div className="dc-sig">
                   <div className="dc-s ok">
                     <span>পাঠিয়েছে · ফ্যাক্টরি</span>
-                    <b>✍ {c.fac?.by || 'শফিকুল ইসলাম'}</b>
-                    <small>{c.fac?.at || '03 Oct, 10:10'}</small>
+                    <b>✍ {c.fac?.by || 'ফ্যাক্টরি ইনচার্জ'}</b>
+                    <small>{c.fac?.at || getChallanDate(c)}</small>
                   </div>
                   <div
                     className={`dc-s ${
@@ -399,9 +532,9 @@ export const FactoryChallanPage: React.FC = () => {
                     <span>বুঝে নিয়েছে · ভেন্ডর</span>
                     {c.ven ? (
                       <>
-                        <b>✍ {c.ven.by}</b>
+                        <b>✍ {c.ven.by || 'ভেন্ডর প্রতিনিধি'}</b>
                         <small>
-                          {c.ven.at} · পেয়েছে {c.ven.got} / {rollNos.length} রোল
+                          {c.ven.at} · পেয়েছে {bnNum(c.ven.got)} / {bnNum(rollNos.length)} রোল
                         </small>
                       </>
                     ) : isVendor ? (
@@ -477,10 +610,14 @@ export const FactoryChallanPage: React.FC = () => {
                       setChV(val);
                       setChSel(new Set());
                     }}
-                    options={vendorCodes.map((k) => ({
-                      value: k,
-                      label: vName(k),
-                    }))}
+                    options={
+                      vendorCodes.length
+                        ? vendorCodes.map((k) => ({
+                            value: k,
+                            label: vName(k),
+                          }))
+                        : [{ value: '', label: 'কোনো ভেন্ডর পাওয়া যায়নি' }]
+                    }
                     searchPlaceholder="ভেন্ডর খুঁজুন..."
                   />
                 </label>
@@ -498,9 +635,9 @@ export const FactoryChallanPage: React.FC = () => {
                       vendorOrders.length
                         ? vendorOrders.map((o) => ({
                             value: o.id,
-                            label: o.id,
+                            label: `${o.id} · ${o.fabric || o.buyer || 'অর্ডার'}`,
                           }))
-                        : [{ value: '', label: 'রোল নেই' }]
+                        : [{ value: '', label: 'কোনো খোলা অর্ডার নেই' }]
                     }
                     searchPlaceholder="অর্ডার খুঁজুন..."
                   />
@@ -520,7 +657,7 @@ export const FactoryChallanPage: React.FC = () => {
                   <span>ড্রাইভার</span>
                   <input
                     id="chDrv"
-                    placeholder="নাম"
+                    placeholder="নাম ও ফোন নম্বর"
                     value={chDrv}
                     onChange={(e) => setChDrv(e.target.value)}
                   />
@@ -560,9 +697,9 @@ export const FactoryChallanPage: React.FC = () => {
               <div className="ch-rolls">
                 {availableRolls.length ? (
                   availableRolls.map((r) => {
-                    const rNo = r.rollId || (r as any).no;
-                    const rKg = Number(r.kg) || Number((r as any).weight_kg) || 23.5;
-                    const rM = r.machine || (r as any).m || 'M-01';
+                    const rNo = (r as any).no || r.rollId || (r as any).roll_no;
+                    const rKg = Number(r.kg) || Number((r as any).weight_kg) || 0;
+                    const rM = r.machine || (r as any).m || (r as any).machine_code || '—';
                     const faults = (r as any).f || (r as any).faults_json || {};
                     const faultCount = Object.values(faults).reduce((a: any, b: any) => a + (Number(b) || 0), 0);
                     const dis = isDisputedRoll(rNo);
@@ -583,7 +720,7 @@ export const FactoryChallanPage: React.FC = () => {
                         />
                         <span className="mono">{rNo}</span>
                         <small>
-                          {rM} · {rKg} kg
+                          {rM} · {rKg ? `${rKg.toFixed(1)} kg` : ''}
                           {faultCount ? ` · ফল্ট ${faultCount}` : ''}
                           {dis ? ' · QC দ্বিমত, পাঠানো যাবে না' : ''}
                         </small>
@@ -595,7 +732,7 @@ export const FactoryChallanPage: React.FC = () => {
                 )}
               </div>
 
-              <div className="row" style={{ marginTop: 14, justifyContent: 'space-between' }}>
+              <div className="row" style={{ margin: '14px 0 0', justifyContent: 'space-between' }}>
                 <span className="small" id="chSum" style={{ fontWeight: 600 }}>
                   {chSel.size} রোল · {selectedKg.toFixed(1)} kg
                 </span>
@@ -642,12 +779,12 @@ export const FactoryChallanPage: React.FC = () => {
                         <td className="mono">
                           <b>{no}</b>
                         </td>
-                        <td>{c.d || '03 Oct'}</td>
+                        <td>{getChallanDate(c)}</td>
                         {!isVendor && <td>{vName(c.v || c.party_code)}</td>}
                         <td className="mono">{c.o || c.order_no}</td>
                         <td className="n">{rollsCount}</td>
-                        <td className="n">{kg.toFixed(1)}</td>
-                        <td className="small">{c.veh || c.vehicle_no}</td>
+                        <td className="n">{kg > 0 ? kg.toFixed(1) : '—'}</td>
+                        <td className="small">{c.veh || c.vehicle_no || '—'}</td>
                         <td>
                           <span className={`pill p-${st.s}`}>{st.t}</span>
                         </td>
@@ -656,7 +793,7 @@ export const FactoryChallanPage: React.FC = () => {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={isVendor ? 7 : 8} className="muted">
+                    <td colSpan={isVendor ? 7 : 8} className="muted" style={{ textAlign: 'center', padding: '24px 0' }}>
                       এখনো কোনো চালান তৈরি হয়নি।
                     </td>
                   </tr>
@@ -671,4 +808,3 @@ export const FactoryChallanPage: React.FC = () => {
 };
 
 export default FactoryChallanPage;
-

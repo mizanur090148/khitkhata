@@ -1,5 +1,6 @@
 import React from 'react';
 import { Printer, X } from 'lucide-react';
+import { useApp } from '@/context/AppContext';
 
 interface PrintDialogProps {
   isOpen: boolean;
@@ -16,6 +17,8 @@ export const PrintDialog: React.FC<PrintDialogProps> = ({
   documentType,
   data,
 }) => {
+  const { factoryProfile } = useApp();
+
   if (!isOpen || !data) return null;
 
   const handlePrint = () => {
@@ -58,9 +61,9 @@ export const PrintDialog: React.FC<PrintDialogProps> = ({
           {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #0f172a', paddingBottom: 16, marginBottom: 20 }}>
             <div>
-              <h1 style={{ fontSize: 22, fontWeight: 800, color: '#0d6e4f' }}>আল-মদিনা নিটওয়্যার লিঃ</h1>
-              <p style={{ fontSize: 13, color: '#475569' }}>বিসিক শিল্পনগরী, ফতুল্লা, নারায়ণগঞ্জ · ফোন: 01711-889900</p>
-              <p style={{ fontSize: 12, color: '#64748b' }}>ই-মেইল: info@almadinaknit.com.bd · BIN: 001928374-0102</p>
+              <h1 style={{ fontSize: 22, fontWeight: 800, color: '#0d6e4f' }}>{factoryProfile?.name || 'রহমান নিটিং ইন্ডাস্ট্রিজ'}</h1>
+              <p style={{ fontSize: 13, color: '#475569' }}>{factoryProfile?.address || factoryProfile?.area || 'কোনাবাড়ি, গাজীপুর'}{factoryProfile?.phone ? ` · ফোন: ${factoryProfile.phone}` : ''}</p>
+              <p style={{ fontSize: 12, color: '#64748b' }}>{factoryProfile?.email ? `ই-মেইল: ${factoryProfile.email} · ` : ''}BIN: {factoryProfile?.bin || '001234567-0101'}</p>
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: 16, fontWeight: 800, textTransform: 'uppercase', color: '#0f172a' }}>
@@ -98,26 +101,55 @@ export const PrintDialog: React.FC<PrintDialogProps> = ({
                   </tbody>
                 </table>
 
-                <table className="data-table" style={{ width: '100%', border: '1px solid #cbd5e1' }}>
-                  <thead>
-                    <tr style={{ background: '#f1f5f9' }}>
-                      <th>আইটেম ও কাপড়ের বিবরণ</th>
-                      <th>ডায়া ও গেজ</th>
-                      <th>রোল সংখ্যা</th>
-                      <th>গ্রস ওজন (কেজি)</th>
-                      <th>নেট ওজন (কেজি)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>{data.fabric}</td>
-                      <td>{data.dia}</td>
-                      <td>{data.rolls} টি</td>
-                      <td>{data.grossKg} কেজি</td>
-                      <td><strong>{data.netKg} কেজি</strong></td>
-                    </tr>
-                  </tbody>
-                </table>
+                {Array.isArray(data.rollItems) && data.rollItems.length > 0 ? (
+                  <table className="data-table" style={{ width: '100%', border: '1px solid #cbd5e1' }}>
+                    <thead>
+                      <tr style={{ background: '#f1f5f9' }}>
+                        <th>#</th>
+                        <th>রোল নম্বর</th>
+                        <th>মেশিন</th>
+                        <th>সুতা লট</th>
+                        <th style={{ textAlign: 'right' }}>ওজন (কেজি)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.rollItems.map((r: any, idx: number) => (
+                        <tr key={idx}>
+                          <td>{idx + 1}</td>
+                          <td style={{ fontFamily: 'monospace' }}>{(r as any).no || r.rollId || (r as any).roll_no}</td>
+                          <td>{r.machine || (r as any).m || '—'}</td>
+                          <td>{r.lot || (r as any).yarn_lot || '—'}</td>
+                          <td style={{ textAlign: 'right' }}>{(Number(r.kg) || Number((r as any).weight_kg) || 0).toFixed(1)}</td>
+                        </tr>
+                      ))}
+                      <tr style={{ fontWeight: 'bold', background: '#f8fafc' }}>
+                        <td colSpan={4}>মোট {data.rolls || data.rollItems.length} রোল</td>
+                        <td style={{ textAlign: 'right' }}>{data.netKg || data.grossKg} কেজি</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                ) : (
+                  <table className="data-table" style={{ width: '100%', border: '1px solid #cbd5e1' }}>
+                    <thead>
+                      <tr style={{ background: '#f1f5f9' }}>
+                        <th>আইটেম ও কাপড়ের বিবরণ</th>
+                        <th>ডায়া ও গেজ</th>
+                        <th>রোল সংখ্যা</th>
+                        <th>গ্রস ওজন (কেজি)</th>
+                        <th>নেট ওজন (কেজি)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>{data.fabric}</td>
+                        <td>{data.dia}</td>
+                        <td>{data.rolls} টি</td>
+                        <td>{data.grossKg} কেজি</td>
+                        <td><strong>{data.netKg} কেজি</strong></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                )}
               </div>
             )}
 
