@@ -67,3 +67,4 @@ class FactoryMachineTest extends TestCase
         $this->assertEquals('Flat Collar 14G', $machine->spec_label);
     }
 }
+

@@ -67,3 +67,4 @@ class YarnApiTest extends TestCase
         $this->assertEquals(1125.5, $order->yarn_in_json[0]['kg']);
     }
 }
+

@@ -208,7 +208,7 @@ const createBlankLine = (uid: number, place = 'Body'): OrderLineState => ({
 export const FactoryNewOrderPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { orders, parties, machines, createOrder, addToast, setSelectedOrderId, fetchParties } = useApp();
+  const { orders, parties, machines, createOrder, createParty, addToast, setSelectedOrderId, fetchParties } = useApp();
 
   // Basic Form States - initially empty for fresh new entry
   const [pubDate, setPubDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
@@ -224,9 +224,101 @@ export const FactoryNewOrderPage: React.FC = () => {
   const [vendorDropdownOpen, setVendorDropdownOpen] = useState(false);
   const vendorDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Filter parties from database where type is 'ven'
+  // Modal state for creating new party / buyer directly from new order page
+  const [showAddPartyModal, setShowAddPartyModal] = useState(false);
+  const [modalPartyName, setModalPartyName] = useState('');
+  const [modalPartyContact, setModalPartyContact] = useState('');
+  const [modalPartyPhone, setModalPartyPhone] = useState('');
+  const [modalPartyAddress, setModalPartyAddress] = useState('');
+  const [modalPartyRate, setModalPartyRate] = useState('');
+  const [modalPartyOpening, setModalPartyOpening] = useState('0');
+  const [modalPartyTerms, setModalPartyTerms] = useState('বিলের ৩০ দিনের মধ্যে');
+  const [modalPartyEmail, setModalPartyEmail] = useState('');
+  const [modalPartyBin, setModalPartyBin] = useState('');
+  const [modalPartyError, setModalPartyError] = useState<string | null>(null);
+  const [modalPartySubmitting, setModalPartySubmitting] = useState(false);
+
+  const handleOpenAddPartyModal = () => {
+    // If the user already typed a non-empty name into the vendor input, prefill it
+    if (vendorName.trim() && !vendorId) {
+      setModalPartyName(vendorName.trim());
+    } else {
+      setModalPartyName('');
+    }
+    setModalPartyError(null);
+    setVendorDropdownOpen(false);
+    setShowAddPartyModal(true);
+  };
+
+  const handleCreatePartySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setModalPartyError(null);
+
+    const trimmedName = modalPartyName.trim();
+    if (!trimmedName) {
+      setModalPartyError('পার্টি বা বায়ারের নাম আবশ্যক।');
+      return;
+    }
+
+    const isDuplicate = parties.some(
+      (p) => (p.name || '').trim().toLowerCase() === trimmedName.toLowerCase()
+    );
+    if (isDuplicate) {
+      setModalPartyError(`"${trimmedName}" নামে আগেই একটা পার্টি তালিকায় বিদ্যমান।`);
+      return;
+    }
+
+    setModalPartySubmitting(true);
+    try {
+      const createdParty = await createParty({
+        name: trimmedName,
+        type: 'ven', // Buyer / Vendor party
+        contact: modalPartyContact.trim() || '—',
+        phone: modalPartyPhone.trim() || '—',
+        addr: modalPartyAddress.trim() || '—',
+        rate: modalPartyRate ? parseFloat(modalPartyRate) : 0,
+        open: modalPartyOpening ? parseFloat(modalPartyOpening) : 0,
+        terms: modalPartyTerms.trim() || 'বিলের ৩০ দিনের মধ্যে',
+        email: modalPartyEmail.trim(),
+        bin: modalPartyBin.trim(),
+      });
+
+      // Immediately select the newly created party in the vendor dropdown without page reload
+      setVendorName(createdParty.name);
+      setVendorId(createdParty.id ?? null);
+      setVendorDropdownOpen(false);
+
+      // Close modal and reset fields
+      setShowAddPartyModal(false);
+      setModalPartyName('');
+      setModalPartyContact('');
+      setModalPartyPhone('');
+      setModalPartyAddress('');
+      setModalPartyRate('');
+      setModalPartyOpening('0');
+      setModalPartyTerms('বিলের ৩০ দিনের মধ্যে');
+      setModalPartyEmail('');
+      setModalPartyBin('');
+      setModalPartyError(null);
+
+      addToast({
+        type: 'success',
+        title: 'বায়ার / পার্টি যোগ হয়েছে',
+        message: `"${createdParty.name}" তৈরি হয়েছে এবং সফলভাবে ভেন্ডর হিসেবে সিলেক্ট করা হয়েছে।`,
+      });
+    } catch (err: any) {
+      setModalPartyError(err.message || 'পার্টি তৈরি করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।');
+    } finally {
+      setModalPartySubmitting(false);
+    }
+  };
+
+  // Filter parties from database where type is 'ven' (or buyer)
   const vendorParties = useMemo(() => {
-    return parties.filter((p) => (p.type || '').toLowerCase() === 'ven');
+    return parties.filter((p) => {
+      const t = (p.type || (p as any).party_type || '').toLowerCase();
+      return t === 'ven' || t === 'buyer' || (t !== 'sup' && t !== 'supplier');
+    });
   }, [parties]);
 
   // Search filtered vendors
@@ -621,7 +713,7 @@ export const FactoryNewOrderPage: React.FC = () => {
                 <button
                   type="button"
                   className="addp"
-                  onClick={() => navigate('/dashboard/party')}
+                  onClick={handleOpenAddPartyModal}
                   title="নতুন পার্টি তৈরি করুন"
                   style={{
                     fontSize: 11,
@@ -748,7 +840,7 @@ export const FactoryNewOrderPage: React.FC = () => {
                       <div style={{ marginBottom: 8 }}>"{vendorName}" নামে কোনো ভেন্ডর পাওয়া যায়নি</div>
                       <button
                         type="button"
-                        onClick={() => navigate('/dashboard/party')}
+                        onClick={handleOpenAddPartyModal}
                         className="btn small pri"
                         style={{ fontSize: 12 }}
                       >
@@ -1641,6 +1733,287 @@ export const FactoryNewOrderPage: React.FC = () => {
           {submitting ? 'সংরক্ষণ হচ্ছে...' : 'অর্ডার সেভ করুন'}
         </button>
       </form>
+
+      {/* Modal: নতুন পার্টি / বায়ার তৈরি করুন */}
+      {showAddPartyModal && (
+        <div
+          className="modal-overlay"
+          onClick={() => setShowAddPartyModal(false)}
+          style={{ zIndex: 1100 }}
+        >
+          <div
+            className="modal-content"
+            style={{ maxWidth: 540 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 16,
+                borderBottom: '1px solid var(--border)',
+                paddingBottom: 12,
+              }}
+            >
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text)' }}>
+                  নতুন পার্টি / বায়ার তৈরি করুন
+                </h3>
+                <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: 'var(--muted)' }}>
+                  তথ্য পূরণ করে সেভ করলে সাথে সাথে ভেন্ডর হিসেবে সিলেক্ট হবে।
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddPartyModal(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  fontSize: 20,
+                  cursor: 'pointer',
+                  color: 'var(--muted)',
+                  padding: 4,
+                  lineHeight: 1,
+                }}
+                aria-label="বন্ধ করুন"
+              >
+                ✕
+              </button>
+            </div>
+
+            {modalPartyError && (
+              <div
+                style={{
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  color: '#ef4444',
+                  border: '1px solid rgba(239, 68, 68, 0.25)',
+                  padding: '8px 12px',
+                  borderRadius: 6,
+                  fontSize: '0.85rem',
+                  marginBottom: 14,
+                }}
+              >
+                {modalPartyError}
+              </div>
+            )}
+
+            <form onSubmit={handleCreatePartySubmit}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 4, color: 'var(--text)' }}>
+                    পার্টি / বায়ারের নাম <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="যেমন: ফ্যাশন নিটওয়্যার লিমিটেড বা এবিসি টেক্সটাইল"
+                    value={modalPartyName}
+                    onChange={(e) => setModalPartyName(e.target.value)}
+                    autoFocus
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      borderRadius: 6,
+                      border: '1px solid var(--border)',
+                      background: 'var(--surface)',
+                      color: 'var(--text)',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 4, color: 'var(--text)' }}>
+                      মোবাইল / ফোন নম্বর
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="যেমন: 01711-000111"
+                      value={modalPartyPhone}
+                      onChange={(e) => setModalPartyPhone(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        borderRadius: 6,
+                        border: '1px solid var(--border)',
+                        background: 'var(--surface)',
+                        color: 'var(--text)',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 4, color: 'var(--text)' }}>
+                      যোগাযোগকারী ব্যক্তি
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="যেমন: মো. কামরুল হাসান (মার্চেন্ডাইজার)"
+                      value={modalPartyContact}
+                      onChange={(e) => setModalPartyContact(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        borderRadius: 6,
+                        border: '1px solid var(--border)',
+                        background: 'var(--surface)',
+                        color: 'var(--text)',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 4, color: 'var(--text)' }}>
+                    কারখানা বা অফিসের ঠিকানা
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="যেমন: জামগড়া, আশুলিয়া, সাভার, ঢাকা"
+                    value={modalPartyAddress}
+                    onChange={(e) => setModalPartyAddress(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px',
+                      borderRadius: 6,
+                      border: '1px solid var(--border)',
+                      background: 'var(--surface)',
+                      color: 'var(--text)',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 4, color: 'var(--text)' }}>
+                      ডিফল্ট নিটিং রেট (৳ / কেজি)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      placeholder="যেমন: 24.5"
+                      value={modalPartyRate}
+                      onChange={(e) => setModalPartyRate(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        borderRadius: 6,
+                        border: '1px solid var(--border)',
+                        background: 'var(--surface)',
+                        color: 'var(--text)',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 4, color: 'var(--text)' }}>
+                      প্রারম্ভিক জের / বকেয়া (৳)
+                    </label>
+                    <input
+                      type="number"
+                      step="1"
+                      placeholder="০"
+                      value={modalPartyOpening}
+                      onChange={(e) => setModalPartyOpening(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        borderRadius: 6,
+                        border: '1px solid var(--border)',
+                        background: 'var(--surface)',
+                        color: 'var(--text)',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 4, color: 'var(--text)' }}>
+                      পেমেন্ট শর্ত
+                    </label>
+                    <select
+                      value={modalPartyTerms}
+                      onChange={(e) => setModalPartyTerms(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        borderRadius: 6,
+                        border: '1px solid var(--border)',
+                        background: 'var(--surface)',
+                        color: 'var(--text)',
+                        boxSizing: 'border-box',
+                      }}
+                    >
+                      <option value="বিলের ৩০ দিনের মধ্যে">বিলের ৩০ দিনের মধ্যে</option>
+                      <option value="বিলের ১৫ দিনের মধ্যে">বিলের ১৫ দিনের মধ্যে</option>
+                      <option value="বিলের ৪৫ দিনের মধ্যে">বিলের ৪৫ দিনের মধ্যে</option>
+                      <option value="নগদ / ক্যাশ">নগদ / ক্যাশ</option>
+                      <option value="সাপ্তাহিক">সাপ্তাহিক</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 4, color: 'var(--text)' }}>
+                      ইমেইল (ঐচ্ছিক)
+                    </label>
+                    <input
+                      type="email"
+                      placeholder="buyer@example.com"
+                      value={modalPartyEmail}
+                      onChange={(e) => setModalPartyEmail(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        borderRadius: 6,
+                        border: '1px solid var(--border)',
+                        background: 'var(--surface)',
+                        color: 'var(--text)',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: 8,
+                  marginTop: 20,
+                  paddingTop: 14,
+                  borderTop: '1px solid var(--border)',
+                }}
+              >
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => setShowAddPartyModal(false)}
+                  disabled={modalPartySubmitting}
+                >
+                  বাতিল
+                </button>
+                <button
+                  type="submit"
+                  className="btn pri"
+                  disabled={modalPartySubmitting}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  {modalPartySubmitting ? 'সেভ হচ্ছে...' : 'পার্টি সেভ করুন'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </>
   );
 };

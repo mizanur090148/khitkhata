@@ -171,3 +171,4 @@ class KnitKhataDomainServiceTest extends TestCase
         $this->assertEquals('LOT-SQ-412', $payload['yarns'][0]['lot']);
     }
 }
+
