@@ -37,4 +37,70 @@ class YarnController extends Controller
 
         return $this->success($order, "{$order->order_no}-এ সুতা যোগ হয়েছে");
     }
+
+    public function requestReturn(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_no' => ['required', 'string'],
+            'lot' => ['required', 'string'],
+            'kg' => ['required', 'numeric', 'min:0.1'],
+            'note' => ['nullable', 'string'],
+        ]);
+
+        $order = SubcontractOrder::where('order_no', $validated['order_no'])->firstOrFail();
+        $requests = $order->yarn_requests_json ?? [];
+
+        $lot = $validated['lot'];
+        $requests[$lot] = [
+            'lot' => $lot,
+            'kg' => (float) $validated['kg'],
+            'requested_at' => now()->format('d M, H:i'),
+            'by' => $request->user()?->name ?? 'ভেন্ডর প্রতিনিধি',
+            'status' => 'pending',
+        ];
+
+        $order->update(['yarn_requests_json' => $requests]);
+
+        return $this->success($order, "{$order->order_no}-এর লট {$lot}-এর ফেরত রিকোয়েস্ট সংরক্ষিত হয়েছে");
+    }
+
+    public function createReturnChallan(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_no' => ['required', 'string'],
+            'lot' => ['required', 'string'],
+            'kg' => ['required', 'numeric', 'min:0.1'],
+            'date_label' => ['nullable', 'string'],
+            'driver_name' => ['nullable', 'string'],
+            'vehicle_no' => ['nullable', 'string'],
+        ]);
+
+        $order = SubcontractOrder::where('order_no', $validated['order_no'])->firstOrFail();
+        $returns = $order->yarn_returns_json ?? [];
+
+        $challanNo = 'YRC-' . str_pad((string) (count($returns) + 1), 3, '0', STR_PAD_LEFT);
+        $dateLabel = $validated['date_label'] ?: now()->format('d M');
+
+        $returns[] = [
+            'challan_no' => $challanNo,
+            'lot' => $validated['lot'],
+            'kg' => (float) $validated['kg'],
+            'd' => $dateLabel,
+            'date' => now()->format('Y-m-d'),
+            'by' => $request->user()?->name ?? 'ফ্যাক্টরি ইনচার্জ',
+            'created_at' => now()->toISOString(),
+        ];
+
+        $requests = $order->yarn_requests_json ?? [];
+        if (isset($requests[$validated['lot']])) {
+            $requests[$validated['lot']]['status'] = 'completed';
+        }
+
+        $order->update([
+            'yarn_returns_json' => $returns,
+            'yarn_requests_json' => $requests,
+        ]);
+
+        return $this->success($order, "{$challanNo} সুতা ফেরত চালান সফলভাবে তৈরি হয়েছে");
+    }
 }

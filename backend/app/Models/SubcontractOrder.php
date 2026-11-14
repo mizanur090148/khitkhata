@@ -40,6 +40,8 @@ class SubcontractOrder extends Model
         'machines_json',
         'challans_json',
         'yarn_in_json',
+        'yarn_returns_json',
+        'yarn_requests_json',
     ];
 
     protected function casts(): array
@@ -58,6 +60,8 @@ class SubcontractOrder extends Model
             'machines_json' => 'array',
             'challans_json' => 'array',
             'yarn_in_json' => 'array',
+            'yarn_returns_json' => 'array',
+            'yarn_requests_json' => 'array',
         ];
     }
 

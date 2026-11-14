@@ -165,6 +165,8 @@ class OrderController extends Controller
             'delivered' => (float) $o->delivered_kg,
             'challans' => $o->challans_json ?? [],
             'yarnIn' => $o->yarn_in_json ?? [],
+            'yarnReturns' => $o->yarn_returns_json ?? [],
+            'yarnRequests' => $o->yarn_requests_json ?? [],
             'lines' => $lines,
             'qc' => $qc,
         ];

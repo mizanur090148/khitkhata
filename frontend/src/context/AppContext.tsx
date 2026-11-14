@@ -390,6 +390,18 @@ interface AppContextType {
     bags?: number;
     kg: number;
   }) => Promise<any>;
+  requestYarnReturn: (payload: {
+    order_no: string;
+    lot: string;
+    kg: number;
+    note?: string;
+  }) => Promise<any>;
+  createYarnReturnChallan: (payload: {
+    order_no: string;
+    lot: string;
+    kg: number;
+    date_label?: string;
+  }) => Promise<any>;
   factoryBills: KKBill[];
   fetchBills: () => Promise<KKBill[]>;
   createKkBill: (partyCode: string, orderIds: string[]) => Promise<any>;
@@ -1607,6 +1619,56 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  const requestYarnReturn = async (payload: {
+    order_no: string;
+    lot: string;
+    kg: number;
+    note?: string;
+  }): Promise<any> => {
+    try {
+      const res = await apiClient.post('portal/yarn/request-return', payload);
+      await fetchOrders();
+      addToast({
+        type: 'info',
+        title: 'সুতা ফেরত রিকোয়েস্ট',
+        message: res?.message || `${payload.lot}-এর ${payload.kg} kg ফেরত চাওয়া হলো · ফ্যাক্টরি ফেরত চালান তৈরি করবে`,
+      });
+      return res?.data;
+    } catch (err: any) {
+      addToast({
+        type: 'error',
+        title: 'রিকোয়েস্ট ব্যর্থ',
+        message: err.message || 'সুতা ফেরত রিকোয়েস্ট পাঠানো যায়নি',
+      });
+      throw err;
+    }
+  };
+
+  const createYarnReturnChallan = async (payload: {
+    order_no: string;
+    lot: string;
+    kg: number;
+    date_label?: string;
+  }): Promise<any> => {
+    try {
+      const res = await apiClient.post('portal/yarn/return-challan', payload);
+      await fetchOrders();
+      addToast({
+        type: 'success',
+        title: 'সুতা ফেরত চালান প্রস্তুত',
+        message: res?.message || `${payload.lot}-এর ${payload.kg} kg ফেরত চালান তৈরি · ভেন্ডর বুঝে নিয়ে সাইন দেবে`,
+      });
+      return res?.data;
+    } catch (err: any) {
+      addToast({
+        type: 'error',
+        title: 'চালান তৈরিতে ত্রুটি',
+        message: err.message || 'সুতা ফেরত চালান তৈরি করা যায়নি',
+      });
+      throw err;
+    }
+  };
+
   const sendChatMessage = async (threadId: string, text: string, senderRole: 'factory' | 'vendor' = 'factory') => {
     const newMsg = {
       from: senderRole,
@@ -2128,6 +2190,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         fetchStoreData,
         recordStoreMovement,
         addYarnInward,
+        requestYarnReturn,
+        createYarnReturnChallan,
         factoryBills,
         fetchBills,
         createKkBill,

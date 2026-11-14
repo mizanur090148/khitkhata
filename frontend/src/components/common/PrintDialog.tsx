@@ -69,7 +69,7 @@ export const PrintDialog: React.FC<PrintDialogProps> = ({
               <div style={{ fontSize: 16, fontWeight: 800, textTransform: 'uppercase', color: '#0f172a' }}>
                 {documentType === 'challan' && 'ডেলিভারি চালান (Gate Pass)'}
                 {documentType === 'bill' && 'সাব-কন্ট্রাক্ট নিটিং বিল (Tax Invoice)'}
-                {documentType === 'jobcard' && 'ফ্যাক্টরি প্রোডাকশন জব কার্ড'}
+                {documentType === 'jobcard' && (data.rows ? 'সুতা ব্যালেন্স বিবরণী' : 'ফ্যাক্টরি প্রোডাকশন জব কার্ড')}
                 {documentType === 'qcreport' && '৪-পয়েন্ট ফ্যাব্রিক QC সার্টিফিকেট'}
                 {documentType === 'rolltag' && 'বারকোড রোল ট্যাগ (Roll Label)'}
               </div>
@@ -187,6 +187,66 @@ export const PrintDialog: React.FC<PrintDialogProps> = ({
                       <td>৳ {data.advance?.toLocaleString('en-IN') || 0}</td>
                       <td>৳ {data.paidAmt?.toLocaleString('en-IN') || 0}</td>
                       <td><strong>৳ {(data.grossAmt - (data.discount || 0) - (data.paidAmt || 0))?.toLocaleString('en-IN')}</strong></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {(documentType === 'jobcard' || (data.rows && Array.isArray(data.rows))) && (
+              <div>
+                <h4 style={{ margin: '0 0 10px', fontSize: 16, fontWeight: 700, color: '#0f172a' }}>
+                  সুতা ব্যালেন্স ও খরচ বিবরণী
+                </h4>
+                <table className="data-table" style={{ width: '100%', border: '1px solid #cbd5e1', fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ background: '#f1f5f9' }}>
+                      <th>#</th>
+                      <th>অর্ডার</th>
+                      <th>কাউন্ট</th>
+                      <th>স্পিনার</th>
+                      <th>লট</th>
+                      <th style={{ textAlign: 'right' }}>এসেছে (কেজি)</th>
+                      <th style={{ textAlign: 'right' }}>নিট (কেজি)</th>
+                      <th style={{ textAlign: 'right' }}>খরচ (কেজি)</th>
+                      <th style={{ textAlign: 'right' }}>ফেরত (কেজি)</th>
+                      <th style={{ textAlign: 'right' }}>স্টক ব্যালেন্স</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.rows.map((r: any, idx: number) => (
+                      <tr key={idx}>
+                        <td>{idx + 1}</td>
+                        <td style={{ fontFamily: 'monospace' }}>{r.o?.id || r.o || '—'}</td>
+                        <td>{r.count}</td>
+                        <td>{r.brand}</td>
+                        <td style={{ fontFamily: 'monospace' }}>{r.lot}</td>
+                        <td style={{ textAlign: 'right' }}>{r.recv?.toLocaleString('en-IN')}</td>
+                        <td style={{ textAlign: 'right' }}>{r.knit?.toLocaleString('en-IN')}</td>
+                        <td style={{ textAlign: 'right' }}>{r.used?.toLocaleString('en-IN')}</td>
+                        <td style={{ textAlign: 'right' }}>{r.ret ? r.ret?.toLocaleString('en-IN') : '—'}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 700, color: r.bal < 0 ? '#dc2626' : 'inherit' }}>
+                          {r.bal?.toLocaleString('en-IN')} kg
+                        </td>
+                      </tr>
+                    ))}
+                    <tr style={{ fontWeight: 800, background: '#f8fafc' }}>
+                      <td colSpan={5}>মোট ({data.rows.length} লট)</td>
+                      <td style={{ textAlign: 'right' }}>
+                        {data.rows.reduce((a: number, r: any) => a + (Number(r.recv) || 0), 0)?.toLocaleString('en-IN')}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        {data.rows.reduce((a: number, r: any) => a + (Number(r.knit) || 0), 0)?.toLocaleString('en-IN')}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        {data.rows.reduce((a: number, r: any) => a + (Number(r.used) || 0), 0)?.toLocaleString('en-IN')}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        {data.rows.reduce((a: number, r: any) => a + (Number(r.ret) || 0), 0)?.toLocaleString('en-IN')}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        {data.rows.reduce((a: number, r: any) => a + (Number(r.bal) || 0), 0)?.toLocaleString('en-IN')} kg
+                      </td>
                     </tr>
                   </tbody>
                 </table>

@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { bnNum } from '@/utils/formatters';
 import { SearchableSelect } from '@/components/common/SearchableSelect';
@@ -28,9 +29,24 @@ const SP: Record<string, [string, string]> = {
 };
 
 export const FactoryYarnPage: React.FC = () => {
-  const { role, orders, parties, fetchOrders, addYarnInward, addToast, openPrintModal } = useApp();
+  const {
+    role,
+    currentUser,
+    factoryProfile,
+    orders,
+    parties,
+    fetchOrders,
+    addYarnInward,
+    requestYarnReturn,
+    createYarnReturnChallan,
+    addToast,
+    openPrintModal,
+  } = useApp();
 
   const isVendor = role === 'vendor' || (role as string) === 'ven';
+
+  // Loading state
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Filters state
   const [ytV, setYtV] = useState<string>('all');
@@ -47,12 +63,17 @@ export const FactoryYarnPage: React.FC = () => {
   const [yaG, setYaG] = useState<string>('');
   const [yaK, setYaK] = useState<string>('');
 
-  // Local return request tracking
-  const [yarnReturns, setYarnReturns] = useState<Array<{ o: string; lot: string; kg: number; d: string }>>([]);
-  const [yarnRequests, setYarnRequests] = useState<Set<string>>(new Set());
-
+  // Initial data load
   useEffect(() => {
-    fetchOrders();
+    let mounted = true;
+    fetchOrders()
+      .catch((err) => console.warn('Yarn page data load error:', err))
+      .finally(() => {
+        if (mounted) setIsLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const runningOrders = useMemo(() => {
@@ -66,19 +87,30 @@ export const FactoryYarnPage: React.FC = () => {
   }, [runningOrders, yaO]);
 
   const vName = (code: string) => {
-    const p = parties.find((x) => x.code === code || String(x.id) === String(code));
+    if (!code) return '—';
+    const p = parties.find((x) => x.code === code || String(x.id) === String(code) || x.name === code);
     if (p) return p.name;
-    const ord = orders.find((o) => (o as any).party_code === code || (o as any).v === code);
+    const ord = orders.find((o) => (o as any).party_code === code || (o as any).v === code || o.party === code);
     return ord?.party || code;
   };
 
-  // Build yarn rows dynamically matching KnitKhata.html
+  // Build yarn rows dynamically matching live database
   const allRows: YarnRowItem[] = useMemo(() => {
     const rows: YarnRowItem[] = [];
 
     orders.forEach((o: any) => {
       const partyCode = o.party_code || o.v || (parties.find((p) => p.name === o.party)?.code) || 'abc';
-      if (isVendor && partyCode !== 'abc') return;
+      const myPartyCode = (currentUser as any)?.party_code || (currentUser as any)?.party || 'abc';
+      const myOrgName = currentUser?.organization_name;
+
+      if (isVendor) {
+        const matchParty =
+          partyCode === myPartyCode ||
+          (myOrgName && (o.party === myOrgName || vName(partyCode) === myOrgName)) ||
+          partyCode === 'abc' ||
+          (o.party && o.party.includes('ABC'));
+        if (!matchParty) return;
+      }
 
       const lines = o.lines || [];
       const need: Record<string, number> = {};
@@ -106,6 +138,13 @@ export const FactoryYarnPage: React.FC = () => {
         });
       });
 
+      // Persistent returns from database
+      const orderReturns = Array.isArray(o.yarnReturns)
+        ? o.yarnReturns
+        : Array.isArray(o.yarn_returns_json)
+        ? o.yarn_returns_json
+        : [];
+
       // 2. Match with order yarnIn inward entries
       const yarnInList = Array.isArray(o.yarnIn) ? o.yarnIn : Array.isArray(o.yarn_in_json) ? o.yarn_in_json : [];
       const left: Record<string, number> = { ...need };
@@ -123,9 +162,9 @@ export const FactoryYarnPage: React.FC = () => {
         const used = Math.min(recv, n);
         left[k] = Math.max(0, n - used);
 
-        const ret = yarnReturns
-          .filter((r) => r.o === o.id && r.lot === lot)
-          .reduce((a, r) => a + r.kg, 0);
+        const ret = orderReturns
+          .filter((r: any) => r.lot === lot)
+          .reduce((a: number, r: any) => a + (Number(r.kg) || 0), 0);
 
         const uniquePcts = Array.from(new Set(pc[k] || []));
         const pctStr = uniquePcts.length ? uniquePcts.map((x) => `${x}%`).join(' / ') : '100%';
@@ -149,6 +188,31 @@ export const FactoryYarnPage: React.FC = () => {
         rows.push(r);
       });
 
+      // 3. If order has yarn requirements but NO yarn arrived at all (status: wait)
+      if (yarnInList.length === 0 && Object.keys(need).length > 0) {
+        Object.keys(need).forEach((k) => {
+          const uniquePcts = Array.from(new Set(pc[k] || []));
+          const pctStr = uniquePcts.length ? uniquePcts.map((x) => `${x}%`).join(' / ') : '100%';
+          const r: YarnRowItem = {
+            o,
+            v: partyCode,
+            k,
+            count: k,
+            brand: '—',
+            lot: '—',
+            bags: 0,
+            recv: 0,
+            used: 0,
+            ret: 0,
+            knit: 0,
+            bal: 0,
+            pct: pctStr,
+          };
+          mine.push(r);
+          rows.push(r);
+        });
+      }
+
       // Assign remaining usage
       Object.keys(left).forEach((k) => {
         if (left[k] > 0.5) {
@@ -165,7 +229,7 @@ export const FactoryYarnPage: React.FC = () => {
     });
 
     return rows;
-  }, [orders, parties, isVendor, yarnReturns]);
+  }, [orders, parties, isVendor, currentUser]);
 
   // Status calculator
   const stOf = (r: YarnRowItem) => {
@@ -226,15 +290,64 @@ export const FactoryYarnPage: React.FC = () => {
       setYaG('');
       setYaK('');
     } catch {
-      // Handled
+      // Handled in context
     }
   };
+
+  // Vendor request return
+  const handleRequestReturn = async (r: YarnRowItem) => {
+    try {
+      await requestYarnReturn({
+        order_no: r.o.id,
+        lot: r.lot,
+        kg: r.bal,
+      });
+    } catch {
+      // Handled in context
+    }
+  };
+
+  // Factory create return challan
+  const handleReturnChallan = async (r: YarnRowItem) => {
+    try {
+      await createYarnReturnChallan({
+        order_no: r.o.id,
+        lot: r.lot,
+        kg: r.bal,
+      });
+    } catch {
+      // Handled in context
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 280 }}>
+        <div
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: '50%',
+            background: 'var(--surface, #ffffff)',
+            boxShadow: '0 4px 14px rgba(0, 0, 0, 0.08)',
+            border: '1px solid var(--border)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'var(--primary, #0284c7)',
+          }}
+        >
+          <Loader2 size={24} className="animate-spin" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ width: '100%', maxWidth: '100%' }}>
       {isVendor && (
         <div className="vbanner">
-          রহমান নিটিং-এ আপনার পাঠানো প্রতিটা লটের সুতা কতটা কাপড়ে গেছে আর কত এখনো ফ্যাক্টরিতে পড়ে আছে।
+          {factoryProfile?.name || 'ফ্যাক্টরি'}-এ আপনার পাঠানো প্রতিটা লটের সুতা কতটা কাপড়ে গেছে আর কত এখনো ফ্যাক্টরিতে পড়ে আছে।
           অর্ডার শেষে বাড়তি সুতা থাকলে এখান থেকেই ফেরত চাইতে পারবেন।
         </div>
       )}
@@ -248,25 +361,26 @@ export const FactoryYarnPage: React.FC = () => {
             তাই লাইক্রা আর কটন আলাদা হিসাব হয়।
           </p>
         </div>
-        {isVendor ? (
+        <div className="row" style={{ gap: 8 }}>
           <button
             className="btn no-pdf prn-btn"
             type="button"
             onClick={() =>
-              openPrintModal('jobcard', 'সুতা ব্যালেন্স · রহমান নিটিং', { rows: filteredRows })
+              openPrintModal('jobcard', `সুতা ব্যালেন্স · ${factoryProfile?.name || 'ফ্যাক্টরি'}`, { rows: filteredRows })
             }
           >
             প্রিন্ট
           </button>
-        ) : (
-          <button
-            className="btn pri"
-            id="ytAddB"
-            onClick={() => setYtAdd(!ytAdd)}
-          >
-            {ytAdd ? '✕ বন্ধ করুন' : '+ সুতা গ্রহণ'}
-          </button>
-        )}
+          {!isVendor && (
+            <button
+              className="btn pri"
+              id="ytAddB"
+              onClick={() => setYtAdd(!ytAdd)}
+            >
+              {ytAdd ? '✕ বন্ধ করুন' : '+ সুতা গ্রহণ'}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Add Yarn Receive Form */}
@@ -382,9 +496,9 @@ export const FactoryYarnPage: React.FC = () => {
               options={[
                 { value: 'all', label: 'সব ভেন্ডর' },
                 ...parties
-                  .filter((p) => p.type === 'ven')
+                  .filter((p) => p.type === 'ven' || p.type === 'vendor' || (p as any).category === 'vendor')
                   .map((p) => ({
-                    value: p.code || p.name || '',
+                    value: p.code || p.name || String(p.id),
                     label: p.name,
                   })),
               ]}
@@ -454,7 +568,9 @@ export const FactoryYarnPage: React.FC = () => {
                 const st = stOf(r);
                 const s2 = SP[st] || ['p-idle', '—'];
                 const isDone = (r.o.status as string) === 'done' || r.o.status === 'Completed';
-                const hasReq = yarnRequests.has(`${r.o.id}|${r.lot}`);
+
+                const orderRequests = r.o.yarnRequests || r.o.yarn_requests_json || {};
+                const hasReq = !!(orderRequests[r.lot] && orderRequests[r.lot].status === 'pending');
 
                 return (
                   <tr key={`${r.o.id}-${r.lot}-${idx}`}>
@@ -482,13 +598,7 @@ export const FactoryYarnPage: React.FC = () => {
                           ) : (
                             <button
                               className="btn sm"
-                              onClick={() => {
-                                setYarnRequests((prev) => new Set([...prev, `${r.o.id}|${r.lot}`]));
-                                addToast({
-                                  type: 'info',
-                                  message: `${r.lot}-এর ${bnNum(r.bal)} kg ফেরত চাওয়া হলো · ফ্যাক্টরি ফেরত চালান তৈরি করবে`,
-                                });
-                              }}
+                              onClick={() => handleRequestReturn(r)}
                             >
                               ফেরত চাই
                             </button>
@@ -496,16 +606,7 @@ export const FactoryYarnPage: React.FC = () => {
                         ) : (
                           <button
                             className="btn sm"
-                            onClick={() => {
-                              setYarnReturns((prev) => [
-                                ...prev,
-                                { o: r.o.id, lot: r.lot, kg: r.bal, d: '03 Oct' },
-                              ]);
-                              addToast({
-                                type: 'success',
-                                message: `${r.lot}-এর ${bnNum(r.bal)} kg ফেরত চালান তৈরি · ভেন্ডর বুঝে নিয়ে সাইন দেবে`,
-                              });
-                            }}
+                            onClick={() => handleReturnChallan(r)}
                           >
                             ফেরত চালান{hasReq ? ' · ভেন্ডর চেয়েছে' : ''}
                           </button>
@@ -517,7 +618,7 @@ export const FactoryYarnPage: React.FC = () => {
               })
             ) : (
               <tr>
-                <td colSpan={13} className="muted">
+                <td colSpan={13} className="muted" style={{ textAlign: 'center', padding: '24px 0' }}>
                   এই ফিল্টারে কোনো সুতার রেকর্ড নেই
                 </td>
               </tr>
@@ -556,4 +657,3 @@ export const FactoryYarnPage: React.FC = () => {
 };
 
 export default FactoryYarnPage;
-

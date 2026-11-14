@@ -75,6 +75,8 @@ Route::prefix('v1')->group(function () {
 
         // Yarn Inventory & Inward
         Route::post('/yarn/receive', [YarnController::class, 'receiveYarn']);
+        Route::post('/yarn/request-return', [YarnController::class, 'requestReturn']);
+        Route::post('/yarn/return-challan', [YarnController::class, 'createReturnChallan']);
 
         // Store & Spare Parts
         Route::get('/store', [StoreController::class, 'getStoreData']);
