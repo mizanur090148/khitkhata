@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Loader2 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { qcState, QcItem } from './FactoryQcPage';
 
@@ -62,12 +63,45 @@ function qcStatusFor(
 }
 
 export const FactoryReadyFabricPage: React.FC = () => {
-  const { orders, role, rolls } = useApp();
+  const {
+    orders,
+    role,
+    rolls,
+    qcInspections,
+    fetchOrders,
+    fetchRolls,
+    fetchQcInspections,
+  } = useApp();
+
   const isVendorRole = (role as string) === 'vendor' || (role as string) === 'ven';
 
+  const [isLoading, setIsLoading] = useState(true);
   const [fabricTypeFilter, setFabricTypeFilter] = useState<'all' | 'grey' | 'yd' | 'flat'>('all');
 
-  // Compute all ready rows from open orders
+  // Load fresh orders, rolls and QC inspections from database on mount
+  useEffect(() => {
+    let isMounted = true;
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        await Promise.all([
+          fetchOrders?.(),
+          fetchRolls?.(),
+          fetchQcInspections?.(),
+        ]);
+      } catch (err) {
+        console.warn('Error loading ready fabric data:', err);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+    loadData();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Compute all ready rows from open orders directly from MySQL database
   const allRows: ReadyFabricRow[] = useMemo(() => {
     return orders
       .filter((o: any) => {
@@ -103,22 +137,53 @@ export const FactoryReadyFabricPage: React.FC = () => {
         const partyName = o.party || o.party_name || partyCode;
         const orderNo = o.id || o.order_no;
 
-        // Parse order QC records into QcItem format
-        const qcs: QcItem[] = (o.qc || []).map((rawQ: any) => ({
-          id: rawQ.id || rawQ.qc_no,
-          o: orderNo,
-          order_no: orderNo,
-          d: rawQ.d || rawQ.date_label || '03 Oct',
-          roll: rawQ.roll || rawQ.roll_no || '—',
-          m: rawQ.m || rawQ.machine_code || '—',
-          pl: Number(rawQ.pl ?? rawQ.placement_index ?? 0),
-          kg: Number(rawQ.kg ?? rawQ.weight_kg ?? 20),
-          issue: rawQ.issue || rawQ.issue_description || 'কোনো ফল্ট নেই',
-          src: rawQ.src || rawQ.source || 'fac',
-          fac: rawQ.fac || { v: null, by: '', at: '', note: '' },
-          ven: rawQ.ven || { v: null, by: '', at: '', note: '' },
-          act: rawQ.act || rawQ.action_taken || '',
-        }));
+        // Build combined QC inspections for this order from order embedded QCs and live qcInspections
+        const qcsMap = new Map<string, QcItem>();
+
+        (o.qc || []).forEach((rawQ: any) => {
+          const id = rawQ.id || rawQ.qc_no;
+          if (!id) return;
+          qcsMap.set(id, {
+            id,
+            o: orderNo,
+            order_no: orderNo,
+            d: rawQ.d || rawQ.date_label || '',
+            roll: rawQ.roll || rawQ.roll_no || '—',
+            m: rawQ.m || rawQ.machine_code || '—',
+            pl: Number(rawQ.pl ?? rawQ.placement_index ?? 0),
+            kg: Number(rawQ.kg ?? rawQ.weight_kg ?? 20),
+            issue: rawQ.issue || rawQ.issue_description || 'কোনো ফল্ট নেই',
+            src: rawQ.src || rawQ.source || 'fac',
+            fac: rawQ.fac || { v: null, by: '', at: '', note: '' },
+            ven: rawQ.ven || { v: null, by: '', at: '', note: '' },
+            act: rawQ.act || rawQ.action_taken || '',
+          });
+        });
+
+        (qcInspections || []).forEach((rawQ: any) => {
+          const rawOrderNo = rawQ.o || rawQ.order_no;
+          if (rawOrderNo === orderNo) {
+            const id = rawQ.id || rawQ.qc_no;
+            if (!id) return;
+            qcsMap.set(id, {
+              id,
+              o: orderNo,
+              order_no: orderNo,
+              d: rawQ.d || rawQ.date_label || '',
+              roll: rawQ.roll || rawQ.roll_no || '—',
+              m: rawQ.m || rawQ.machine_code || '—',
+              pl: Number(rawQ.pl ?? rawQ.placement_index ?? 0),
+              kg: Number(rawQ.kg ?? rawQ.weight_kg ?? 20),
+              issue: rawQ.issue || rawQ.issue_description || 'কোনো ফল্ট নেই',
+              src: rawQ.src || rawQ.source || 'fac',
+              fac: rawQ.fac || { v: null, by: '', at: '', note: '' },
+              ven: rawQ.ven || { v: null, by: '', at: '', note: '' },
+              act: rawQ.act || rawQ.action_taken || '',
+            });
+          }
+        });
+
+        const qcs = Array.from(qcsMap.values());
 
         return lines.map((l: any, i: number) => {
           const isFlat = l.kt === 'f' || l.unit === 'pcs' || (l.place && l.place.toLowerCase().includes('collar'));
@@ -130,8 +195,14 @@ export const FactoryReadyFabricPage: React.FC = () => {
           const done = Math.round(Number(l.done || l.knitKg || 0));
 
           // Delivered quantity
-          const lineRolls = rolls.filter((r: any) => (r.o === orderNo || r.order_no === orderNo) && Number(r.pl ?? r.placement_index ?? 0) === i);
-          const rollsDeliveredKg = lineRolls.filter((r: any) => r.ch || r.challan_no).reduce((a: number, r: any) => a + (Number(r.kg || r.weight_kg) || 0), 0);
+          const lineRolls = (rolls || []).filter(
+            (r: any) =>
+              (r.o === orderNo || r.order_no === orderNo) &&
+              Number(r.pl ?? r.placement_index ?? 0) === i
+          );
+          const rollsDeliveredKg = lineRolls
+            .filter((r: any) => r.ch || r.challan_no)
+            .reduce((a: number, r: any) => a + (Number(r.kg || r.weight_kg) || 0), 0);
           const explicitDelivered = Number(l.dl || l.delivered_qty || l.delivKg || 0);
           const dl = Math.min(done, Math.max(explicitDelivered, Math.round(rollsDeliveredKg)));
 
@@ -175,7 +246,7 @@ export const FactoryReadyFabricPage: React.FC = () => {
           };
         });
       });
-  }, [orders, rolls]);
+  }, [orders, rolls, qcInspections, isVendorRole]);
 
   // Filtered rows by fabric type
   const filteredRows = useMemo(() => {
@@ -244,8 +315,8 @@ export const FactoryReadyFabricPage: React.FC = () => {
         </div>
       </div>
 
-      {/* KPIs exact from KnitKhata.html */}
-      <div className="kpis" style={{ marginTop: 16 }}>
+      {/* KPIs exact from live database with clean gap below */}
+      <div className="kpis" style={{ marginBottom: 28, marginTop: 14 }}>
         <div className="kpi">
           <span>গ্রে কাপড় রেডি</span>
           <b>{toBn(sumByType('grey', 'rd'))} kg</b>
@@ -269,173 +340,197 @@ export const FactoryReadyFabricPage: React.FC = () => {
       </div>
 
       {/* Fabric Type Filter Chips */}
-      <div className="chips no-pdf" style={{ margin: '16px 0 12px' }}>
+      <div className="chips no-pdf" style={{ margin: '18px 0 14px' }}>
         <button
           type="button"
           className={fabricTypeFilter === 'all' ? 'on' : ''}
           onClick={() => setFabricTypeFilter('all')}
         >
-          সব
+          সব ({toBn(allRows.length)})
         </button>
         <button
           type="button"
           className={fabricTypeFilter === 'grey' ? 'on' : ''}
           onClick={() => setFabricTypeFilter('grey')}
         >
-          গ্রে
+          গ্রে ({toBn(allRows.filter((r) => r.type === 'grey').length)})
         </button>
         <button
           type="button"
           className={fabricTypeFilter === 'yd' ? 'on' : ''}
           onClick={() => setFabricTypeFilter('yd')}
         >
-          ইয়ার্ন ডাইড
+          ইয়ার্ন ডাইড ({toBn(allRows.filter((r) => r.type === 'yd').length)})
         </button>
         <button
           type="button"
           className={fabricTypeFilter === 'flat' ? 'on' : ''}
           onClick={() => setFabricTypeFilter('flat')}
         >
-          ফ্ল্যাট নিট
+          ফ্ল্যাট নিট ({toBn(allRows.filter((r) => r.type === 'flat').length)})
         </button>
       </div>
 
-      {/* Party / Vendor Breakdown Card (only for factory role) */}
-      {!isVendorRole && (
-        <div className="card" style={{ marginTop: 16 }}>
-          <h3 style={{ marginTop: 0 }}>পার্টি (ভেন্ডর) অনুযায়ী</h3>
-          <div className="tw" style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr>
-                  <th style={{ textAlign: 'left' }}>পার্টি</th>
-                  <th className="n">মোট অর্ডার</th>
-                  <th className="n">গ্রে রেডি</th>
-                  <th className="n">Y/D রেডি</th>
-                  <th className="n">ফ্ল্যাট রেডি</th>
-                  <th className="n">QC-তে আটকে</th>
-                  <th className="n">বাকি (মেশিনে)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {partyList.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="muted" style={{ textAlign: 'center', padding: 16 }}>
-                      কিছু নেই
-                    </td>
-                  </tr>
-                ) : (
-                  partyList.map((p) => {
-                    const partyRows = filteredRows.filter((r) => r.v === p.code);
-                    const partyHeld = partyRows.some((r) => r.held > 0);
-
-                    return (
-                      <tr key={p.code}>
-                        <td>
-                          <b>{p.name}</b>
-                        </td>
-                        <td className="n">{sumU(partyRows, 'qty')}</td>
-                        {renderPartyCell(p.code, 'grey', 'kg')}
-                        {renderPartyCell(p.code, 'yd', 'kg')}
-                        {renderPartyCell(p.code, 'flat', 'পিস')}
-                        <td
-                          className="n"
-                          style={partyHeld ? { color: 'var(--bad)', fontWeight: 600 } : undefined}
-                        >
-                          {partyHeld ? sumU(partyRows.filter((r) => r.held > 0), 'held') : '—'}
-                        </td>
-                        <td className="n">{sumU(partyRows, 'run')}</td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+      {/* Loading Spinner or Tables */}
+      {isLoading ? (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 260 }}>
+          <div
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: '50%',
+              background: 'var(--surface, #ffffff)',
+              boxShadow: '0 4px 14px rgba(0, 0, 0, 0.08)',
+              border: '1px solid var(--border)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--primary, #0284c7)',
+            }}
+          >
+            <Loader2 size={24} className="animate-spin" />
           </div>
         </div>
-      )}
-
-      {/* Order & Line Breakdown Detailed Table Card */}
-      <div className="card" style={{ marginTop: 16 }}>
-        <h3 style={{ marginTop: 0 }}>অর্ডার ও অংশ অনুযায়ী বিস্তারিত</h3>
-        <div className="tw" style={{ overflowX: 'auto' }}>
-          <table className="rt" style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                {!isVendorRole && <th style={{ textAlign: 'left' }}>পার্টি</th>}
-                <th style={{ textAlign: 'left' }}>অর্ডার</th>
-                <th style={{ textAlign: 'left' }}>অংশ ও ধরন</th>
-                <th className="n">অর্ডার পরিমাণ</th>
-                <th className="n">তৈরি হয়েছে</th>
-                <th className="n">ডেলিভারি গেছে</th>
-                <th className="n">রেডি স্টক</th>
-                <th className="n">বাকি (মেশিনে চলছে)</th>
-                <th style={{ textAlign: 'left' }}>QC অবস্থা</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orderIds.length === 0 ? (
-                <tr>
-                  <td colSpan={!isVendorRole ? 9 : 8} className="muted" style={{ textAlign: 'center', padding: 20 }}>
-                    এই ধরনের কোনো কাপড় নেই
-                  </td>
-                </tr>
-              ) : (
-                orderIds.map((id) => {
-                  const rowsForOrder = filteredRows.filter((r) => r.oid === id);
-
-                  return (
-                    <React.Fragment key={id}>
-                      {rowsForOrder.map((r, k) => (
-                        <tr key={`${id}-${k}`}>
-                          {!isVendorRole && <td>{k === 0 ? r.party : ''}</td>}
-                          <td className="mono">{k === 0 ? r.oid : ''}</td>
-                          <td>
-                            <b>{r.place}</b> {r.badge}
-                            <div className="small muted">{r.fab}</div>
-                          </td>
-                          <td className="n">{qU(r.qty, r.u)}</td>
-                          <td className="n">{qU(r.done, r.u)}</td>
-                          <td className="n">{qU(r.dl, r.u)}</td>
-                          <td className="n">
-                            <b style={r.rd > 0 ? { color: 'var(--ok)' } : undefined}>{qU(r.rd, r.u)}</b>
-                          </td>
-                          <td className="n">{qU(r.run, r.u)}</td>
-                          <td>
-                            <span className={`pill ${r.st[0]}`}>{r.st[1]}</span>
-                          </td>
-                        </tr>
-                      ))}
-
-                      {/* Order Subtotal Row exact from KnitKhata.html */}
-                      <tr className="rt-sub">
-                        {!isVendorRole && <td></td>}
-                        <td colSpan={2}>
-                          মোট · <span className="mono">{id}</span>
-                        </td>
-                        <td className="n">{sumU(rowsForOrder, 'qty')}</td>
-                        <td className="n">{sumU(rowsForOrder, 'done')}</td>
-                        <td className="n">{sumU(rowsForOrder, 'dl')}</td>
-                        <td className="n">
-                          <b>{sumU(rowsForOrder, 'rd')}</b>
-                        </td>
-                        <td className="n">{sumU(rowsForOrder, 'run')}</td>
-                        <td>
-                          {rowsForOrder.some((r) => r.held > 0) && (
-                            <span className="small" style={{ color: 'var(--bad)', fontWeight: 600 }}>
-                              QC-তে আটকে {sumU(rowsForOrder.filter((r) => r.held > 0), 'held')}
-                            </span>
-                          )}
+      ) : (
+        <>
+          {/* Party / Vendor Breakdown Card (only for factory role) */}
+          {!isVendorRole && (
+            <div className="card" style={{ marginTop: 16 }}>
+              <h3 style={{ marginTop: 0 }}>পার্টি (ভেন্ডর) অনুযায়ী সারাংশ</h3>
+              <div className="tw" style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: 'left' }}>পার্টি</th>
+                      <th className="n">মোট অর্ডার</th>
+                      <th className="n">গ্রে রেডি</th>
+                      <th className="n">Y/D রেডি</th>
+                      <th className="n">ফ্ল্যাট রেডি</th>
+                      <th className="n">QC-তে আটকে</th>
+                      <th className="n">বাকি (মেশিনে)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {partyList.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="muted" style={{ textAlign: 'center', padding: 16 }}>
+                          কোনো পার্টির রেকর্ড পাওয়া যায়নি।
                         </td>
                       </tr>
-                    </React.Fragment>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                    ) : (
+                      partyList.map((p) => {
+                        const partyRows = filteredRows.filter((r) => r.v === p.code);
+                        const partyHeld = partyRows.some((r) => r.held > 0);
+
+                        return (
+                          <tr key={p.code}>
+                            <td>
+                              <b>{p.name}</b>
+                            </td>
+                            <td className="n">{sumU(partyRows, 'qty')}</td>
+                            {renderPartyCell(p.code, 'grey', 'kg')}
+                            {renderPartyCell(p.code, 'yd', 'kg')}
+                            {renderPartyCell(p.code, 'flat', 'পিস')}
+                            <td
+                              className="n"
+                              style={partyHeld ? { color: 'var(--bad)', fontWeight: 600 } : undefined}
+                            >
+                              {partyHeld ? sumU(partyRows.filter((r) => r.held > 0), 'held') : '—'}
+                            </td>
+                            <td className="n">{sumU(partyRows, 'run')}</td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Order & Line Breakdown Detailed Table Card */}
+          <div className="card" style={{ marginTop: 16 }}>
+            <h3 style={{ marginTop: 0 }}>অর্ডার ও অংশ অনুযায়ী বিস্তারিত রেডি স্টক</h3>
+            <div className="tw" style={{ overflowX: 'auto' }}>
+              <table className="rt" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    {!isVendorRole && <th style={{ textAlign: 'left' }}>পার্টি</th>}
+                    <th style={{ textAlign: 'left' }}>অর্ডার</th>
+                    <th style={{ textAlign: 'left' }}>অংশ ও ধরন</th>
+                    <th className="n">অর্ডার পরিমাণ</th>
+                    <th className="n">তৈরি হয়েছে</th>
+                    <th className="n">ডেলিভারি গেছে</th>
+                    <th className="n">রেডি স্টক</th>
+                    <th className="n">বাকি (মেশিনে চলছে)</th>
+                    <th style={{ textAlign: 'left' }}>QC অবস্থা</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orderIds.length === 0 ? (
+                    <tr>
+                      <td colSpan={!isVendorRole ? 9 : 8} className="muted" style={{ textAlign: 'center', padding: 20 }}>
+                        এই ফিল্টারে কোনো কাপড় পাওয়া যায়নি।
+                      </td>
+                    </tr>
+                  ) : (
+                    orderIds.map((id) => {
+                      const rowsForOrder = filteredRows.filter((r) => r.oid === id);
+
+                      return (
+                        <React.Fragment key={id}>
+                          {rowsForOrder.map((r, k) => (
+                            <tr key={`${id}-${k}`}>
+                              {!isVendorRole && <td>{k === 0 ? r.party : ''}</td>}
+                              <td className="mono">{k === 0 ? r.oid : ''}</td>
+                              <td>
+                                <b>{r.place}</b> {r.badge}
+                                <div className="small muted">{r.fab}</div>
+                              </td>
+                              <td className="n">{qU(r.qty, r.u)}</td>
+                              <td className="n">{qU(r.done, r.u)}</td>
+                              <td className="n">{qU(r.dl, r.u)}</td>
+                              <td className="n">
+                                <b style={r.rd > 0 ? { color: 'var(--ok)' } : undefined}>{qU(r.rd, r.u)}</b>
+                              </td>
+                              <td className="n">{qU(r.run, r.u)}</td>
+                              <td>
+                                <span className={`pill ${r.st[0]}`}>{r.st[1]}</span>
+                              </td>
+                            </tr>
+                          ))}
+
+                          {/* Order Subtotal Row */}
+                          <tr className="rt-sub">
+                            {!isVendorRole && <td></td>}
+                            <td colSpan={2}>
+                              মোট · <span className="mono">{id}</span>
+                            </td>
+                            <td className="n">{sumU(rowsForOrder, 'qty')}</td>
+                            <td className="n">{sumU(rowsForOrder, 'done')}</td>
+                            <td className="n">{sumU(rowsForOrder, 'dl')}</td>
+                            <td className="n">
+                              <b>{sumU(rowsForOrder, 'rd')}</b>
+                            </td>
+                            <td className="n">{sumU(rowsForOrder, 'run')}</td>
+                            <td>
+                              {rowsForOrder.some((r) => r.held > 0) && (
+                                <span className="small" style={{ color: 'var(--bad)', fontWeight: 600 }}>
+                                  QC-তে আটকে {sumU(rowsForOrder.filter((r) => r.held > 0), 'held')}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        </React.Fragment>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };
