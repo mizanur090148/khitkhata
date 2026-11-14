@@ -1,12 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
 import { bnNum } from '@/utils/formatters';
 
 export const VendorOrdersPage: React.FC = () => {
   const navigate = useNavigate();
-  const { orders } = useApp();
+  const { orders, fetchOrders, factoryProfile } = useApp();
   const [filter, setFilter] = useState<'all' | 'run' | 'done'>('all');
+
+  useEffect(() => {
+    fetchOrders?.();
+  }, []);
 
   // Vendor orders (ABC Knit Composite or matched)
   const vendorOrders = orders.filter(
@@ -29,10 +33,10 @@ export const VendorOrdersPage: React.FC = () => {
 
   return (
     <div style={{ maxWidth: '100%', width: '100%' }}>
-      {/* Vendor Portal Top Banner */}
+      {/* Vendor Portal Top Banner matching KnitKhata.html */}
       <div className="vbanner" style={{ marginBottom: 16 }}>
-        ABC Knit Composite-এর জন্য ভেন্ডর ভিউ। রহমান নিটিং ও অন্যান্য যেসব
-        ফ্যাক্টরিতে আপনার অর্ডার চলছে, সব এক নজরে।
+        আপনি <b>মো. কামরুল হাসান</b> হিসেবে লগইন করেছেন — <b>ABC Knit Composite</b>। এখানে শুধু{' '}
+        <b>{factoryProfile?.name || 'রহমান নিটিং ইন্ডাস্ট্রিজ'}</b>-এ চলা আপনাদের অর্ডারগুলো দেখা যাচ্ছে।
       </div>
 
       {/* Header */}
@@ -105,7 +109,21 @@ export const VendorOrdersPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredOrders.map((o) => {
+              {filteredOrders.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={9}
+                    style={{
+                      textAlign: 'center',
+                      padding: '36px 16px',
+                      color: 'var(--muted)',
+                    }}
+                  >
+                    কোনো অর্ডার পাওয়া যায়নি।
+                  </td>
+                </tr>
+              ) : (
+                filteredOrders.map((o) => {
                 const progress = Math.min(
                   100,
                   Math.round(((o.done || 0) / (o.qty || 1)) * 100)
@@ -128,7 +146,7 @@ export const VendorOrdersPage: React.FC = () => {
                     <td className="mono small">
                       {Array.isArray(o.machines) && o.machines.length > 0
                         ? o.machines.join(', ')
-                        : 'M-03, M-04'}
+                        : '—'}
                     </td>
                     <td className="n">{bnNum(o.qty)}</td>
                     <td className="n" style={{ fontWeight: 600 }}>
@@ -186,11 +204,15 @@ export const VendorOrdersPage: React.FC = () => {
                     </td>
                   </tr>
                 );
-              })}
+              })
+            )}
             </tbody>
           </table>
         </div>
       </div>
+      <p className="small muted" style={{ marginTop: 12 }}>
+        রেট, অপারেটরের নাম, অন্য ভেন্ডরের তথ্য — এগুলো ভেন্ডর দেখতে পান না।
+      </p>
     </div>
   );
 };

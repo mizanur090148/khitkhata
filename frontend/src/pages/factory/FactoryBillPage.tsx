@@ -9,12 +9,21 @@ export const FactoryBillPage: React.FC = () => {
     orders,
     parties,
     factoryBills,
+    factoryProfile,
+    fetchBills,
+    fetchOrders,
     createKkBill,
     recordKkBillPayment,
   } = useApp();
 
   const isVendor = role === 'vendor' || (role as string) === 'ven';
   const [curBill, setCurBill] = useState<string | null>(null);
+
+  // Sync fresh bills & orders on mount
+  React.useEffect(() => {
+    fetchBills?.();
+    fetchOrders?.();
+  }, []);
 
   // New bill state
   const [newBillParty, setNewBillParty] = useState<string>('abc');
@@ -375,7 +384,7 @@ export const FactoryBillPage: React.FC = () => {
     <div style={{ maxWidth: '100%', width: '100%' }}>
       {isVendor && (
         <div className="vbanner" style={{ marginBottom: 16 }}>
-          রহমান নিটিং ইন্ডাস্ট্রিজ থেকে পাওয়া আপনার বিল ও পেমেন্টের খাতা।
+          <b>{factoryProfile?.name || 'রহমান নিটিং ইন্ডাস্ট্রিজ'}</b> আপনাকে যত বিল দিয়েছে, কত পরিশোধ করেছেন আর কত বাকি। বিলে ক্লিক করলে পুরো বিল আর ভাউচার খুলবে, PDF নামাতে পারবেন।
         </div>
       )}
 
@@ -572,7 +581,21 @@ export const FactoryBillPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredBills.map((b) => {
+              {filteredBills.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={9}
+                    style={{
+                      textAlign: 'center',
+                      padding: '36px 16px',
+                      color: 'var(--muted)',
+                    }}
+                  >
+                    কোনো বিল পাওয়া যায়নি।
+                  </td>
+                </tr>
+              ) : (
+                filteredBills.map((b) => {
                 const amt = billAmt(b);
                 const rec = billRecv(b);
                 const totalKg = (b.lines || []).reduce(
@@ -614,7 +637,8 @@ export const FactoryBillPage: React.FC = () => {
                     </td>
                   </tr>
                 );
-              })}
+              })
+            )}
             </tbody>
           </table>
         </div>

@@ -80,7 +80,7 @@ export const NAV_VEN: ([ 'grp', string ] | [ string, string, string, string ])[]
 export const FactoryLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { role, setRole, currentUser, users, logout } = useApp();
+  const { role, setRole, currentUser, users, factoryProfile, logout } = useApp();
 
   const isVendor = role === 'vendor' || (role as string) === 'ven';
   const currentNav = isVendor ? NAV_VEN : NAV_FAC;
@@ -95,7 +95,7 @@ export const FactoryLayout: React.FC = () => {
       <header className="top">
         <div className="brand">
           <div className="logo">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--surface)" stroke-width="2">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--surface)" strokeWidth="2">
               <path d="M4 8c4 0 4 8 8 8s4-8 8-8" />
               <path d="M4 14c4 0 4 6 8 6s4-6 8-6" opacity=".6" />
               <path d="M4 3c4 0 4 7 8 7s4-7 8-7" opacity=".35" />
@@ -103,11 +103,17 @@ export const FactoryLayout: React.FC = () => {
           </div>
           <div>
             <b>নিটখাতা</b>
-            <small>{currentUser?.organization_name || 'রহমান নিটিং ইন্ডাস্ট্রিজ (নমুনা ফ্যাক্টরি)'}</small>
+            <small>
+              {isVendor
+                ? `ABC Knit Composite (ভেন্ডর ভিউ) · ফ্যাক্টরি: ${factoryProfile?.name || 'রহমান নিটিং ইন্ডাস্ট্রিজ'}`
+                : (currentUser?.organization_name || factoryProfile?.name || 'রহমান নিটিং ইন্ডাস্ট্রিজ')}
+            </small>
           </div>
         </div>
 
-        <span className="proto">প্রোটোটাইপ · নমুনা ডেটা</span>
+        <span className="proto" style={{ borderColor: 'var(--ok)', color: 'var(--ok)' }}>
+          লাইভ সিঙ্ক
+        </span>
 
         <div className="roleswitch" role="group" aria-label="কার চোখে দেখবেন">
           <button
@@ -142,10 +148,16 @@ export const FactoryLayout: React.FC = () => {
           }}
           aria-label="প্রোফাইল ও সেটিংস"
         >
-          <span className="av">আ</span>
+          <span className="av">
+            {isVendor ? 'ক' : (currentUser?.name || users[0]?.name || 'আরিফ')[0]}
+          </span>
           <span>
-            <b id="tuN">{currentUser?.name || users[0]?.name || 'আরিফ হোসেন'}</b>
-            <small id="tuR">{currentUser?.designation || (role === 'vendor' ? 'বায়ার' : 'মালিক')}</small>
+            <b id="tuN">
+              {isVendor ? 'মো. কামরুল হাসান' : (currentUser?.name || users[0]?.name || 'আরিফ হোসেন')}
+            </b>
+            <small id="tuR">
+              {isVendor ? 'মার্চেন্ডাইজার (ABC)' : (currentUser?.designation || 'মালিক')}
+            </small>
           </span>
         </button>
 

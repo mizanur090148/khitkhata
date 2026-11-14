@@ -23,81 +23,16 @@ interface ThreadItem {
   msgs: ChatMessage[];
 }
 
-const INITIAL_THREADS: ThreadItem[] = [
-  {
-    id: 'th-1',
-    v: 'abc',
-    vName: 'ABC Knit Composite',
-    o: 'ORD-26-0891',
-    title: 'Single Jersey 160 GSM · Body',
-    unread: 2,
-    msgs: [
-      {
-        s: 'sys',
-        txt: 'অর্ডার ORD-26-0891 এর জন্য মেসেজ থ্রেড চালু হলো',
-        t: '০১ অক্টো, ১০:০০',
-      },
-      {
-        s: 'ven',
-        n: 'মো. কামরুল হাসান (সিনিয়র মার্চেন্ডাইজার)',
-        txt: 'ভাই, লট SQ-88419 এর সুতা কি ফ্লোরে গেছে? ডায়া কি ৩১" ঠিক আছে?',
-        t: '০১ অক্টো, ১০:২২',
-      },
-      {
-        s: 'fac',
-        n: 'শফিকুল ইসলাম (প্রোডাকশন ম্যানেজার)',
-        txt: 'জি ভাই, M-03 ও M-04 মেশিনে সুতা উঠেছে। প্রথম রোল চেক করে গ্রে ডায়া ৩২" এবং ফিনিশ ডায়া ৩০" পাওয়া গেছে।',
-        t: '০১ অক্টো, ১১:০৫',
-      },
-      {
-        s: 'fac',
-        n: 'রুবেল মিয়া (ফ্যাক্টরি QC)',
-        txt: 'রোল M-03/001 এর QC কমপ্লিট। কোনো হোল বা সুতার তেল নেই, সাইন দিয়েছি।',
-        t: '০২ অক্টো, ০৪:১৫',
-      },
-      {
-        s: 'ven',
-        n: 'মো. কামরুল হাসান',
-        txt: 'ধন্যবাদ। আজ বিকেল ৫টার মধ্যে ৫০০০ কেজি ডেলিভারি চালান করতে পারবেন?',
-        t: 'আজ, ০৯:৪০',
-      },
-    ],
-  },
-  {
-    id: 'th-2',
-    v: 'xyz',
-    vName: 'XYZ Fashion Ltd',
-    o: 'ORD-26-0885',
-    title: '1x1 Rib 220 GSM · Cuff',
-    unread: 0,
-    msgs: [
-      {
-        s: 'sys',
-        txt: 'অর্ডার ORD-26-0885 এর আলোচনা শুরু',
-        t: '২৮ সেপ্টে, ১২:৩০',
-      },
-      {
-        s: 'ven',
-        n: 'শারমিন আক্তার',
-        txt: 'স্প্যানডেক্স টেনশন একটু চেক করবেন প্লিজ, যাতে রিব অতিরিক্ত টাইট না হয়।',
-        t: '২৯ সেপ্টে, ০২:১৫',
-      },
-      {
-        s: 'fac',
-        n: 'আরিফ হোসেন (মালিক)',
-        txt: 'আমাদের মাস্টার দেখে এডজাস্ট করে দিয়েছে। স্যাম্পল পাঠানো হয়েছে।',
-        t: '৩০ সেপ্টে, ১০:০০',
-      },
-    ],
-  },
-];
-
 export const FactoryMessagesPage: React.FC = () => {
   const navigate = useNavigate();
-  const { role, openCallModal, users, threads: appThreads, parties } = useApp();
+  const { role, openCallModal, users, threads: appThreads, parties, orders, fetchOrders } = useApp();
 
   const isVendor = role === 'vendor' || (role as string) === 'ven';
   const meSide = isVendor ? 'ven' : 'fac';
+
+  React.useEffect(() => {
+    fetchOrders?.();
+  }, []);
 
   const [threads, setThreads] = useState<ThreadItem[]>(() => {
     if (appThreads && appThreads.length > 0) {
@@ -116,7 +51,26 @@ export const FactoryMessagesPage: React.FC = () => {
         })),
       }));
     }
-    return INITIAL_THREADS;
+    return (orders || []).map((o) => {
+      const pCode = o.party_code || o.v || (o.party?.includes('ABC') ? 'abc' : 'xyz');
+      const pName = parties.find((p) => p.code === pCode)?.name || o.party || (pCode === 'abc' ? 'ABC Knit Composite' : 'পার্টি');
+      const fabDesc = `${o.fabric || 'Single Jersey'}${o.gsm ? ` · ${o.gsm} GSM` : ''}`;
+      return {
+        id: `th-${o.id}`,
+        v: pCode,
+        vName: pName,
+        o: o.id,
+        title: fabDesc,
+        unread: 0,
+        msgs: [
+          {
+            s: 'sys' as const,
+            txt: `অর্ডার ${o.id} (${fabDesc}) এর মেসেজ থ্রেড চালু হলো`,
+            t: 'আজ',
+          },
+        ],
+      };
+    });
   });
 
   React.useEffect(() => {
@@ -137,15 +91,47 @@ export const FactoryMessagesPage: React.FC = () => {
           })),
         }))
       );
+    } else if (orders && orders.length > 0) {
+      setThreads(
+        orders.map((o) => {
+          const pCode = o.party_code || o.v || (o.party?.includes('ABC') ? 'abc' : 'xyz');
+          const pName = parties.find((p) => p.code === pCode)?.name || o.party || (pCode === 'abc' ? 'ABC Knit Composite' : 'পার্টি');
+          const fabDesc = `${o.fabric || 'Single Jersey'}${o.gsm ? ` · ${o.gsm} GSM` : ''}`;
+          return {
+            id: `th-${o.id}`,
+            v: pCode,
+            vName: pName,
+            o: o.id,
+            title: fabDesc,
+            unread: 0,
+            msgs: [
+              {
+                s: 'sys' as const,
+                txt: `অর্ডার ${o.id} (${fabDesc}) এর মেসেজ থ্রেড চালু হলো`,
+                t: 'আজ',
+              },
+            ],
+          };
+        })
+      );
     }
-  }, [appThreads, parties]);
+  }, [appThreads, orders, parties]);
 
-  const [activeThreadId, setActiveThreadId] = useState<string>('th-1');
+  const visibleThreads = isVendor
+    ? threads.filter(
+        (t) =>
+          t.v === 'abc' ||
+          t.vName.includes('ABC') ||
+          (orders.find((o) => o.id === t.o)?.party_code === 'abc')
+      )
+    : threads;
+
+  const [activeThreadId, setActiveThreadId] = useState<string>('');
   const [inputText, setInputText] = useState<string>('');
   const [currentUserIdx, setCurrentUserIdx] = useState<number>(0);
 
   const activeThread =
-    threads.find((t) => t.id === activeThreadId) || threads[0];
+    visibleThreads.find((t) => t.id === activeThreadId) || visibleThreads[0];
 
   const facStaff = users.filter((u) => !u.is_vendor_rep);
   const activeStaff = facStaff[currentUserIdx] || {
@@ -242,88 +228,137 @@ export const FactoryMessagesPage: React.FC = () => {
       </div>
 
       {/* Main Chat Interface */}
-      <div
-        className="chat has-team"
-        style={{
-          display: 'grid',
-          gridTemplateColumns: isVendor ? '280px 1fr' : '240px 180px 1fr',
-          gap: 16,
-          background: 'var(--surface)',
-          borderRadius: 12,
-          border: '1px solid var(--line)',
-          minHeight: '620px',
-          overflow: 'hidden',
-        }}
-      >
-        {/* Col 1: Threads List */}
+      {visibleThreads.length === 0 ? (
         <div
-          className="ch-list"
+          className="card"
           style={{
-            borderRight: '1px solid var(--line)',
-            padding: 10,
-            overflowY: 'auto',
+            textAlign: 'center',
+            padding: '48px 24px',
+            color: 'var(--muted)',
           }}
         >
-          <div style={{ fontSize: '.75rem', color: 'var(--muted)', padding: '6px 8px', textTransform: 'uppercase', letterSpacing: '.06em' }}>
-            অর্ডার সংক্রান্ত থ্রেড
-          </div>
-          {threads.map((t) => {
-            const last = t.msgs[t.msgs.length - 1];
-            const isSelected = t.id === activeThread.id;
-            return (
-              <button
-                key={t.id}
-                className={`ch-th ${isSelected ? 'on' : ''}`}
-                type="button"
-                style={{
-                  width: '100%',
-                  textAlign: 'left',
-                  display: 'flex',
-                  gap: 10,
-                  padding: '10px 12px',
-                  borderRadius: 8,
-                  border: 0,
-                  background: isSelected ? 'var(--accent-soft)' : 'transparent',
-                  cursor: 'pointer',
-                  marginBottom: 4,
-                }}
-                onClick={() => setActiveThreadId(t.id)}
-              >
-                <div
-                  className="ch-av"
-                  style={{
-                    width: 38,
-                    height: 38,
-                    borderRadius: 8,
-                    background: isSelected ? 'var(--accent)' : 'var(--surface2)',
-                    color: isSelected ? '#fff' : 'inherit',
-                    display: 'grid',
-                    placeItems: 'center',
-                    fontWeight: 700,
-                  }}
-                >
-                  {t.vName.slice(0, 1)}
-                </div>
-                <div className="ch-tx" style={{ flex: 1, minWidth: 0 }}>
-                  <b style={{ display: 'block', fontSize: '.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {isVendor ? 'রহমান নিটিং' : t.vName}
-                  </b>
-                  <span className="mono small" style={{ display: 'block', color: 'var(--muted)', fontSize: '.76rem' }}>
-                    {t.o}
-                  </span>
-                  <small style={{ display: 'block', color: 'var(--muted)', fontSize: '.76rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {last?.txt || (last?.voice ? 'ভয়েস মেসেজ' : 'মেসেজ')}
-                  </small>
-                </div>
-                {t.unread > 0 && (
-                  <span className="ch-un" style={{ marginLeft: 'auto' }}>
-                    {t.unread}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+          <h3 style={{ fontSize: '1.15rem', marginBottom: 8 }}>কোনো মেসেজ থ্রেড নেই</h3>
+          <p>
+            {isVendor
+              ? 'আপনার কোনো অর্ডারের আলোচনা শুরু হলে এখানে দেখা যাবে।'
+              : 'নতুন অর্ডার তৈরি হলে সংশ্লিষ্ট পার্টির সাথে আলোচনা থ্রেড এখানে স্বয়ংক্রিয়ভাবে যুক্ত হবে।'}
+          </p>
         </div>
+      ) : (
+        <div
+          className="chat has-team"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: isVendor ? '280px 1fr' : '240px 180px 1fr',
+            gap: 16,
+            background: 'var(--surface)',
+            borderRadius: 12,
+            border: '1px solid var(--line)',
+            minHeight: '620px',
+            overflow: 'hidden',
+          }}
+        >
+          {/* Col 1: Threads List */}
+          <div
+            className="ch-list"
+            style={{
+              borderRight: '1px solid var(--line)',
+              padding: 10,
+              overflowY: 'auto',
+            }}
+          >
+            <div
+              style={{
+                fontSize: '.75rem',
+                color: 'var(--muted)',
+                padding: '6px 8px',
+                textTransform: 'uppercase',
+                letterSpacing: '.06em',
+              }}
+            >
+              অর্ডার সংক্রান্ত থ্রেড
+            </div>
+            {visibleThreads.map((t) => {
+              const last = t.msgs[t.msgs.length - 1];
+              const isSelected = activeThread && t.id === activeThread.id;
+              return (
+                <button
+                  key={t.id}
+                  className={`ch-th ${isSelected ? 'on' : ''}`}
+                  type="button"
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    display: 'flex',
+                    gap: 10,
+                    padding: '10px 12px',
+                    borderRadius: 8,
+                    border: 0,
+                    background: isSelected ? 'var(--accent-soft)' : 'transparent',
+                    cursor: 'pointer',
+                    marginBottom: 4,
+                  }}
+                  onClick={() => setActiveThreadId(t.id)}
+                >
+                  <div
+                    className="ch-av"
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 8,
+                      background: isSelected ? 'var(--accent)' : 'var(--surface2)',
+                      color: isSelected ? '#fff' : 'inherit',
+                      display: 'grid',
+                      placeItems: 'center',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {t.vName.slice(0, 1)}
+                  </div>
+                  <div className="ch-tx" style={{ flex: 1, minWidth: 0 }}>
+                    <b
+                      style={{
+                        display: 'block',
+                        fontSize: '.9rem',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {isVendor ? 'রহমান নিটিং' : t.vName}
+                    </b>
+                    <span
+                      className="mono small"
+                      style={{
+                        display: 'block',
+                        color: 'var(--muted)',
+                        fontSize: '.76rem',
+                      }}
+                    >
+                      {t.o}
+                    </span>
+                    <small
+                      style={{
+                        display: 'block',
+                        color: 'var(--muted)',
+                        fontSize: '.76rem',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {last?.txt || (last?.voice ? 'ভয়েস মেসেজ' : 'মেসেজ')}
+                    </small>
+                  </div>
+                  {t.unread > 0 && (
+                    <span className="ch-un" style={{ marginLeft: 'auto' }}>
+                      {t.unread}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
 
         {/* Col 2: Factory Team Selector (Only for Factory View) */}
         {!isVendor && (
@@ -624,6 +659,7 @@ export const FactoryMessagesPage: React.FC = () => {
           </form>
         </div>
       </div>
+      )}
     </div>
   );
 };

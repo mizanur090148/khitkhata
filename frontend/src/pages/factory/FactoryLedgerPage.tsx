@@ -1,22 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
 import { bnNum } from '@/utils/formatters';
 
 export const FactoryLedgerPage: React.FC = () => {
   const navigate = useNavigate();
-  const { role, orders, parties, factoryBills } = useApp();
+  const { role, orders, parties, factoryBills, factoryProfile, fetchBills, fetchOrders } = useApp();
 
   const isVendor = role === 'vendor' || (role as string) === 'ven';
   const [curParty, setCurParty] = useState<string>('abc');
   const [tab, setTab] = useState<'ord' | 'tx'>('ord');
+
+  useEffect(() => {
+    fetchBills?.();
+    fetchOrders?.();
+  }, []);
 
   const activePartyKey = isVendor ? 'abc' : curParty;
 
   // Party details
   const partyObj = parties.find((p) => p.code === activePartyKey) || {
     name: activePartyKey === 'abc' ? 'ABC Knit Composite' : activePartyKey === 'xyz' ? 'XYZ Fashion Ltd' : activePartyKey,
-    open: 250000,
+    open: 0,
   };
 
   const openBalance = Number(partyObj.open || 0);
@@ -134,7 +139,7 @@ export const FactoryLedgerPage: React.FC = () => {
     <div style={{ maxWidth: '100%', width: '100%' }}>
       {isVendor && (
         <div className="vbanner" style={{ marginBottom: 16 }}>
-          রহমান নিটিং-এর খাতায় আপনার হিসাব — কোন অর্ডার, কত সুতা পাঠিয়েছেন, কবে
+          <b>{factoryProfile?.name || 'রহমান নিটিং ইন্ডাস্ট্রিজ'}</b>-এর খাতায় আপনার হিসাব — কোন অর্ডার, কত সুতা পাঠিয়েছেন, কবে
           শেষ, কত বিল, কত দিয়েছেন আর কত বাকি। ফ্যাক্টরি যা দেখে, আপনিও ঠিক তাই
           দেখছেন।
         </div>
@@ -146,7 +151,7 @@ export const FactoryLedgerPage: React.FC = () => {
           <h2>{isVendor ? 'আমার হিসাব (লেজার)' : 'পার্টি লেজার'}</h2>
           <p>
             {isVendor
-              ? 'রহমান নিটিং ইন্ডাস্ট্রিজ-এর সাথে আপনার পুরো লেনদেনের খাতা'
+              ? `${factoryProfile?.name || 'রহমান নিটিং ইন্ডাস্ট্রিজ'}-এর সাথে আপনার পুরো লেনদেনের খাতা`
               : 'প্রতিটা ভেন্ডরের আলাদা খাতা — কোন অর্ডার, কত সুতা, কবে শেষ, কত বিল, কত পেলাম'}
           </p>
         </div>
@@ -270,74 +275,89 @@ export const FactoryLedgerPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {orderRows.map((r) => {
-                  const o = r.o;
-                  const pct = Math.round(
-                    ((o.done || 0) / (o.qty || 1)) * 100
-                  );
-                  return (
-                    <tr
-                      key={o.id}
-                      className="click"
-                      onClick={() => navigate(`/dashboard/orders/${o.id}`)}
-                      style={{ cursor: 'pointer' }}
+                {orderRows.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={14}
+                      style={{
+                        textAlign: 'center',
+                        padding: '36px 16px',
+                        color: 'var(--muted)',
+                      }}
                     >
-                      <td className="mono small">
-                        {o.orderDate ? o.orderDate.slice(5) : '09-21'}
-                      </td>
-                      <td className="mono" style={{ fontWeight: 600 }}>
-                        {o.id}
-                      </td>
-                      <td>
-                        {o.fabric} {o.gsm}
-                      </td>
-                      <td className="n">
-                        {r.yarnRecv > 0 ? bnNum(r.yarnRecv) : '—'}
-                      </td>
-                      <td className="n">{bnNum(o.qty)}</td>
-                      <td className="n">৳{o.rateTk || 30}</td>
-                      <td className="n">৳ {bnNum(r.orderVal)}</td>
-                      <td>
-                        {o.completeDate ? (
-                          <span className="mono small">{o.completeDate}</span>
-                        ) : o.status === 'wait' ? (
-                          <span className="pill p-yarn">সুতার অপেক্ষায়</span>
-                        ) : (
-                          <span className="pill p-acc">চলছে {pct}%</span>
-                        )}
-                      </td>
-                      <td className="n">
-                        {r.delivKg > 0 ? bnNum(r.delivKg) : '—'}
-                      </td>
-                      <td className="mono small">
-                        {r.b ? (
-                          r.b.no
-                        ) : o.status === 'done' ? (
-                          <span className="pill p-bad">বিল বাকি</span>
-                        ) : (
-                          '—'
-                        )}
-                      </td>
-                      <td className="mono small">{r.b ? r.b.date : '—'}</td>
-                      <td className="n">
-                        {r.bAmt > 0 ? `৳ ${bnNum(r.bAmt)}` : '—'}
-                      </td>
-                      <td className="n">
-                        {r.rec > 0 ? `৳ ${bnNum(r.rec)}` : '—'}
-                      </td>
-                      <td
-                        className="n"
-                        style={{
-                          fontWeight: r.bAmt - r.rec > 0 ? 600 : 400,
-                          color:
-                            r.bAmt - r.rec > 0 ? 'var(--bad)' : 'inherit',
-                        }}
+                      কোনো অর্ডার রেকর্ড পাওয়া যায়নি।
+                    </td>
+                  </tr>
+                ) : (
+                  orderRows.map((r) => {
+                    const o = r.o;
+                    const pct = Math.round(
+                      ((o.done || 0) / (o.qty || 1)) * 100
+                    );
+                    return (
+                      <tr
+                        key={o.id}
+                        className="click"
+                        onClick={() => navigate(`/dashboard/orders/${o.id}`)}
+                        style={{ cursor: 'pointer' }}
                       >
-                        {r.bAmt > 0 ? `৳ ${bnNum(r.bAmt - r.rec)}` : '—'}
-                      </td>
-                    </tr>
-                  );
-                })}
+                        <td className="mono small">
+                          {o.orderDate ? o.orderDate.slice(5) : '—'}
+                        </td>
+                        <td className="mono" style={{ fontWeight: 600 }}>
+                          {o.id}
+                        </td>
+                        <td>
+                          {o.fabric} {o.gsm}
+                        </td>
+                        <td className="n">
+                          {r.yarnRecv > 0 ? bnNum(r.yarnRecv) : '—'}
+                        </td>
+                        <td className="n">{bnNum(o.qty)}</td>
+                        <td className="n">৳{o.rateTk || 30}</td>
+                        <td className="n">৳ {bnNum(r.orderVal)}</td>
+                        <td>
+                          {o.completeDate ? (
+                            <span className="mono small">{o.completeDate}</span>
+                          ) : o.status === 'wait' ? (
+                            <span className="pill p-yarn">সুতার অপেক্ষায়</span>
+                          ) : (
+                            <span className="pill p-acc">চলছে {pct}%</span>
+                          )}
+                        </td>
+                        <td className="n">
+                          {r.delivKg > 0 ? bnNum(r.delivKg) : '—'}
+                        </td>
+                        <td className="mono small">
+                          {r.b ? (
+                            r.b.no
+                          ) : o.status === 'done' ? (
+                            <span className="pill p-bad">বিল বাকি</span>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td className="mono small">{r.b ? r.b.date : '—'}</td>
+                        <td className="n">
+                          {r.bAmt > 0 ? `৳ ${bnNum(r.bAmt)}` : '—'}
+                        </td>
+                        <td className="n">
+                          {r.rec > 0 ? `৳ ${bnNum(r.rec)}` : '—'}
+                        </td>
+                        <td
+                          className="n"
+                          style={{
+                            fontWeight: r.bAmt - r.rec > 0 ? 600 : 400,
+                            color:
+                              r.bAmt - r.rec > 0 ? 'var(--bad)' : 'inherit',
+                          }}
+                        >
+                          {r.bAmt > 0 ? `৳ ${bnNum(r.bAmt - r.rec)}` : '—'}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
                 <tr className="totrow" style={{ fontWeight: 700, background: 'var(--surface2)' }}>
                   <td colSpan={3}>মোট</td>
                   <td className="n">{bnNum(totalYarn)}</td>

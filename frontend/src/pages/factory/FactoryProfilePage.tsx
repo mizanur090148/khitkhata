@@ -2,18 +2,30 @@ import React, { useState } from 'react';
 import { useApp } from '@/context/AppContext';
 
 export const FactoryProfilePage: React.FC = () => {
-  const { role, factoryProfile, updateFactoryProfileInfo, logout, addToast } = useApp();
+  const { role, factoryProfile, updateFactoryProfileInfo, parties, logout, addToast } = useApp();
   const isVendor = role === 'vendor' || (role as string) === 'ven';
   const [tab, setTab] = useState<'org' | 'pay' | 'notif' | 'sec'>('org');
 
+  const vendorParty = parties.find(
+    (p) => p.code === 'abc' || (p.name && p.name.includes('ABC'))
+  );
+
   // Org form state
   const [orgName, setOrgName] = useState<string>(
-    isVendor ? 'ABC Knit Composite' : factoryProfile.name || 'রহমান নিটিং ইন্ডাস্ট্রিজ'
+    isVendor
+      ? vendorParty?.name || 'ABC Knit Composite'
+      : factoryProfile.name || 'রহমান নিটিং ইন্ডাস্ট্রিজ'
   );
   const [area, setArea] = useState<string>(
-    isVendor ? 'আশুলিয়া, সাভার, ঢাকা' : factoryProfile.area || 'কড্ডা, কাশিমপুর রোড, গাজীপুর'
+    isVendor
+      ? vendorParty?.addr || 'আশুলিয়া, সাভার, ঢাকা'
+      : factoryProfile.area || 'কড্ডা, কাশিমপুর রোড, গাজীপুর'
   );
-  const [phone, setPhone] = useState<string>(isVendor ? '01913-000000' : '01711-000000');
+  const [phone, setPhone] = useState<string>(
+    isVendor
+      ? vendorParty?.phone || '01913000000'
+      : '01711000000'
+  );
   const [bin, setBin] = useState<string>(isVendor ? '002984123-0102' : '001234567-0101');
   const [totalMc, setTotalMc] = useState<number>(isVendor ? 0 : factoryProfile.totalMachines || 24);
 
