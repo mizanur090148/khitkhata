@@ -81,6 +81,7 @@ Route::prefix('v1')->group(function () {
         // Store & Spare Parts
         Route::get('/store', [StoreController::class, 'getStoreData']);
         Route::post('/store/movement', [StoreController::class, 'storeStockMovement']);
+        Route::post('/store/item', [StoreController::class, 'storeNewItem']);
 
         // Parties (Vendors / Buyers / Mills)
         Route::get('/parties', [PartyController::class, 'getParties']);

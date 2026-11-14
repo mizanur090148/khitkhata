@@ -382,6 +382,15 @@ interface AppContextType {
     machine_code?: string;
     issued_by?: string;
   }) => Promise<any>;
+  addStoreItem: (payload: {
+    name: string;
+    category: string;
+    unit: string;
+    stock_qty: number;
+    min_qty: number;
+    unit_price: number;
+    item_code?: string;
+  }) => Promise<any>;
   addYarnInward: (payload: {
     order_no: string;
     count: string;
@@ -1592,6 +1601,34 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  const addStoreItem = async (payload: {
+    name: string;
+    category: string;
+    unit: string;
+    stock_qty: number;
+    min_qty: number;
+    unit_price: number;
+    item_code?: string;
+  }): Promise<any> => {
+    try {
+      const res = await apiClient.post('portal/store/item', payload);
+      await fetchStoreData();
+      addToast({
+        type: 'success',
+        title: 'নতুন আইটেম যোগ',
+        message: res?.message || `${payload.name} সফলভাবে যোগ হয়েছে`,
+      });
+      return res?.data;
+    } catch (err: any) {
+      addToast({
+        type: 'error',
+        title: 'আইটেম যোগ ব্যর্থ',
+        message: err.message || 'নতুন আইটেম তৈরি করা সম্ভব হয়নি',
+      });
+      throw err;
+    }
+  };
+
   const addYarnInward = async (payload: {
     order_no: string;
     count: string;
@@ -2189,6 +2226,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         storeLogs,
         fetchStoreData,
         recordStoreMovement,
+        addStoreItem,
         addYarnInward,
         requestYarnReturn,
         createYarnReturnChallan,

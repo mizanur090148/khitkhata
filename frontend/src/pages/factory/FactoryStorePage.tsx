@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { bnNum } from '@/utils/formatters';
 import { SearchableSelect } from '@/components/common/SearchableSelect';
@@ -24,13 +25,18 @@ interface IssueLogModel {
 
 export const FactoryStorePage: React.FC = () => {
   const {
+    currentUser,
     storeInventory,
     storeLogs,
     fetchStoreData,
     recordStoreMovement,
+    addStoreItem,
     machines,
     addToast,
   } = useApp();
+
+  // Loading state
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // State
   const [stCat, setStCat] = useState<string>('all');
@@ -39,62 +45,67 @@ export const FactoryStorePage: React.FC = () => {
   const [stP, setStP] = useState<string>('');
   const [stS, setStS] = useState<string>('');
   const [stM, setStM] = useState<string>('M-01');
-  const [stB, setStB] = useState<string>('শফিকুল');
+  const [stB, setStB] = useState<string>('');
   const [rfqSet, setRfqSet] = useState<Set<string>>(new Set());
 
+  // New Item Creation State
+  const [showNewItem, setShowNewItem] = useState<boolean>(false);
+  const [newItemName, setNewItemName] = useState<string>('');
+  const [newItemCategory, setNewItemCategory] = useState<string>('নিডল ও সিংকার');
+  const [newItemUnit, setNewItemUnit] = useState<string>('পিস');
+  const [newItemStock, setNewItemStock] = useState<string>('');
+  const [newItemMin, setNewItemMin] = useState<string>('');
+  const [newItemPrice, setNewItemPrice] = useState<string>('');
+
+  // Initial load from live backend
   useEffect(() => {
-    fetchStoreData();
+    let mounted = true;
+    fetchStoreData()
+      .catch((err) => console.warn('Store data fetch error:', err))
+      .finally(() => {
+        if (mounted) setIsLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  // Normalize store items from API/context or initial sample
-  const items: StoreItemModel[] = useMemo(() => {
-    if (storeInventory && storeInventory.length) {
-      return storeInventory.map((x: any) => ({
-        id: x.id || x.item_code,
-        name: x.name,
-        cat: x.cat || x.category || 'নিডল ও সিংকার',
-        unit: x.unit || 'পিস',
-        stock: Number(x.stock !== undefined ? x.stock : x.stock_qty || 0),
-        min: Number(x.min !== undefined ? x.min : x.min_qty || 0),
-        price: Number(x.price !== undefined ? x.price : x.unit_price || 0),
-        rfq: Boolean(x.rfq || x.rfq_sent || rfqSet.has(x.id || x.item_code)),
-      }));
+  // Default issuer from logged in user
+  useEffect(() => {
+    if (!stB && currentUser?.name) {
+      setStB(currentUser.name);
     }
-    return [
-      { id: 'n1', name: 'নিডল Groz-Beckert VO 74.41 G02', cat: 'নিডল ও সিংকার', unit: 'পিস', stock: 340, min: 500, price: 42 },
-      { id: 'n2', name: 'নিডল Groz-Beckert VO 71.52 G01 (রিব)', cat: 'নিডল ও সিংকার', unit: 'পিস', stock: 820, min: 400, price: 45 },
-      { id: 's1', name: 'সিংকার (Pailung 24G)', cat: 'নিডল ও সিংকার', unit: 'পিস', stock: 150, min: 200, price: 18 },
-      { id: 'o1', name: 'নিটিং অয়েল (২০ লিটার)', cat: 'নিটিং অয়েল', unit: 'ক্যান', stock: 6, min: 4, price: 3600 },
-      { id: 'p1', name: 'ইয়ার্ন ফিডার', cat: 'স্পেয়ার পার্টস', unit: 'পিস', stock: 12, min: 10, price: 950 },
-      { id: 'p2', name: 'পজিটিভ ফিড বেল্ট', cat: 'স্পেয়ার পার্টস', unit: 'পিস', stock: 3, min: 5, price: 1400 },
-      { id: 'p3', name: 'ক্যাম বক্স স্প্রিং', cat: 'স্পেয়ার পার্টস', unit: 'সেট', stock: 9, min: 4, price: 600 },
-      { id: 'e1', name: 'ইনভার্টার রিলে', cat: 'ইলেকট্রিক গুডস', unit: 'পিস', stock: 2, min: 2, price: 2200 },
-    ];
+  }, [currentUser, stB]);
+
+  // Normalize store items directly from MySQL database (zero mock fallbacks)
+  const items: StoreItemModel[] = useMemo(() => {
+    return (storeInventory || []).map((x: any) => ({
+      id: x.id || x.item_code,
+      name: x.name,
+      cat: x.cat || x.category || 'নিডল ও সিংকার',
+      unit: x.unit || 'পিস',
+      stock: Number(x.stock !== undefined ? x.stock : x.stock_qty || 0),
+      min: Number(x.min !== undefined ? x.min : x.min_qty || 0),
+      price: Number(x.price !== undefined ? x.price : x.unit_price || 0),
+      rfq: Boolean(x.rfq || x.rfq_sent || rfqSet.has(x.id || x.item_code)),
+    }));
   }, [storeInventory, rfqSet]);
 
-  // Normalize issue logs
+  // Normalize issue logs directly from MySQL database
   const logs: IssueLogModel[] = useMemo(() => {
-    if (storeLogs && storeLogs.length) {
-      return storeLogs.map((l: any) => ({
-        d: l.d || l.date_label || '03 Oct',
-        id: l.id || l.item_code || 'n1',
-        m: l.m || l.machine_code || 'M-07',
-        q: Number(l.q || l.qty || 1),
-        by: l.by || l.issued_by || 'শফিকুল',
-      }));
-    }
-    return [
-      { d: '03 Oct', id: 'n1', m: 'M-07', q: 60, by: 'শফিকুল' },
-      { d: '02 Oct', id: 'n1', m: 'M-03', q: 40, by: 'শফিকুল' },
-      { d: '02 Oct', id: 'o1', m: 'সব মেশিন', q: 1, by: 'মো. হানিফ' },
-      { d: '01 Oct', id: 'n2', m: 'M-12', q: 30, by: 'শফিকুল' },
-      { d: '30 Sep', id: 'p2', m: 'M-10', q: 1, by: 'মো. হানিফ' },
-    ];
+    return (storeLogs || []).map((l: any) => ({
+      d: l.d || l.date_label || (l.created_at ? new Date(l.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : 'আজ'),
+      id: l.id || l.item_code || '',
+      m: l.m || l.machine_code || 'সব মেশিন',
+      q: Number(l.q || l.qty || 1),
+      by: l.by || l.issued_by || 'স্টোর ইনচার্জ',
+    }));
   }, [storeLogs]);
 
   // Categories
   const categories = useMemo(() => {
-    return Array.from(new Set(items.map((x) => x.cat)));
+    const list = Array.from(new Set(items.map((x) => x.cat).filter(Boolean)));
+    return list.length ? list : ['নিডল ও সিংকার', 'নিটিং অয়েল', 'স্পেয়ার পার্টস', 'ইলেকট্রিক গুডস'];
   }, [items]);
 
   // Filtered Items
@@ -130,15 +141,18 @@ export const FactoryStorePage: React.FC = () => {
     return vals.length ? Math.max(...vals) : 1;
   }, [needlesPerMachine]);
 
-  // Machine list options
+  // Dynamic machine list
   const machineList = useMemo(() => {
     if (machines && machines.length) {
       return machines.map((m) => m.id);
     }
-    return Array.from({ length: 24 }, (_, i) => `M-${String(i + 1).padStart(2, '0')}`);
+    return [
+      ...Array.from({ length: 24 }, (_, i) => `M-${String(i + 1).padStart(2, '0')}`),
+      ...Array.from({ length: 6 }, (_, i) => `F-${String(i + 1).padStart(2, '0')}`),
+    ];
   }, [machines]);
 
-  // Handle Form Submit
+  // Handle Restock / Issue Form Submit
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!stForm) return;
@@ -152,6 +166,8 @@ export const FactoryStorePage: React.FC = () => {
     const item = items.find((x) => x.id === stForm.id);
     if (!item) return;
 
+    const issuer = stB.trim() || currentUser?.name || 'স্টোর ইনচার্জ';
+
     if (stForm.t === 'out') {
       if (q > item.stock) {
         addToast({ type: 'error', message: `স্টকে আছে মাত্র ${item.stock} ${item.unit}` });
@@ -163,12 +179,12 @@ export const FactoryStorePage: React.FC = () => {
           type: 'out',
           qty: q,
           machine_code: stM,
-          issued_by: stB.trim() || 'শফিকুল',
+          issued_by: issuer,
         });
         setStForm(null);
         setStQ('');
       } catch {
-        // Handled
+        // Handled in context
       }
     } else {
       const p = parseFloat(stP);
@@ -184,8 +200,38 @@ export const FactoryStorePage: React.FC = () => {
         setStP('');
         setStS('');
       } catch {
-        // Handled
+        // Handled in context
       }
+    }
+  };
+
+  // Handle New Item Creation
+  const handleCreateNewItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newItemName.trim()) {
+      addToast({ type: 'error', message: 'আইটেমের নাম লিখুন' });
+      return;
+    }
+    const stock = parseInt(newItemStock, 10) || 0;
+    const min = parseInt(newItemMin, 10) || 0;
+    const price = parseFloat(newItemPrice) || 0;
+
+    try {
+      await addStoreItem({
+        name: newItemName.trim(),
+        category: newItemCategory.trim() || 'নিডল ও সিংকার',
+        unit: newItemUnit.trim() || 'পিস',
+        stock_qty: stock,
+        min_qty: min,
+        unit_price: price,
+      });
+      setShowNewItem(false);
+      setNewItemName('');
+      setNewItemStock('');
+      setNewItemMin('');
+      setNewItemPrice('');
+    } catch {
+      // Handled in context
     }
   };
 
@@ -202,11 +248,34 @@ export const FactoryStorePage: React.FC = () => {
         message: 'কোটেশন অনুরোধ ৩ জন অনুমোদিত সাপ্লায়ারের কাছে গেছে · উত্তর মেসেজে আসবে',
       });
     } catch {
-      // Handled
+      // Handled in context
     }
   };
 
   const activeFormItem = stForm ? items.find((x) => x.id === stForm.id) : null;
+
+  if (isLoading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 280 }}>
+        <div
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: '50%',
+            background: 'var(--surface, #ffffff)',
+            boxShadow: '0 4px 14px rgba(0, 0, 0, 0.08)',
+            border: '1px solid var(--border)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'var(--primary, #0284c7)',
+          }}
+        >
+          <Loader2 size={24} className="animate-spin" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ width: '100%', maxWidth: '100%' }}>
@@ -219,7 +288,98 @@ export const FactoryStorePage: React.FC = () => {
             কোটেশন চান।
           </p>
         </div>
+        <button
+          className="btn pri"
+          type="button"
+          onClick={() => {
+            setShowNewItem(!showNewItem);
+            setStForm(null);
+          }}
+        >
+          {showNewItem ? '✕ বন্ধ করুন' : '+ নতুন আইটেম'}
+        </button>
       </div>
+
+      {/* New Item Form */}
+      {showNewItem && (
+        <form className="card" onSubmit={handleCreateNewItem} noValidate style={{ margin: '14px 0' }}>
+          <h3>নতুন স্টোর আইটেম যোগ করুন</h3>
+          <div className="no-grid" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
+            <label className="no-f">
+              <span>আইটেমের নাম</span>
+              <input
+                placeholder="যেমন: নিডল Groz-Beckert 74.41"
+                value={newItemName}
+                onChange={(e) => setNewItemName(e.target.value)}
+              />
+            </label>
+
+            <label className="no-f">
+              <span>ক্যাটাগরি / ধরন</span>
+              <select value={newItemCategory} onChange={(e) => setNewItemCategory(e.target.value)}>
+                <option value="নিডল ও সিংকার">নিডল ও সিংকার</option>
+                <option value="নিটিং অয়েল">নিটিং অয়েল</option>
+                <option value="স্পেয়ার পার্টস">স্পেয়ার পার্টস</option>
+                <option value="ইলেকট্রিক গুডস">ইলেকট্রিক গুডস</option>
+              </select>
+            </label>
+
+            <label className="no-f">
+              <span>একক (Unit)</span>
+              <select value={newItemUnit} onChange={(e) => setNewItemUnit(e.target.value)}>
+                <option value="পিস">পিস</option>
+                <option value="সেট">সেট</option>
+                <option value="ক্যান">ক্যান</option>
+                <option value="লিটার">লিটার</option>
+                <option value="কেজি">কেজি</option>
+              </select>
+            </label>
+
+            <label className="no-f">
+              <span>প্রাথমিক স্টক</span>
+              <input
+                type="number"
+                min="0"
+                placeholder="যেমন: 500"
+                value={newItemStock}
+                onChange={(e) => setNewItemStock(e.target.value)}
+              />
+            </label>
+
+            <label className="no-f">
+              <span>ন্যূনতম স্টক (ওয়ার্নিং লেভেল)</span>
+              <input
+                type="number"
+                min="0"
+                placeholder="যেমন: 200"
+                value={newItemMin}
+                onChange={(e) => setNewItemMin(e.target.value)}
+              />
+            </label>
+
+            <label className="no-f">
+              <span>একক মূল্য (৳)</span>
+              <input
+                type="number"
+                min="0"
+                step="0.5"
+                placeholder="যেমন: 45"
+                value={newItemPrice}
+                onChange={(e) => setNewItemPrice(e.target.value)}
+              />
+            </label>
+          </div>
+
+          <div className="row" style={{ marginTop: 14, gap: 10 }}>
+            <button className="btn pri" type="submit">
+              আইটেম সেভ করুন
+            </button>
+            <button className="btn" type="button" onClick={() => setShowNewItem(false)}>
+              বাতিল
+            </button>
+          </div>
+        </form>
+      )}
 
       {/* 4 KPIs */}
       <div className="kpis">
@@ -297,7 +457,11 @@ export const FactoryStorePage: React.FC = () => {
                 </label>
                 <label className="no-f">
                   <span>কে নিল</span>
-                  <input value={stB} onChange={(e) => setStB(e.target.value)} />
+                  <input
+                    value={stB}
+                    placeholder="কর্মকর্তার নাম"
+                    onChange={(e) => setStB(e.target.value)}
+                  />
                 </label>
               </>
             )}
@@ -348,65 +512,75 @@ export const FactoryStorePage: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            {filteredItems.map((x) => {
-              const isLow = x.stock < x.min;
-              const hasRfq = x.rfq || rfqSet.has(x.id);
+            {filteredItems.length ? (
+              filteredItems.map((x) => {
+                const isLow = x.stock < x.min;
+                const hasRfq = x.rfq || rfqSet.has(x.id);
 
-              return (
-                <tr key={x.id}>
-                  <td>
-                    <b>{x.name}</b>
-                  </td>
-                  <td className="small">{x.cat}</td>
-                  <td className="n" style={{ color: isLow ? 'var(--bad)' : 'inherit' }}>
-                    <b>{bnNum(x.stock)}</b> {x.unit}
-                  </td>
-                  <td className="n">{bnNum(x.min)}</td>
-                  <td className="n">৳{bnNum(x.price)}</td>
-                  <td>
-                    {isLow ? (
-                      <span className="pill p-bad">কম</span>
-                    ) : (
-                      <span className="pill p-ok">ঠিক আছে</span>
-                    )}
-                  </td>
-                  <td>
-                    <div className="row" style={{ flexWrap: 'nowrap', gap: 6 }}>
-                      <button
-                        className="btn sm"
-                        onClick={() => {
-                          setStForm({ t: 'out', id: x.id });
-                          setStQ('');
-                        }}
-                      >
-                        মেশিনে দিন
-                      </button>
-                      <button
-                        className="btn sm"
-                        onClick={() => {
-                          setStForm({ t: 'in', id: x.id });
-                          setStQ('');
-                          setStP(String(x.price));
-                        }}
-                      >
-                        স্টকে যোগ
-                      </button>
-                      {isLow &&
-                        (hasRfq ? (
-                          <span className="pill p-acc">কোটেশন চাওয়া হয়েছে</span>
-                        ) : (
-                          <button
-                            className="btn sm pri"
-                            onClick={() => handleRfq(x.id)}
-                          >
-                            কোটেশন চান
-                          </button>
-                        ))}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
+                return (
+                  <tr key={x.id}>
+                    <td>
+                      <b>{x.name}</b>
+                    </td>
+                    <td className="small">{x.cat}</td>
+                    <td className="n" style={{ color: isLow ? 'var(--bad)' : 'inherit' }}>
+                      <b>{bnNum(x.stock)}</b> {x.unit}
+                    </td>
+                    <td className="n">{bnNum(x.min)}</td>
+                    <td className="n">৳{bnNum(x.price)}</td>
+                    <td>
+                      {isLow ? (
+                        <span className="pill p-bad">কম</span>
+                      ) : (
+                        <span className="pill p-ok">ঠিক আছে</span>
+                      )}
+                    </td>
+                    <td>
+                      <div className="row" style={{ flexWrap: 'nowrap', gap: 6 }}>
+                        <button
+                          className="btn sm"
+                          onClick={() => {
+                            setStForm({ t: 'out', id: x.id });
+                            setStQ('');
+                            setShowNewItem(false);
+                          }}
+                        >
+                          মেশিনে দিন
+                        </button>
+                        <button
+                          className="btn sm"
+                          onClick={() => {
+                            setStForm({ t: 'in', id: x.id });
+                            setStQ('');
+                            setStP(String(x.price));
+                            setShowNewItem(false);
+                          }}
+                        >
+                          স্টকে যোগ
+                        </button>
+                        {isLow &&
+                          (hasRfq ? (
+                            <span className="pill p-acc">কোটেশন চাওয়া হয়েছে</span>
+                          ) : (
+                            <button
+                              className="btn sm pri"
+                              onClick={() => handleRfq(x.id)}
+                            >
+                              কোটেশন চান
+                            </button>
+                          ))}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            ) : (
+              <tr>
+                <td colSpan={7} className="muted" style={{ textAlign: 'center', padding: '24px 0' }}>
+                  এই ক্যাটাগরিতে কোনো স্টোর আইটেম পাওয়া যায়নি
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -427,20 +601,28 @@ export const FactoryStorePage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {logs.slice(0, 8).map((l, idx) => {
-                  const item = items.find((s) => s.id === l.id);
-                  return (
-                    <tr key={`${l.id}-${l.m}-${idx}`}>
-                      <td>{l.d}</td>
-                      <td className="small">{item?.name || l.id}</td>
-                      <td className="mono">{l.m}</td>
-                      <td className="n">
-                        {l.q} {item?.unit || 'পিস'}
-                      </td>
-                      <td>{l.by}</td>
-                    </tr>
-                  );
-                })}
+                {logs.length ? (
+                  logs.slice(0, 8).map((l, idx) => {
+                    const item = items.find((s) => s.id === l.id);
+                    return (
+                      <tr key={`${l.id}-${l.m}-${idx}`}>
+                        <td>{l.d}</td>
+                        <td className="small">{item?.name || l.id}</td>
+                        <td className="mono">{l.m}</td>
+                        <td className="n">
+                          {l.q} {item?.unit || 'পিস'}
+                        </td>
+                        <td>{l.by}</td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="muted" style={{ textAlign: 'center', padding: '16px 0' }}>
+                      এখনো কোনো খরচের লগ নেই
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -448,25 +630,31 @@ export const FactoryStorePage: React.FC = () => {
 
         <div className="card">
           <h3>মেশিন অনুযায়ী নিডল খরচ</h3>
-          {Object.entries(needlesPerMachine)
-            .sort((a, b) => b[1] - a[1])
-            .map(([m, q]) => (
-              <div
-                key={m}
-                className="row"
-                style={{ flexWrap: 'nowrap', margin: '6px 0', alignItems: 'center' }}
-              >
-                <span className="mono" style={{ width: 56 }}>
-                  {m}
-                </span>
-                <div className="bar" style={{ flex: 1, minWidth: 80 }}>
-                  <i style={{ width: `${(q / maxNeedlesPerMachine) * 100}%` }} />
+          {Object.entries(needlesPerMachine).length ? (
+            Object.entries(needlesPerMachine)
+              .sort((a, b) => b[1] - a[1])
+              .map(([m, q]) => (
+                <div
+                  key={m}
+                  className="row"
+                  style={{ flexWrap: 'nowrap', margin: '6px 0', alignItems: 'center' }}
+                >
+                  <span className="mono" style={{ width: 56 }}>
+                    {m}
+                  </span>
+                  <div className="bar" style={{ flex: 1, minWidth: 80 }}>
+                    <i style={{ width: `${(q / maxNeedlesPerMachine) * 100}%` }} />
+                  </div>
+                  <span className="mono small" style={{ width: 70, textAlign: 'right' }}>
+                    {q} পিস
+                  </span>
                 </div>
-                <span className="mono small" style={{ width: 70, textAlign: 'right' }}>
-                  {q} পিস
-                </span>
-              </div>
-            ))}
+              ))
+          ) : (
+            <p className="small muted" style={{ textAlign: 'center', padding: '16px 0' }}>
+              এখনো কোনো মেশিনে নিডল ইস্যু করা হয়নি
+            </p>
+          )}
           <p className="small muted" style={{ marginTop: 12 }}>
             কোনো মেশিনে বেশি নিডল ভাঙলে মেশিনটা মেকানিক দিয়ে দেখানো ভালো।
           </p>
@@ -477,4 +665,3 @@ export const FactoryStorePage: React.FC = () => {
 };
 
 export default FactoryStorePage;
-
