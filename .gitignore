@@ -22,6 +22,10 @@ backend/.env.production
 frontend/.env.local
 frontend/.env.*.local
 
+# cPanel build zips
+cpanel_ready/*.zip
+
+
 # IDEs & System Files
 .idea/
 .vscode/
