@@ -117,3 +117,4 @@ FILESYSTEM_DISK=local
 node scripts/deploy-to-backend.js
 ```
 তারপর শুধু পরিবর্তিত `backend/public/assets/` ফাইলগুলো সিপ্যানেলে রিপ্লেস করলেই আপডেট লাইভ হয়ে যাবে!
+
