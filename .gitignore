@@ -1,34 +1,27 @@
-# Frontend Standalone Repository (managed in https://github.com/mizanur090148/khitkhata-frontend)
+# Standalone Frontend Repository (managed in https://github.com/mizanur090148/khitkhata-frontend)
 frontend/
 
-# Dependencies
-backend/vendor/
+# Laravel Framework
+/vendor
+.env
+.env.backup
+.env.production
+.phpunit.result.cache
+*.log
+.DS_Store
+Thumbs.db
 
-# Build Outputs
-frontend/dist/
-frontend/dist-ssr/
-frontend/*.local
+/public/build
+/public/hot
+/public/storage
+/storage/*.key
+/storage/framework/cache/*
+/storage/framework/sessions/*
+/storage/framework/views/*
+/storage/logs/*.log
+/bootstrap/cache/*.php
 
-# Laravel Storage & Cache
-backend/storage/*.key
-backend/storage/logs/*.log
-backend/storage/framework/cache/*
-backend/storage/framework/sessions/*
-backend/storage/framework/views/*
-backend/bootstrap/cache/*.php
-
-# Environment Configuration
-backend/.env
-backend/.env.backup
-backend/.env.production
-frontend/.env.local
-frontend/.env.*.local
-
-# cPanel build zips
-cpanel_ready/*.zip
-
-
-# IDEs & System Files
+# IDEs & System
 .idea/
 .vscode/
 *.suo
@@ -36,6 +29,4 @@ cpanel_ready/*.zip
 *.njsproj
 *.sln
 *.sw?
-.DS_Store
-Thumbs.db
-
+*.zip

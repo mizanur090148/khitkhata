@@ -20,19 +20,16 @@ KnitKhata is a modern, full-featured multi-tenant B2B SaaS platform specifically
 
 ```
 khitkhata/
-└── backend/                  # Laravel 13 API Backend
-    ├── app/
-    │   ├── Http/Controllers/Api/V1/
-    │   ├── Models/
-    │   ├── Scopes/TenantScope.php
-    │   ├── Services/
-    │   └── Traits/BelongsToTenant.php
-    ├── config/
-    ├── database/migrations/
-    └── routes/api.php
-```
-│
-├── KnitKhata.html            # Reference design prototype
+├── app/                      # Application Controllers, Models, Services
+├── bootstrap/                # Laravel App Bootstrap & Providers
+├── config/                   # Config files (cors, auth, database, etc.)
+├── database/                 # Migrations & Seeders
+├── public/                   # Web Root (index.php, static assets)
+├── routes/                   # API & Web routes
+├── storage/                  # Logs, cache, and uploads
+├── tests/                    # Feature & Unit test suites
+├── artisan                   # Artisan CLI
+├── composer.json             # PHP Dependencies
 └── README.md
 ```
 
@@ -40,14 +37,14 @@ khitkhata/
 
 ## 🚀 Setup & Installation
 
-### 1. Backend Setup
+### Backend Setup
 ```bash
-cd backend
 composer install
 cp .env.example .env
 php artisan key:generate
 php artisan migrate
 php artisan serve --port=8000
+```
 ```
 
 ### 2. Frontend Setup
