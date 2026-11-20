@@ -503,15 +503,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         // fallback
       }
     }
-    return {
-      id: 1,
-      name: 'হাজী মোঃ রফিকুল ইসলাম',
-      phone: '01711-889900',
-      role: 'fac',
-      designation: 'মালিক / এমডি',
-      organization_name: 'রহমান নিটিং ইন্ডাস্ট্রিজ',
-      factory_id: 1,
-    };
+    return null;
   });
 
   const logout = () => {
@@ -561,59 +553,47 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         localStorage.setItem('silposetu_user', JSON.stringify(userObj));
         return { success: true, message: res.message || 'সফলভাবে সাইন ইন হয়েছে' };
       }
+      throw new Error(res?.message || 'লগইন ব্যর্থ হয়েছে। সঠিক তথ্য দিন।');
     } catch (err: any) {
-      console.warn('[Login API warning]', err.message);
-      if (err?.response?.data?.message) {
-        throw new Error(err.response.data.message);
-      }
+      console.error('[Login API error]', err.message);
+      throw new Error(err.message || 'মোবাইল নম্বর/ইমেইল অথবা পাসওয়ার্ড সঠিক নয়।');
     }
-
-    // Seamless Fallback
-    const isEmail = identifier.includes('@');
-    const fallbackUser = {
-      id: 1,
-      name: roleKey === 'fac' ? 'আরিফ হোসেন (মালিক)' : roleKey === 'ven' ? 'মো. কামরুল হাসান' : 'নিটপার্টস ট্রেডিং',
-      phone: isEmail ? '01711223344' : identifier || '01711223344',
-      email: isEmail ? identifier : 'rafiqul@example.com',
-      role: roleKey,
-      designation: roleKey === 'fac' ? 'মালিক' : 'মার্চেন্ডাইজার',
-      organization_name: roleKey === 'fac' ? 'রহমান নিটিং ইন্ডাস্ট্রিজ' : roleKey === 'ven' ? 'ABC Knit Composite' : 'নিটপার্টস ট্রেডিং',
-      factory_id: 1,
-    };
-    setCurrentUser(fallbackUser);
-    localStorage.setItem('silposetu_user', JSON.stringify(fallbackUser));
-    return { success: true, message: 'সফলভাবে সাইন ইন হয়েছে' };
   };
 
   const resetPasswordUser = async (identifier: string, code: string, pass: string): Promise<{ success: boolean; message?: string }> => {
-    const res = await apiClient.post('/auth/reset-password', {
-      identifier: identifier.trim(),
-      code: code.trim(),
-      password: pass.trim(),
-    });
+    try {
+      const res = await apiClient.post('/auth/reset-password', {
+        identifier: identifier.trim(),
+        code: code.trim(),
+        password: pass.trim(),
+      });
 
-    if (res && res.success && res.data) {
-      const u = res.data.user;
-      const token = res.data.token;
-      if (token) {
-        apiClient.setToken(token);
+      if (res && res.success && res.data) {
+        const u = res.data.user;
+        const token = res.data.token;
+        if (token) {
+          apiClient.setToken(token);
+        }
+        const userObj = {
+          id: u.id,
+          name: u.name,
+          phone: u.phone,
+          email: u.email,
+          role: u.role,
+          designation: u.designation,
+          organization_name: u.organization_name,
+          factory_id: u.factory_id,
+          token,
+        };
+        setCurrentUser(userObj);
+        localStorage.setItem('silposetu_user', JSON.stringify(userObj));
+        return { success: true, message: res.message || 'পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে।' };
       }
-      const userObj = {
-        id: u.id,
-        name: u.name,
-        phone: u.phone,
-        email: u.email,
-        role: u.role,
-        designation: u.designation,
-        organization_name: u.organization_name,
-        factory_id: u.factory_id,
-        token,
-      };
-      setCurrentUser(userObj);
-      localStorage.setItem('silposetu_user', JSON.stringify(userObj));
-      return { success: true, message: res.message || 'পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে।' };
+      throw new Error(res?.message || 'পাসওয়ার্ড রিসেট করতে সমস্যা হয়েছে।');
+    } catch (err: any) {
+      console.error('[Reset Password API error]', err.message);
+      throw new Error(err.message || 'পাসওয়ার্ড রিসেট করতে সমস্যা হয়েছে।');
     }
-    return { success: false, message: 'পাসওয়ার্ড রিসেট করতে সমস্যা হয়েছে।' };
   };
 
   const registerUser = async (data: any): Promise<{ success: boolean; message?: string; user?: any }> => {
@@ -640,24 +620,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         localStorage.setItem('silposetu_user', JSON.stringify(userObj));
         return { success: true, message: res.message, user: userObj };
       }
+      throw new Error(res?.message || 'অ্যাকাউন্ট খুলতে ত্রুটি হয়েছে।');
     } catch (err: any) {
-      console.warn('[Register API warning]', err.message);
+      console.error('[Register API error]', err.message);
+      throw new Error(err.message || 'অ্যাকাউন্ট তৈরি করতে সমস্যা হয়েছে।');
     }
-
-    // Seamless Fallback
-    const fallbackUser = {
-      id: Date.now(),
-      name: data.name,
-      phone: data.phone,
-      email: data.email,
-      role: data.role,
-      designation: data.designation || (data.role === 'fac' ? 'মালিক' : 'মার্চেন্ডাইজার'),
-      organization_name: data.organization_name,
-      factory_id: 1,
-    };
-    setCurrentUser(fallbackUser);
-    localStorage.setItem('silposetu_user', JSON.stringify(fallbackUser));
-    return { success: true, message: 'অ্যাকাউন্ট সফলভাবে তৈরি হয়েছে', user: fallbackUser };
   };
 
 

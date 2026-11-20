@@ -82,12 +82,23 @@ export const FactoryLayout: React.FC = () => {
   const location = useLocation();
   const { role, setRole, currentUser, users, factoryProfile, logout } = useApp();
 
+  // Redirect unauthenticated guests to login
+  React.useEffect(() => {
+    if (!currentUser) {
+      navigate('/login', { replace: true });
+    }
+  }, [currentUser, navigate]);
+
   const isVendor = role === 'vendor' || (role as string) === 'ven';
   const currentNav = isVendor ? NAV_VEN : NAV_FAC;
 
   // Extract active path segment (e.g. /dashboard/orders -> 'orders')
   const pathParts = location.pathname.split('/').filter(Boolean);
   const currentSegment = pathParts[1] || (isVendor ? 'vorders' : 'dash');
+
+  if (!currentUser) {
+    return null;
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>

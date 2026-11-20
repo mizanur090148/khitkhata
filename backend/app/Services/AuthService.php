@@ -55,14 +55,14 @@ class AuthService
             }
         }
 
-        // 3. Fallback for demo credentials or first user
+        // 3. Fallback for demo credentials
         if (!$user) {
             $isDemo = in_array(strtolower($identifier), [
                 'demo', 'admin', '01711000000', '01711889900', '01xxxxxxxxx',
                 'demo@silposetu.com', 'demo@knitkhata.com', 'owner@knitkhata.com'
             ]);
 
-            if ($isDemo || config('app.debug')) {
+            if ($isDemo) {
                 $user = $this->createDemoUser($identifier, $role ?? 'fac');
             } else {
                 throw ValidationException::withMessages([
@@ -71,9 +71,8 @@ class AuthService
             }
         }
 
-        // 4. Verify password
-        $isDemoPass = in_array($password, ['demo1234', 'password', '123456']);
-        if (!$isDemoPass && !Hash::check($password, $user->password)) {
+        // 4. Verify password strictly
+        if (!Hash::check($password, $user->password)) {
             throw ValidationException::withMessages([
                 'password' => ['পাসওয়ার্ড সঠিক নয়। পুনরায় চেষ্টা করুন।'],
             ]);
