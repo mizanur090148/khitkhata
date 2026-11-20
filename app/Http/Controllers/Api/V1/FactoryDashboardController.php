@@ -39,7 +39,7 @@ class FactoryDashboardController extends Controller
     }
 
     /**
-     * GET /api/v1/portal/dashboard
+     * GET URL /api/v1/portal/dashboard
      * Live aggregated factory dashboard data directly from MySQL
      */
     public function index(Request $request): JsonResponse
