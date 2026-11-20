@@ -12,14 +12,7 @@ KnitKhata is a modern, full-featured multi-tenant B2B SaaS platform specifically
   * **Service Layer**: Dedicated services for Tenants (`TenantService`), Subscriptions (`SubscriptionService`), and Authentication (`AuthService`)
   * **Subscription Tiers**: Starter (`s`), Growth (`g`), Pro (`p`), and Enterprise (`e`)
 
-* **Frontend**: React 19 + TypeScript + Vite
-  * **Styling**: Pure CSS with KnitKhata design system and exact responsive layouts
-  * **State**: Centralized context (`AppContext`) with token auto-hydration and backend sync
-  * **Portals**:
-    * **Factory Portal**: Shift production tracking, Job cards, Fabric roll QR labels, QC signatures, Challans, Party ledgers, Yarn tracking.
-    * **Vendor Portal**: Multi-factory production monitoring, Buying house order tracking, Vendor QC signs, Delivery receipt acknowledgments.
-    * **Supplier Portal**: Spare parts, needles, sinkers, yarn marketplace and RFQ bids.
-    * **Partner Portal**: Affiliate referral links and commission withdrawal.
+* **Frontend**: Standalone React SPA repository: [khitkhata-frontend](https://github.com/mizanur090148/khitkhata-frontend)
 
 ---
 
@@ -27,27 +20,17 @@ KnitKhata is a modern, full-featured multi-tenant B2B SaaS platform specifically
 
 ```
 khitkhata/
-├── backend/                  # Laravel 13 API Backend
-│   ├── app/
-│   │   ├── Http/Controllers/Api/V1/
-│   │   ├── Models/
-│   │   ├── Scopes/TenantScope.php
-│   │   ├── Services/
-│   │   └── Traits/BelongsToTenant.php
-│   ├── config/
-│   ├── database/migrations/
-│   └── routes/api.php
-│
-├── frontend/                 # React 19 + TypeScript + Vite
-│   ├── src/
-│   │   ├── api/
-│   │   ├── components/       # Reusable components
-│   │   ├── context/          # AppContext state engine
-│   │   ├── pages/            # Page controllers (HomePage, AuthPage, FactoryPortalPage, etc.)
-│   │   ├── styles/           # KnitKhata stylesheet
-│   │   └── types/            # TypeScript domain interfaces
-│   ├── package.json
-│   └── vite.config.ts
+└── backend/                  # Laravel 13 API Backend
+    ├── app/
+    │   ├── Http/Controllers/Api/V1/
+    │   ├── Models/
+    │   ├── Scopes/TenantScope.php
+    │   ├── Services/
+    │   └── Traits/BelongsToTenant.php
+    ├── config/
+    ├── database/migrations/
+    └── routes/api.php
+```
 │
 ├── KnitKhata.html            # Reference design prototype
 └── README.md

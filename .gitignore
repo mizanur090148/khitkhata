@@ -1,5 +1,7 @@
+# Frontend Standalone Repository (managed in https://github.com/mizanur090148/khitkhata-frontend)
+frontend/
+
 # Dependencies
-frontend/node_modules/
 backend/vendor/
 
 # Build Outputs
