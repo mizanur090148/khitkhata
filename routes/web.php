@@ -15,22 +15,14 @@ Route::get('/api-status', function () {
     ]);
 });
 
-// Single Page Application (SPA) entry point for all web routes
-Route::get('/{any?}', function () {
-    $indexPath = public_path('index.html');
-    if (File::exists($indexPath)) {
-        return Response::file($indexPath, [
-            'Content-Type' => 'text/html; charset=UTF-8',
-        ]);
-    }
-
+Route::get('/', function () {
     return response()->json([
-        'name' => 'Silposetu (নিটখাতা) Enterprise API',
+        'name' => 'Silposetu (নিটখাতা) Enterprise REST API',
         'framework' => 'Laravel ' . app()->version(),
         'php' => PHP_VERSION,
         'status' => 'operational',
-        'notice' => 'Frontend React SPA has not been deployed to public/ yet.',
+        'api_docs' => url('/api/v1/health'),
     ]);
-})->where('any', '^(?!api).*$');
+});
 
 

@@ -6,7 +6,7 @@
     RewriteEngine On
 
     # Default DirectoryIndex
-    DirectoryIndex index.html index.php
+    DirectoryIndex index.php
 
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
